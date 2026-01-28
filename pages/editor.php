@@ -1,11 +1,10 @@
 <?php
-// editor.php - Editor Profesional V9.2 (Full Expanded Code - Fixed Nodes & Delete)
+// editor.php - Editor Profesional V9.6 (Fix: Removed Pan Tool & Added 2-Finger Nav)
 require_once __DIR__ . '/../core/auth/session.php';
 require_once __DIR__ . '/../core/db/connection.php';
 
 $userRole = $_SESSION['role'] ?? 'Viewer';
 
-// SEGURIDAD: Los Viewers NO pueden entrar al editor.
 if ($userRole === 'Viewer') {
     $id = $_GET['id'] ?? 0;
     header("Location: preview.php?id=$id");
@@ -14,7 +13,6 @@ if ($userRole === 'Viewer') {
 
 $id = $_GET['id'] ?? 0;
 
-// 1. Obtener archivo
 $stmt = $pdo->prepare("SELECT * FROM files WHERE id=?");
 $stmt->execute([$id]);
 $file = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -23,19 +21,15 @@ if(!$file) {
     die("<div style='color:white;text-align:center;padding:50px;font-family:sans-serif;'>Error: File not found. ID: $id</div>");
 }
 
-// 2. Variables de entorno
 $projectId = $file['project_id'];
 $folderId = $file['folder_id'];
 
-// 3. Historial (Base de datos)
 $stmtRep = $pdo->prepare("SELECT annotations_json FROM file_reports WHERE file_id=? ORDER BY created_at DESC LIMIT 1");
 $stmtRep->execute([$id]);
 $lastReport = $stmtRep->fetchColumn();
 $annotations = ($lastReport && $lastReport !== 'null') ? $lastReport : '{}';
 
-// 4. Determinar extension real para JS
 $fileExt = strtolower(pathinfo($file['filename'], PATHINFO_EXTENSION));
-// 5. Ajustar ruta publica si el archivo quedo en api/uploads por refactor previo
 $filePath = $file['filepath'];
 if (strpos($filePath, 'uploads/') === 0) {
     $expected = __DIR__ . '/../' . $filePath;
@@ -53,7 +47,7 @@ if (strpos($filePath, 'uploads/') === 0 || strpos($filePath, 'api/uploads/') ===
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Editor V9.2 | <?= htmlspecialchars($file['filename']) ?></title>
+    <title>Editor V9.6 | <?= htmlspecialchars($file['filename']) ?></title>
     
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -62,10 +56,256 @@ if (strpos($filePath, 'uploads/') === 0 || strpos($filePath, 'api/uploads/') ===
     <script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js"></script>
 
     <link rel="stylesheet" href="../assets/editor/editor.css">
+
+    <style>
+        :root {
+            --header-height: 60px;
+            --sb-right-w: 70px; /* Ancho Desktop */
+            --sb-mobile-h: 65px; /* Alto Mobile */
+            --bg-dark: #0f172a;
+            --border-color: #334155;
+        }
+
+        body { overflow: hidden; background: var(--bg-dark); }
+
+        /* --- LAYOUT GRID (Desktop Default) --- */
+        .app-container {
+            display: grid;
+            height: 100vh;
+            width: 100vw;
+            grid-template-columns: 1fr var(--sb-right-w); 
+            grid-template-rows: var(--header-height) 1fr;
+            grid-template-areas: 
+                "header header"
+                "canvas right";
+        }
+
+        .app-header { grid-area: header; z-index: 50; border-bottom: 1px solid var(--border-color); }
+        .canvas-area { grid-area: canvas; position: relative; overflow: hidden; background: #1e293b; }
+
+        /* --- SIDEBAR IZQUIERDA (Overlay Universal) --- */
+        .sidebar-left {
+            position: fixed !important;
+            top: var(--header-height); left: 0; bottom: 0; width: 260px;
+            background: var(--bg-dark); border-right: 1px solid var(--border-color);
+            z-index: 1000; transform: translateX(-100%);
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex; flex-direction: column;
+        }
+        .sidebar-left.show { transform: translateX(0); }
+        .sidebar-overlay {
+            position: fixed; top: var(--header-height); left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.5); z-index: 999; display: none; opacity: 0; transition: opacity 0.3s;
+        }
+        .sidebar-overlay.show { display: block; opacity: 1; }
+
+        /* --- SIDEBAR DERECHA (Herramientas) --- */
+        .sidebar-right {
+            grid-area: right;
+            border-left: 1px solid var(--border-color);
+            background: var(--bg-dark);
+            z-index: 40;
+            display: flex;
+            flex-direction: column; /* Desktop: Vertical */
+            align-items: center;
+            padding-top: 15px;
+            gap: 10px;
+        }
+
+        /* --- CONTROLES FLOTANTES (Zoom/Paginas) --- */
+        .floating-controls {
+            position: absolute;
+            bottom: 20px; right: 20px;
+            background: rgba(15, 23, 42, 0.9);
+            border: 1px solid var(--border-color);
+            border-radius: 50px;
+            padding: 5px 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            z-index: 30;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
+            transition: all 0.3s ease; /* Transición suave para ocultar/mostrar */
+            color: white;
+        }
+
+        .float-btn {
+            background: none; border: none; color: white;
+            padding: 5px; cursor: pointer; opacity: 0.8;
+            transition: opacity 0.2s;
+        }
+        .float-btn:hover { opacity: 1; }
+
+        /* --- UI ELEMENTS (Botones Icono Grande) --- */
+        .toggle-icon-btn {
+            background: none !important;
+            border: none !important;
+            color: rgba(255,255,255,0.7);
+            font-size: 1.5rem; /* Icono Grande */
+            padding: 0 10px;
+            margin-right: 5px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: color 0.2s;
+        }
+        .toggle-icon-btn:hover, .toggle-icon-btn.active {
+            color: #fff;
+            text-shadow: 0 0 8px rgba(255,255,255,0.3);
+        }
+
+        /* --- STAMP MENU (FIXED POSITION) --- */
+        .stamp-menu {
+            position: fixed; /* Fix para Mobile overflow */
+            z-index: 2000;
+            display: none;
+            background: rgba(15, 23, 42, 0.95);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 10px;
+            gap: 8px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+            backdrop-filter: blur(5px);
+        }
+        
+        .stamp-item {
+            padding: 8px 15px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            font-weight: 500;
+            transition: background 0.2s;
+            color: white;
+            white-space: nowrap;
+            display: flex;
+            align-items: center;
+        }
+        .stamp-item:hover { background: rgba(255,255,255,0.1); }
+
+        /* Desktop: A la izquierda del sidebar */
+        @media (min-width: 992px) {
+            .stamp-menu {
+                right: 80px; /* 70px sidebar + 10px gap */
+                top: 50%;
+                transform: translateY(-50%);
+                flex-direction: column;
+            }
+        }
+
+        /* --- BOTÓN SAVE (MORADO Y RESPONSIVE) --- */
+        #btn-save {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            height: 40px !important;
+            padding: 0 20px !important; /* Estilo píldora en Desktop */
+            border-radius: 50px !important;
+            
+            /* COLOR MORADO FUERTE */
+            background: #8b5cf6 !important; 
+            color: white !important;
+            border: none;
+            
+            min-width: unset;
+            transition: transform 0.2s, background 0.2s;
+            box-shadow: 0 4px 6px rgba(139, 92, 246, 0.25);
+        }
+        #btn-save:hover { 
+            transform: scale(1.05); 
+            background: #7c3aed !important; /* Morado un poco más oscuro al pasar mouse */
+        }
+        #btn-save span { display: inline-block; font-weight: 600; font-size: 0.9rem; }
+        #btn-save i { font-size: 1rem; }
+
+        /* --- MOBILE LAYOUT (Responsive) --- */
+        @media (max-width: 991px) {
+            .app-container {
+                grid-template-columns: 1fr; /* Una sola columna */
+                grid-template-areas: 
+                    "header"
+                    "canvas";
+            }
+
+            /* Transformar Sidebar Derecho en Barra Inferior */
+            .sidebar-right {
+                position: fixed;
+                bottom: 0; left: 0; right: 0;
+                height: var(--sb-mobile-h);
+                width: 100%;
+                border-left: none;
+                border-top: 1px solid var(--border-color);
+                flex-direction: row; /* Mobile: Horizontal */
+                justify-content: center; /* Centrar herramientas */
+                padding-top: 0;
+                gap: 15px;
+                transform: translateY(100%); /* Oculto por defecto (abajo) */
+                transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+                overflow-x: auto; /* Scroll si hay muchas herramientas */
+                padding-left: 10px; padding-right: 10px;
+            }
+
+            .sidebar-right.show-mobile {
+                transform: translateY(0); /* Mostrar al subir */
+            }
+
+            /* Fix Stamp Menu Mobile (Arriba de la barra) */
+            .stamp-menu {
+                bottom: 80px; /* 65px barra + 15px gap */
+                left: 50%;
+                transform: translateX(-50%);
+                flex-direction: row; /* Horizontal en mobile */
+                flex-wrap: wrap;
+                justify-content: center;
+                width: 90%;
+                max-width: 350px;
+            }
+
+            /* Botón Save en Mobile: Solo Icono (Círculo más grande) */
+            #btn-save {
+                width: 40px !important;
+                height: 40px !important;
+                padding: 0 !important;
+                border-radius: 50% !important;
+            }
+            /* OCULTAR EL TEXTO "SAVE" EN MOBILE */
+            #btn-save span { display: none !important; }
+
+            /* Ajustar controles flotantes en Mobile */
+            .floating-controls {
+                bottom: 20px; right: 15px; /* Ajuste de posición */
+                transform: scale(0.85); /* Reducir tamaño un 15% */
+                transform-origin: bottom right; 
+                padding: 4px 12px;
+            }
+
+            /* Clase para ocultar los controles cuando sube la barra */
+            .floating-controls.hide-ui {
+                opacity: 0;
+                pointer-events: none;
+                transform: translateY(20px) scale(0.85); /* Se desplaza un poco hacia abajo */
+            }
+
+            /* Ajustar separadores en horizontal */
+            .tool-separator {
+                width: 1px; height: 30px; margin: 0 5px;
+                border-bottom: none; border-left: 1px solid #475569;
+            }
+        }
+
+    </style>
 </head>
 <body>
 
-<div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSheets()"></div>
+<div class="sidebar-overlay" id="sidebarOverlay" onclick="closeAllOverlays()"></div>
+
+<div class="stamp-menu" id="stamp-menu">
+    <div class="stamp-item text-success" onclick="addStamp('APPROVED', '#22c55e')"><i class="fas fa-check-circle me-2"></i>Approved</div>
+    <div class="stamp-item text-danger" onclick="addStamp('REJECTED', '#ef4444')"><i class="fas fa-times-circle me-2"></i>Rejected</div>
+    <div class="stamp-item text-warning" onclick="addStamp('REVIEW', '#eab308')"><i class="fas fa-exclamation-circle me-2"></i>Review</div>
+    <div class="stamp-item text-info" onclick="addStamp('DRAFT', '#3b82f6')"><i class="fas fa-file-alt me-2"></i>Draft</div>
+</div>
 
 <div class="app-container">
     
@@ -73,11 +313,15 @@ if (strpos($filePath, 'uploads/') === 0 || strpos($filePath, 'api/uploads/') ===
         <div class="header-left">
             <a href="index.php?project_id=<?= $projectId ?>" class="text-white me-3 d-md-none"><i class="fas fa-chevron-left"></i></a>
             
-            <button class="mobile-toggle-btn" onclick="toggleSheets()">
+            <button class="toggle-icon-btn" onclick="toggleSheets()" title="Show Sheets">
                 <i class="far fa-file-alt"></i>
             </button>
 
-            <div class="brand-logo">
+            <button class="toggle-icon-btn d-lg-none" id="btn-toggle-tools" onclick="toggleMobileTools()" title="Tools">
+                <i class="fas fa-tools"></i>
+            </button>
+
+            <div class="brand-logo ms-2">
                 <i class="fas fa-bolt text-warning"></i> <span class="d-none d-md-inline">Brightronix</span>
             </div>
             
@@ -164,9 +408,8 @@ if (strpos($filePath, 'uploads/') === 0 || strpos($filePath, 'api/uploads/') ===
                 <button class="btn btn-outline-light rounded-circle" id="btn-redo" style="width:35px;height:35px;border-color:var(--border);" onclick="redo()" title="Redo"><i class="fas fa-redo"></i></button>
             </div>
             
-            <button class="btn-action" id="btn-save" onclick="openReportModal()">
-                <i class="fas fa-save"></i> 
-                <span class="d-none d-lg-inline">Save and Report</span>
+            <button class="btn-action" id="btn-save" onclick="openReportModal()" title="Save and Report">
+                <i class="fas fa-save"></i> <span>Save</span>
             </button>
             
             <a href="index.php?project_id=<?= $projectId ?><?= $folderId ? "&folder_id=$folderId" : '' ?>" class="btn-close-custom d-none d-md-flex">
@@ -178,7 +421,7 @@ if (strpos($filePath, 'uploads/') === 0 || strpos($filePath, 'api/uploads/') ===
     <aside class="sidebar-left" id="sidebarLeft">
         <div class="d-flex justify-content-between align-items-center mb-3">
             <span class="sidebar-title mb-0"><i class="far fa-file-alt me-2"></i>Sheets</span>
-            <button class="btn-close btn-close-white d-md-none" onclick="toggleSheets()"></button>
+            <button class="btn-close btn-close-white" onclick="toggleSheets()"></button>
         </div>
 
         <div id="page-list-container">
@@ -208,10 +451,7 @@ if (strpos($filePath, 'uploads/') === 0 || strpos($filePath, 'api/uploads/') ===
         </div>
     </main>
 
-    <aside class="sidebar-right">
-        <button class="tool-btn" id="btn-pan" onclick="setMode('pan')" title="Hand / Pan"><i class="fas fa-hand-paper"></i></button>
-        <div class="tool-separator"></div>
-
+    <aside class="sidebar-right" id="sidebarRight">
         <button class="tool-btn active" id="btn-smart" onclick="setMode('smart')" title="Pointer"><i class="fas fa-mouse-pointer"></i></button>
         <button class="tool-btn" id="btn-draw" onclick="setMode('draw')" title="Pen Tool"><i class="fas fa-pencil-alt"></i></button>
         <button class="tool-btn" id="btn-text" onclick="addText()" title="Add Text"><i class="fas fa-font"></i></button>
@@ -221,13 +461,6 @@ if (strpos($filePath, 'uploads/') === 0 || strpos($filePath, 'api/uploads/') ===
         <div class="tool-separator"></div>
         <button class="tool-btn" id="btn-measure" onclick="setMode('measure')" title="Ruler"><i class="fas fa-ruler"></i></button>
         <button class="tool-btn text-warning" id="btn-cal" onclick="setMode('cal')" title="Calibrate"><i class="fas fa-ruler-combined"></i></button>
-        
-        <div class="stamp-menu" id="stamp-menu">
-            <div class="stamp-item text-success" onclick="addStamp('APPROVED', '#22c55e')"><i class="fas fa-check-circle me-2"></i>Approved</div>
-            <div class="stamp-item text-danger" onclick="addStamp('REJECTED', '#ef4444')"><i class="fas fa-times-circle me-2"></i>Rejected</div>
-            <div class="stamp-item text-warning" onclick="addStamp('REVIEW', '#eab308')"><i class="fas fa-exclamation-circle me-2"></i>Review</div>
-            <div class="stamp-item text-info" onclick="addStamp('DRAFT', '#3b82f6')"><i class="fas fa-file-alt me-2"></i>Draft</div>
-        </div>
     </aside>
 
 </div>
@@ -272,10 +505,55 @@ if (strpos($filePath, 'uploads/') === 0 || strpos($filePath, 'api/uploads/') ===
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
 <script>
-    // --- UI HELPERS (Mobile Toggle) ---
+    // --- UI HELPERS ---
+    
+    // Toggle Sidebar Izquierda (Sheets)
     function toggleSheets() {
         document.getElementById('sidebarLeft').classList.toggle('show');
-        document.getElementById('sidebarOverlay').classList.toggle('show');
+        updateOverlay();
+        // Cerrar herramientas si abrimos sheets
+        closeTools();
+    }
+
+    // Toggle Herramientas (Mobile)
+    function toggleMobileTools() {
+        const sbRight = document.getElementById('sidebarRight');
+        const btn = document.getElementById('btn-toggle-tools');
+        const floatControls = document.querySelector('.floating-controls'); // Selección de controles flotantes
+
+        sbRight.classList.toggle('show-mobile');
+        btn.classList.toggle('active');
+        
+        // Logica para ocultar controles flotantes
+        if (sbRight.classList.contains('show-mobile')) {
+            if(floatControls) floatControls.classList.add('hide-ui');
+        } else {
+            if(floatControls) floatControls.classList.remove('hide-ui');
+        }
+
+        // Cerrar sheets si abrimos herramientas
+        document.getElementById('sidebarLeft').classList.remove('show');
+        updateOverlay();
+    }
+
+    function closeTools() {
+        document.getElementById('sidebarRight').classList.remove('show-mobile');
+        document.getElementById('btn-toggle-tools').classList.remove('active');
+        
+        // Mostrar de nuevo los controles flotantes si se cerró la barra
+        const floatControls = document.querySelector('.floating-controls');
+        if(floatControls) floatControls.classList.remove('hide-ui');
+    }
+
+    function updateOverlay() {
+        const overlay = document.getElementById('sidebarOverlay');
+        const sheetsOpen = document.getElementById('sidebarLeft').classList.contains('show');
+        if(sheetsOpen) overlay.classList.add('show'); else overlay.classList.remove('show');
+    }
+
+    function closeAllOverlays() {
+        document.getElementById('sidebarLeft').classList.remove('show');
+        updateOverlay();
     }
 
     // --- SETUP ---
@@ -459,7 +737,6 @@ if (strpos($filePath, 'uploads/') === 0 || strpos($filePath, 'api/uploads/') ===
         if (!bgWidth || !viewport.width) return null;
         const renderScale = bgWidth / viewport.width;
         if (!isFinite(renderScale) || renderScale <= 0) return null;
-        // PDF points are 72 per inch; scale converts points to pixels.
         return 72 * renderScale;
     }
 
@@ -556,18 +833,14 @@ if (strpos($filePath, 'uploads/') === 0 || strpos($filePath, 'api/uploads/') ===
     const DOUBLE_TAP_DELAY = 400;
 
     // --- CUSTOM CONTROLS FOR LINES (POSITION HANDLER FIXED) ---
-    // Esta función garantiza que el control siga la punta de la línea, no la caja delimitadora
     function createLineControls(line) {
         function linePositionHandler(pointName) {
             return function(dim, finalMatrix, fabricObject) {
                 const points = fabricObject.calcLinePoints();
-                const pt = (pointName === 'p1')
-                    ? new fabric.Point(points.x1, points.y1)
-                    : new fabric.Point(points.x2, points.y2);
+                const pt = (pointName === 'p1') ? new fabric.Point(points.x1, points.y1) : new fabric.Point(points.x2, points.y2);
                 return fabric.util.transformPoint(pt, finalMatrix);
             };
         }
-
         function lineActionHandler(pointName) {
             return function(e, transform, x, y) {
                 const target = transform.target;
@@ -579,96 +852,53 @@ if (strpos($filePath, 'uploads/') === 0 || strpos($filePath, 'api/uploads/') ===
                     localPoint = target.toLocalPoint(pt, target.originX || 'center', target.originY || 'center');
                 }
                 if (!localPoint) return false;
-                if (pointName === 'p1') {
-                    target.set({ x1: localPoint.x, y1: localPoint.y });
-                } else {
-                    target.set({ x2: localPoint.x, y2: localPoint.y });
-                }
+                if (pointName === 'p1') { target.set({ x1: localPoint.x, y1: localPoint.y }); } else { target.set({ x2: localPoint.x, y2: localPoint.y }); }
                 updateMeasureLabel(target);
                 return true;
             };
         }
-
         line.controls = {
-            p1: new fabric.Control({
-                positionHandler: linePositionHandler('p1'),
-                actionHandler: lineActionHandler('p1'),
-                cursorStyle: 'crosshair',
-                render: renderCircleControl
-            }),
-            p2: new fabric.Control({
-                positionHandler: linePositionHandler('p2'),
-                actionHandler: lineActionHandler('p2'),
-                cursorStyle: 'crosshair',
-                render: renderCircleControl
-            })
+            p1: new fabric.Control({ positionHandler: linePositionHandler('p1'), actionHandler: lineActionHandler('p1'), cursorStyle: 'crosshair', render: renderCircleControl }),
+            p2: new fabric.Control({ positionHandler: linePositionHandler('p2'), actionHandler: lineActionHandler('p2'), cursorStyle: 'crosshair', render: renderCircleControl })
         };
     }
 
     function renderCircleControl(ctx, left, top, styleOverride, fabricObject) {
-        ctx.save();
-        ctx.translate(left, top);
-        ctx.beginPath();
-        ctx.arc(0, 0, 8, 0, Math.PI * 2, false); // Radio 8px
-        ctx.fillStyle = "#ffffff";
-        ctx.strokeStyle = "#22c55e";
-        ctx.lineWidth = 2;
-        ctx.fill();
-        ctx.stroke();
-        ctx.restore();
+        ctx.save(); ctx.translate(left, top); ctx.beginPath();
+        ctx.arc(0, 0, 8, 0, Math.PI * 2, false); 
+        ctx.fillStyle = "#ffffff"; ctx.strokeStyle = "#22c55e"; ctx.lineWidth = 2;
+        ctx.fill(); ctx.stroke(); ctx.restore();
     }
 
     // --- LOCK HELPERS ---
     function lockObject(obj) {
         if(!obj) return;
-        // Default Lock: Movimiento bloqueado, Controles (nodos) habilitados
         obj.set({
             lockMovementX: obj.isMeasureLine ? false : true,
             lockMovementY: obj.isMeasureLine ? false : true,
-            lockRotation: true,
-            lockScalingX: true,
-            lockScalingY: true,
-            borderColor: '#22c55e',
-            cornerColor: 'transparent', // Ocultar esquinas default
-            hasBorders: false, // Ocultar borde de caja
-            hasControls: true // Permitir controles (nuestros nodos)
+            lockRotation: true, lockScalingX: true, lockScalingY: true,
+            borderColor: '#22c55e', cornerColor: 'transparent', hasBorders: false, hasControls: true
         });
-        
-        if (obj.isMeasureLine) {
-            createLineControls(obj);
-        }
+        if (obj.isMeasureLine) createLineControls(obj);
     }
 
     function unlockObject(obj) {
         if(!obj) return;
-        // Unlock for Moving (Double Tap)
         obj.set({
-            lockMovementX: false,
-            lockMovementY: false,
-            lockRotation: true, // Rotation siempre bloqueada para lineas simples por UX
-            borderColor: '#ef4444',
-            hasBorders: true,
-            hasControls: false, // Ocultar nodos al mover todo el objeto
-            borderDashArray: [5, 5]
+            lockMovementX: false, lockMovementY: false, lockRotation: true,
+            borderColor: '#ef4444', hasBorders: true, hasControls: false, borderDashArray: [5, 5]
         });
     }
 
-    // --- DELETE FUNCTIONALITY (Requerimiento Nuevo) ---
+    // --- DELETE FUNCTIONALITY ---
     function deleteSelected() {
         const activeObjects = canvas.getActiveObjects();
         if(!activeObjects.length) return;
-
         if(!confirm(`Delete ${activeObjects.length} item(s)?`)) return;
-
         canvas.discardActiveObject();
         activeObjects.forEach(obj => {
-            // Caso especial: Línea de medición
-            if(obj.isMeasureLine && obj.label) {
-                canvas.remove(obj.label);
-            }
-            // Caso especial: Etiqueta (si se seleccionara sola)
+            if(obj.isMeasureLine && obj.label) canvas.remove(obj.label);
             if(obj.isMeasureLabel) {
-                 // Buscar la línea dueña y borrarla
                  const line = canvas.getObjects().find(o => o.labelId === obj.id);
                  if(line) canvas.remove(line);
             }
@@ -677,16 +907,24 @@ if (strpos($filePath, 'uploads/') === 0 || strpos($filePath, 'api/uploads/') ===
         saveHistory();
     }
 
-    // --- PINCH ZOOM & LOAD (Expandido para que veas que no falta nada) ---
+    // --- PINCH ZOOM & PAN (GESTOS TÁCTILES MEJORADOS) ---
     const canvasWrapper = document.querySelector('.upper-canvas');
     let lastDist = 0;
+    let lastClientX = 0;
+    let lastClientY = 0;
 
     if(canvasWrapper) {
         canvasWrapper.addEventListener('touchstart', function(e) {
             if (e.touches.length === 2) {
+                // Calcular distancia inicial
                 const dx = e.touches[0].clientX - e.touches[1].clientX;
                 const dy = e.touches[0].clientY - e.touches[1].clientY;
                 lastDist = Math.sqrt(dx * dx + dy * dy);
+                
+                // Calcular centro inicial para el Pan
+                lastClientX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+                lastClientY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+                
                 e.preventDefault(); 
             }
         }, { passive: false });
@@ -694,24 +932,44 @@ if (strpos($filePath, 'uploads/') === 0 || strpos($filePath, 'api/uploads/') ===
         canvasWrapper.addEventListener('touchmove', function(e) {
             if (e.touches.length === 2) {
                 e.preventDefault();
+                
+                // 1. CALCULAR ZOOM (Escala)
                 const dx = e.touches[0].clientX - e.touches[1].clientX;
                 const dy = e.touches[0].clientY - e.touches[1].clientY;
                 const dist = Math.sqrt(dx * dx + dy * dy);
                 
-                if(lastDist <= 0) { lastDist = dist; return; }
+                // 2. CALCULAR PAN (Movimiento)
+                const currentClientX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+                const currentClientY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
 
-                const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
-                const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
-                
-                const scale = dist / lastDist;
-                let newZoom = canvas.getZoom() * scale;
-                if (newZoom > 20) newZoom = 20; if (newZoom < 0.1) newZoom = 0.1;
+                const deltaX = currentClientX - lastClientX;
+                const deltaY = currentClientY - lastClientY;
 
-                const point = new fabric.Point(midX, midY);
-                canvas.zoomToPoint(point, newZoom);
+                // Aplicar Pan (Mover el canvas)
+                const vpt = canvas.viewportTransform;
+                vpt[4] += deltaX;
+                vpt[5] += deltaY;
+
+                // Aplicar Zoom
+                if(lastDist > 0) {
+                    const scale = dist / lastDist;
+                    let newZoom = canvas.getZoom() * scale;
+                    if (newZoom > 20) newZoom = 20; if (newZoom < 0.1) newZoom = 0.1;
+                    
+                    // Zoom hacia el punto central de los dedos
+                    const point = new fabric.Point(currentClientX, currentClientY);
+                    canvas.zoomToPoint(point, newZoom);
+                    
+                    document.getElementById('zoom-disp').innerText = Math.round(newZoom * 100) + '%';
+                    updateTextScales(newZoom);
+                }
+
+                // Actualizar referencias para el siguiente frame
                 lastDist = dist;
-                document.getElementById('zoom-disp').innerText = Math.round(newZoom * 100) + '%';
-                updateTextScales(newZoom);
+                lastClientX = currentClientX;
+                lastClientY = currentClientY;
+
+                canvas.requestRenderAll();
             }
         }, { passive: false });
     }
@@ -765,33 +1023,22 @@ if (strpos($filePath, 'uploads/') === 0 || strpos($filePath, 'api/uploads/') ===
         while(highOrder.length > MAX_HIGH_CACHE) {
             const evict = highOrder.shift();
             const entry = pageCache.get(evict);
-            if(entry) {
-                delete entry.high;
-                if(!entry.low) pageCache.delete(evict);
-            }
+            if(entry) { delete entry.high; if(!entry.low) pageCache.delete(evict); }
         }
         while(lowOrder.length > MAX_LOW_CACHE) {
             const evict = lowOrder.shift();
             const entry = pageCache.get(evict);
-            if(entry) {
-                delete entry.low;
-                if(!entry.high) pageCache.delete(evict);
-            }
+            if(entry) { delete entry.low; if(!entry.high) pageCache.delete(evict); }
         }
     }
 
     function setCache(num, type, url) {
         const entry = pageCache.get(num) || {};
-        entry[type] = url;
-        pageCache.set(num, entry);
-        if(type === 'high') touchOrder(highOrder, num);
-        else touchOrder(lowOrder, num);
+        entry[type] = url; pageCache.set(num, entry);
+        if(type === 'high') touchOrder(highOrder, num); else touchOrder(lowOrder, num);
         trimCache();
     }
-
-    function getCache(num) {
-        return pageCache.get(num);
-    }
+    function getCache(num) { return pageCache.get(num); }
 
     async function renderPageToDataUrl(num, scale) {
         const page = await pdfDoc.getPage(num);
@@ -813,10 +1060,7 @@ if (strpos($filePath, 'uploads/') === 0 || strpos($filePath, 'api/uploads/') ===
 
     async function renderHigh(num, token) {
         const cached = getCache(num);
-        if(cached && cached.high) {
-            applyBackground(cached.high, num, token, false);
-            return;
-        }
+        if(cached && cached.high) { applyBackground(cached.high, num, token, false); return; }
         const url = await renderPageToDataUrl(num, pdfScale);
         if(token !== renderToken) return;
         setCache(num, 'high', url);
@@ -844,9 +1088,7 @@ if (strpos($filePath, 'uploads/') === 0 || strpos($filePath, 'api/uploads/') ===
             if(n < 1 || n > total) return;
             const cached = getCache(n);
             if(cached && (cached.low || cached.high)) return;
-            renderPageToDataUrl(n, LOW_RES_SCALE).then(url => {
-                setCache(n, 'low', url);
-            }).catch(() => {});
+            renderPageToDataUrl(n, LOW_RES_SCALE).then(url => { setCache(n, 'low', url); }).catch(() => {});
         });
     }
 
@@ -860,9 +1102,7 @@ if (strpos($filePath, 'uploads/') === 0 || strpos($filePath, 'api/uploads/') ===
             const url = cached.high || cached.low;
             applyBackground(url, num, token, true);
             if(!cached.high) renderHigh(num, token);
-        } else {
-            renderLowThenHigh(num, token);
-        }
+        } else { renderLowThenHigh(num, token); }
         prefetchNeighbors(num);
     }
 
@@ -873,11 +1113,16 @@ if (strpos($filePath, 'uploads/') === 0 || strpos($filePath, 'api/uploads/') ===
 
     function jumpToPage(targetPage) {
         allAnnotations[pageNum] = JSON.stringify(canvas.toJSON(['isMeasureLine','labelId','labelOffsetX','labelOffsetY']));
-        canvas.clear(); 
-        undoStack = []; historyIndex = -1;
+        canvas.clear(); undoStack = []; historyIndex = -1;
         pageNum = targetPage; 
         loadCalibrationForPage(false);
         if(pdfDoc) renderPage(pageNum); else loadPageAnnotations(pageNum);
+        
+        // AUTO-HIDE SIDEBAR ON PAGE SELECT (Universal)
+        const sb = document.getElementById('sidebarLeft');
+        if(sb.classList.contains('show')) {
+            toggleSheets();
+        }
     }
 
     function changePage(offset) {
@@ -891,26 +1136,18 @@ if (strpos($filePath, 'uploads/') === 0 || strpos($filePath, 'api/uploads/') ===
         historyProcessing = true;
         if(allAnnotations[pg]) {
             canvas.loadFromJSON(allAnnotations[pg], function() { 
-                // Re-link lines and texts
                 const objects = canvas.getObjects();
                 objects.forEach(obj => {
                     if (obj.isMeasureLine) {
-                        lockObject(obj); // Apply controls
-                        // Find label
+                        lockObject(obj);
                         if(obj.labelId) {
                             const lbl = objects.find(o => o.isMeasureLabel && o.id === obj.labelId);
-                            if(lbl) { 
-                                obj.label = lbl; 
-                                lbl.selectable = false; // Labels are not directly selectable
-                                lbl.evented = false; 
-                            }
+                            if(lbl) { obj.label = lbl; lbl.selectable = false; lbl.evented = false; }
                         }
                     } else if (!obj.isMeasureLabel) {
-                        // Lock standard objects
                         obj.set({ lockMovementX:true, lockMovementY:true, borderColor:'#22c55e' });
                     }
                 });
-                
                   updateTextScales(canvas.getZoom()); 
                   canvas.renderAll(); 
                   refreshMeasureLabels();
@@ -939,10 +1176,7 @@ if (strpos($filePath, 'uploads/') === 0 || strpos($filePath, 'api/uploads/') ===
             historyProcessing = true; historyIndex--;
             const state = undoStack[historyIndex];
             canvas.loadFromJSON(state, () => {
-                reLinkObjects();
-                historyProcessing = false;
-                updateTextScales(canvas.getZoom());
-                updateHistoryButtons();
+                reLinkObjects(); historyProcessing = false; updateTextScales(canvas.getZoom()); updateHistoryButtons();
             });
         }
     }
@@ -952,10 +1186,7 @@ if (strpos($filePath, 'uploads/') === 0 || strpos($filePath, 'api/uploads/') ===
             historyProcessing = true; historyIndex++;
             const state = undoStack[historyIndex];
             canvas.loadFromJSON(state, () => {
-                reLinkObjects();
-                historyProcessing = false;
-                updateTextScales(canvas.getZoom());
-                updateHistoryButtons();
+                reLinkObjects(); historyProcessing = false; updateTextScales(canvas.getZoom()); updateHistoryButtons();
             });
         }
     }
@@ -967,7 +1198,6 @@ if (strpos($filePath, 'uploads/') === 0 || strpos($filePath, 'api/uploads/') ===
         if(historyIndex < undoStack.length - 1) btnRedo.classList.remove('btn-disabled'); else btnRedo.classList.add('btn-disabled');
     }
 
-    // Helper to reconnect lines and labels after Undo/Redo/Load
     function reLinkObjects() {
         const objects = canvas.getObjects();
         objects.forEach(obj => {
@@ -986,100 +1216,92 @@ if (strpos($filePath, 'uploads/') === 0 || strpos($filePath, 'api/uploads/') ===
     canvas.on('object:added', e => { if(!e.target.excludeFromHistory) saveHistory(); });
     canvas.on('object:modified', saveHistory);
     canvas.on('object:removed', e => {
-        if(e.target.isMeasureLine && e.target.label) {
-            canvas.remove(e.target.label);
-        }
+        if(e.target.isMeasureLine && e.target.label) canvas.remove(e.target.label);
         saveHistory();
     });
 
-    // --- MEASURE UPDATE LOGIC ---
+    // Auto-remove empty/default text on creation
+    canvas.on('text:editing:exited', function(e) {
+        const obj = e.target;
+        if(obj && obj.isNew) {
+            if(obj.text.trim() === 'Note' || obj.text.trim() === '') {
+                canvas.remove(obj);
+                canvas.requestRenderAll();
+                showToast("Empty note discarded", "warning");
+            } else {
+                delete obj.isNew;
+            }
+        }
+    });
+
     function updateMeasureLabel(line) {
         if (!line || !line.label) return;
-        
-        // 1. Calculate Distance
         const points = line.calcLinePoints();
         const matrix = line.calcTransformMatrix();
         const p1 = fabric.util.transformPoint(new fabric.Point(points.x1, points.y1), matrix);
         const p2 = fabric.util.transformPoint(new fabric.Point(points.x2, points.y2), matrix);
         const distPx = Math.hypot(p2.x - p1.x, p2.y - p1.y);
-        
         let textVal = "";
-        if (pixelsPerFoot > 0) {
-            const feet = distPx / pixelsPerFoot;
-            textVal = feet.toFixed(2) + " ft";
-        } else {
-            textVal = Math.round(distPx) + " px";
-        }
-
-        // 2. Update Label Text
+        if (pixelsPerFoot > 0) { const feet = distPx / pixelsPerFoot; textVal = feet.toFixed(2) + " ft"; } 
+        else { textVal = Math.round(distPx) + " px"; }
         line.label.set({ text: textVal });
-
-        // 3. Update Label Position (Midpoint)
         const midX = (p1.x + p2.x) / 2;
         const midY = (p1.y + p2.y) / 2;
-        
-        line.label.set({ 
-            left: midX, 
-            top: midY - 15 // Offset slightly above
-        });
-        
-        line.setCoords();
-        line.label.setCoords();
+        line.label.set({ left: midX, top: midY - 15 });
+        line.setCoords(); line.label.setCoords();
     }
 
-    // --- MOVE EVENTS (Sync Label) ---
     canvas.on('object:moving', function(e) {
         const obj = e.target;
         if (obj.isMeasureLine && obj.label) {
             const center = obj.getCenterPoint();
-            obj.label.set({
-                left: center.x,
-                top: center.y - 15
-            });
+            obj.label.set({ left: center.x, top: center.y - 15 });
         }
     });
 
     // --- TOOL SWITCHING ---
     function setMode(mode) {
         if (calLineObject && mode !== 'cal') clearCalLine(); 
+        
+        // FIX: Check for new note before switching tool
+        const activeObj = canvas.getActiveObject();
+        if(activeObj && activeObj.isNew && (activeObj.type === 'i-text' || activeObj.type === 'text')) {
+             canvas.remove(activeObj);
+             canvas.requestRenderAll();
+             showToast("Empty note discarded", "warning");
+        }
+
         resetToolState();
         currentMode = mode;
-        canvas.discardActiveObject();
-        canvas.requestRenderAll();
-
+        canvas.discardActiveObject(); canvas.requestRenderAll();
         canvas.isDrawingMode = (mode === 'draw');
         canvas.selection = (mode === 'smart'); 
-        
         document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
         if(mode !== 'smart') {
             const btn = document.getElementById('btn-' + mode);
             if(btn) btn.classList.add('active'); 
-        } else {
-            document.getElementById('btn-smart').classList.add('active');
-        }
-
+        } else { document.getElementById('btn-smart').classList.add('active'); }
         document.querySelectorAll('.prop-section').forEach(p => p.classList.remove('active'));
         const propEl = document.getElementById('prop-' + mode);
         if(propEl) propEl.classList.add('active');
-
         document.getElementById('stamp-menu').style.display = 'none';
-
-        if(mode === 'pan') {
-            canvas.defaultCursor = 'grab'; canvas.hoverCursor = 'grab'; canvas.moveCursor = 'grab';
-        } else if(mode === 'draw') {
-            canvas.freeDrawingBrush.color = '#ef4444'; canvas.freeDrawingBrush.width = 3; canvas.defaultCursor = 'crosshair';
-        } else if(mode === 'measure') {
+        
+        // CURSOR LOGIC SIMPLIFIED (No 'pan' mode check needed for cursor style here)
+        if(mode === 'draw') { canvas.freeDrawingBrush.color = '#ef4444'; canvas.freeDrawingBrush.width = 3; canvas.defaultCursor = 'crosshair'; } 
+        else if(mode === 'measure') {
             if(pixelsPerFoot <= 0) { showToast("Please calibrate first!", "error"); setMode('cal'); return; }
             canvas.defaultCursor = 'crosshair';
-        } else if(mode === 'cal') {
-            updateCalHint();
-        } else {
-            canvas.defaultCursor = 'default';
-        }
-
+        } else if(mode === 'cal') { updateCalHint(); } 
+        else { canvas.defaultCursor = 'default'; }
+        
         if(mode === 'smart') {
             const active = canvas.getActiveObject();
             if(active && (active.type === 'i-text' || active.type === 'text')) showPropSection('text');
+        }
+        
+        // Auto-close tools on mobile after selecting a tool (Optional UX improvement)
+        if(window.innerWidth <= 991 && mode !== 'stamp') {
+             // setTimeout(toggleMobileTools, 300); // Uncomment if you prefer auto-close
         }
     }
 
@@ -1110,18 +1332,9 @@ if (strpos($filePath, 'uploads/') === 0 || strpos($filePath, 'api/uploads/') ===
     function addStamp(text, color) {
         setMode('smart');
         const center = canvas.getVpCenter();
-        const rect = new fabric.Rect({
-            width: 200, height: 80, rx: 10, ry: 10,
-            fill: 'transparent', stroke: color, strokeWidth: 5,
-            originX: 'center', originY: 'center'
-        });
-        const lbl = new fabric.Text(text, {
-            fontSize: 40, fill: color, fontWeight: 'bold', fontFamily: 'Arial',
-            originX: 'center', originY: 'center'
-        });
-        const group = new fabric.Group([rect, lbl], {
-            left: center.x, top: center.y, opacity: 0.8
-        });
+        const rect = new fabric.Rect({ width: 200, height: 80, rx: 10, ry: 10, fill: 'transparent', stroke: color, strokeWidth: 5, originX: 'center', originY: 'center' });
+        const lbl = new fabric.Text(text, { fontSize: 40, fill: color, fontWeight: 'bold', fontFamily: 'Arial', originX: 'center', originY: 'center' });
+        const group = new fabric.Group([rect, lbl], { left: center.x, top: center.y, opacity: 0.8 });
         lockObject(group);
         canvas.add(group); canvas.setActiveObject(group);
         document.getElementById('stamp-menu').style.display = 'none';
@@ -1132,42 +1345,21 @@ if (strpos($filePath, 'uploads/') === 0 || strpos($filePath, 'api/uploads/') ===
     canvas.on('mouse:down', function(opt) {
         const evt = opt.e;
         const now = new Date().getTime();
-
-        // DOUBLE TAP LOGIC (CRITICAL FOR YOUR REQUIREMENT)
         if (opt.target && currentMode === 'smart') {
             if (lastTapTarget === opt.target && (now - lastTapTime < DOUBLE_TAP_DELAY)) {
-                // Double Tap Detected! -> Unlock for Movement
                 unlockObject(opt.target);
-                showToast("Movement Unlocked", "warning"); 
-                canvas.renderAll();
-                
-                // Allow immediate drag on the second tap
+                showToast("Movement Unlocked", "warning"); canvas.renderAll();
                 opt.target.isMoving = true;
             } else {
-                // Single Tap -> Select but Lock Movement
-                // Ensure it is locked (in case it was left unlocked)
-                // IF it is a measure line, show nodes
-                if(opt.target.isMeasureLine) {
-                    lockObject(opt.target);
-                    canvas.renderAll();
-                } else {
-                    lockObject(opt.target); // Generic lock
-                }
+                if(opt.target.isMeasureLine) { lockObject(opt.target); canvas.renderAll(); } else { lockObject(opt.target); }
             }
-            lastTapTarget = opt.target;
-            lastTapTime = now;
+            lastTapTarget = opt.target; lastTapTime = now;
         }
-
         const isTouch = evt.type.startsWith('touch');
         let clientX, clientY;
-        if(isTouch) {
-            clientX = evt.touches[0].clientX; clientY = evt.touches[0].clientY;
-        } else {
-            clientX = evt.clientX; clientY = evt.clientY;
-        }
+        if(isTouch) { clientX = evt.touches[0].clientX; clientY = evt.touches[0].clientY; } else { clientX = evt.clientX; clientY = evt.clientY; }
 
-        // Pan
-        if(evt.button === 2 || (currentMode === 'smart' && evt.altKey) || currentMode === 'pan') {
+        if(evt.button === 2 || (currentMode === 'smart' && evt.altKey)) {
             evt.preventDefault(); evt.stopPropagation();
             this.isDragging = true; this.selection = false;
             this.lastPosX = clientX; this.lastPosY = clientY;
@@ -1176,29 +1368,20 @@ if (strpos($filePath, 'uploads/') === 0 || strpos($filePath, 'api/uploads/') ===
             return;
         }
 
-        // Measure / Calibrate Creation
         if(currentMode === 'cal' || currentMode === 'measure') {
-            if(currentMode === 'cal' && calMode === 'preset') {
-                showToast("Switch to Manual to draw a calibration line", "warning");
-                return;
-            }
+            if(currentMode === 'cal' && calMode === 'preset') { showToast("Switch to Manual to draw a calibration line", "warning"); return; }
             if(currentMode === 'cal' && calLineObject) { showToast("Delete existing line first", "error"); return; }
             const ptr = canvas.getPointer(evt);
             if (lineState === 0) {
                 startPoint = ptr;
                 activeLine = new fabric.Line([ptr.x, ptr.y, ptr.x, ptr.y], {
-                    stroke: (currentMode === 'cal' ? '#eab308' : '#22c55e'),
-                    strokeWidth: 3, 
-                    selectable: false, evented: false, excludeFromHistory: true,
-                    originX: 'center', originY: 'center' 
+                    stroke: (currentMode === 'cal' ? '#eab308' : '#22c55e'), strokeWidth: 3, 
+                    selectable: false, evented: false, excludeFromHistory: true, originX: 'center', originY: 'center' 
                 });
-                canvas.add(activeLine);
-                lineState = 1; 
+                canvas.add(activeLine); lineState = 1; 
             } else finishLineLogic();
             return;
         }
-
-        // Smart Drag
         if(currentMode === 'smart' && (!opt.target || evt.altKey)) {
             this.isDragging = true; this.selection = false;
             this.lastPosX = clientX; this.lastPosY = clientY; canvas.defaultCursor = 'grabbing';
@@ -1233,14 +1416,13 @@ if (strpos($filePath, 'uploads/') === 0 || strpos($filePath, 'api/uploads/') ===
             const dist = Math.sqrt(Math.pow(ptr.x - startPoint.x, 2) + Math.pow(ptr.y - startPoint.y, 2));
             if (dist > 10) finishLineLogic();
         }
-        if(currentMode === 'pan') canvas.setCursor('grab'); else canvas.setCursor('default');
+        canvas.setCursor('default');
     });
 
     function finishLineLogic() {
         lineState = 0;
         const dx = activeLine.x2 - activeLine.x1; const dy = activeLine.y2 - activeLine.y1;
         const distPx = Math.sqrt(dx*dx + dy*dy);
-
         if (currentMode === 'cal') {
             document.getElementById('cal-actions').style.display = 'flex';
             document.getElementById('cal-hint').style.display = 'none';
@@ -1253,35 +1435,11 @@ if (strpos($filePath, 'uploads/') === 0 || strpos($filePath, 'api/uploads/') ===
             const midX = (activeLine.x1 + activeLine.x2) / 2;
             const midY = (activeLine.y1 + activeLine.y2) / 2;
             const uniqueId = Date.now();
-
-            const lbl = new fabric.Text(textVal, {
-                left: midX, top: midY - 15, fontSize: 24, fill: '#22c55e',
-                backgroundColor: '#0f172a', originX: 'center', originY: 'center',
-                selectable: false, evented: false, // User clicks line, not text
-                isMeasureLabel: true,
-                id: uniqueId + '_lbl'
-            });
-            
-            const line = new fabric.Line([activeLine.x1, activeLine.y1, activeLine.x2, activeLine.y2], {
-                stroke: '#22c55e', strokeWidth: 4,
-                selectable: true, evented: true,
-                originX: 'center', originY: 'center', 
-                isMeasureLine: true,
-                labelId: lbl.id,
-                label: lbl, 
-                id: uniqueId + '_line'
-            });
-
-            canvas.remove(activeLine); 
-            canvas.add(line);
-            canvas.add(lbl);
-            
-            // Apply controls immediately
-            lockObject(line);
-            canvas.setActiveObject(line);
-            
-            activeLine = null;
-            saveHistory();
+            const lbl = new fabric.Text(textVal, { left: midX, top: midY - 15, fontSize: 24, fill: '#22c55e', backgroundColor: '#0f172a', originX: 'center', originY: 'center', selectable: false, evented: false, isMeasureLabel: true, id: uniqueId + '_lbl' });
+            const line = new fabric.Line([activeLine.x1, activeLine.y1, activeLine.x2, activeLine.y2], { stroke: '#22c55e', strokeWidth: 4, selectable: true, evented: true, originX: 'center', originY: 'center', isMeasureLine: true, labelId: lbl.id, label: lbl, id: uniqueId + '_line' });
+            canvas.remove(activeLine); canvas.add(line); canvas.add(lbl);
+            lockObject(line); canvas.setActiveObject(line);
+            activeLine = null; saveHistory();
         }
     }
 
@@ -1312,22 +1470,15 @@ if (strpos($filePath, 'uploads/') === 0 || strpos($filePath, 'api/uploads/') ===
     }
 
     // --- UTILS ---
-    function setPenColor(c, el) { 
-        canvas.freeDrawingBrush.color = c; 
-        document.querySelectorAll('.color-dot').forEach(d => d.classList.remove('active')); 
-        el.classList.add('active'); 
-    }
+    function setPenColor(c, el) { canvas.freeDrawingBrush.color = c; document.querySelectorAll('.color-dot').forEach(d => d.classList.remove('active')); el.classList.add('active'); }
     function setPenWidth(w) { canvas.freeDrawingBrush.width = parseInt(w); }
 
     function addText() {
         setMode('smart');
         const center = canvas.getVpCenter();
-        const t = new fabric.IText('Note', { left: center.x, top: center.y, fill: '#ef4444', fontSize: 60 });
-        
-        lockObject(t);
-        canvas.add(t); canvas.setActiveObject(t); t.selectAll(); t.enterEditing();
+        const t = new fabric.IText('Note', { left: center.x, top: center.y, fill: '#ef4444', fontSize: 60, isNew: true });
+        lockObject(t); canvas.add(t); canvas.setActiveObject(t); t.selectAll(); t.enterEditing();
         showPropSection('text');
-        
         document.getElementById('text-size-input').value = 60;
         document.querySelectorAll('#prop-text .color-dot').forEach(d => d.classList.remove('active'));
         document.querySelector('#prop-text .color-dot[data-col="#ef4444"]').classList.add('active');
@@ -1394,28 +1545,20 @@ if (strpos($filePath, 'uploads/') === 0 || strpos($filePath, 'api/uploads/') ===
         let icon = '<i class="fas fa-check-circle text-success"></i>';
         if(type === 'error') icon = '<i class="fas fa-exclamation-circle text-danger"></i>';
         if(type === 'warning') icon = '<i class="fas fa-lock-open text-warning"></i>';
-        
         el.innerHTML = icon + `<span>${msg}</span>`;
-        box.appendChild(el); 
-        setTimeout(() => el.remove(), 4000);
+        box.appendChild(el); setTimeout(() => el.remove(), 4000);
     }
 
     function updateTextProp(prop, val) {
         const active = canvas.getActiveObject();
-        if(active && (active.type === 'i-text' || active.type === 'text')) {
-            active.set(prop, val); canvas.renderAll();
-        }
+        if(active && (active.type === 'i-text' || active.type === 'text')) { active.set(prop, val); canvas.renderAll(); }
     }
 
     function updateTextScales(zoom) {
         const scale = Math.min(1.5, Math.max(0.2, 1 / zoom));
         canvas.getObjects().forEach(obj => {
-            if (obj.isMeasureLabel) {
-                obj.set({ scaleX: scale, scaleY: scale });
-            }
-            if (obj.isMeasureLine) {
-                obj.set({ strokeWidth: 4 * scale });
-            }
+            if (obj.isMeasureLabel) { obj.set({ scaleX: scale, scaleY: scale }); }
+            if (obj.isMeasureLine) { obj.set({ strokeWidth: 4 * scale }); }
         });
         canvas.requestRenderAll();
     }
@@ -1441,18 +1584,14 @@ if (strpos($filePath, 'uploads/') === 0 || strpos($filePath, 'api/uploads/') ===
     canvas.on('selection:updated', handleSelectionChange);
     canvas.on('selection:cleared', handleSelectionChange); 
 
-    // --- KEYBOARD HANDLERS (DELETE SUPPORT) ---
     window.addEventListener('keydown', e => {
         if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); undo(); }
         if ((e.ctrlKey || e.metaKey) && e.key === 'y') { e.preventDefault(); redo(); }
-        
-        // DELETE KEY HANDLER
         if(e.key === 'Delete' || e.key === 'Backspace') {
             const activeObj = canvas.getActiveObject();
-            if (activeObj && activeObj.isEditing) return; // Si estamos editando texto, no borrar
+            if (activeObj && activeObj.isEditing) return; 
             if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-            e.preventDefault();
-            deleteSelected(); // Llamar a la misma función del botón
+            e.preventDefault(); deleteSelected(); 
         }
     });
 
