@@ -19,5 +19,5 @@ jobs:
           password: ${{ secrets.FTP_PASSWORD }}
           port: 21
           local-dir: ./
-          server-dir: /domains/electroplan.brightronix.net/public_html/electroplan/
+          server-dir: /domains/electroplan.brightronix.net/public_html/
           dangerous-clean-slate: false
