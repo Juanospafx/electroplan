@@ -49,6 +49,17 @@ include __DIR__ . '/../views/header.php';
         .btn-action.delete:hover { background: #ef4444; color: white; border-color: #ef4444; }
 
         .status-badge { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; padding: 5px 10px; border-radius: 8px; letter-spacing: 0.5px; }
+
+        /* Responsive cards */
+        .proj-cards { display: none; }
+        .proj-card { background: var(--bg-card); border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 16px; }
+        .proj-card + .proj-card { margin-top: 12px; }
+        .proj-meta { font-size: 0.8rem; color: var(--text-gray); }
+
+        @media (max-width: 992px) {
+            .table-responsive { display: none; }
+            .proj-cards { display: block; }
+        }
     </style>
 
     <main class="main-content">
@@ -153,6 +164,44 @@ include __DIR__ . '/../views/header.php';
                     <?php endif; ?>
                 </tbody>
             </table>
+        </div>
+
+        <div class="proj-cards">
+            <?php foreach($projects as $p): 
+                $stColor = getStatusColor($p['status'] ?? 'Active');
+            ?>
+                <div class="proj-card">
+                    <div class="d-flex align-items-center gap-3 mb-2">
+                        <div class="bg-primary bg-opacity-10 p-2 rounded text-primary">
+                            <i class="fas fa-folder"></i>
+                        </div>
+                        <div>
+                            <div class="fw-bold"><?= htmlspecialchars($p['name']) ?></div>
+                            <div class="proj-meta">ID: #<?= $p['id'] ?></div>
+                        </div>
+                    </div>
+                    <div class="proj-meta mb-2">
+                        <span class="status-badge bg-<?= $stColor ?> bg-opacity-25 text-<?= $stColor ?>">
+                            <?= $p['status'] ?? 'Active' ?>
+                        </span>
+                    </div>
+                    <div class="proj-meta mb-2"><?= htmlspecialchars($p['description'] ?: 'No description') ?></div>
+                    <div class="proj-meta mb-2">Assigned: <?= htmlspecialchars($p['assigned_name'] ?: 'Unassigned') ?></div>
+                    <div class="proj-meta mb-3">Created: <?= date('M d, Y', strtotime($p['created_at'])) ?> · <?= $p['file_count'] ?> Files</div>
+                    <div class="d-flex gap-2">
+                        <a href="index.php?project_id=<?= $p['id'] ?>" class="btn-action" title="Open"><i class="fas fa-external-link-alt"></i></a>
+                        <?php if($isAdmin): ?>
+                            <button class="btn-action" onclick="editProject(<?= $p['id'] ?>, '<?= addslashes($p['name']) ?>', '<?= addslashes($p['description']) ?>', '<?= $p['status'] ?? 'Active' ?>')" title="Edit"><i class="fas fa-pen"></i></button>
+                            <button class="btn-action" onclick="openAssignModal(<?= $p['id'] ?>, '<?= addslashes($p['name']) ?>')" title="Assign User"><i class="fas fa-user-plus"></i></button>
+                            <button class="btn-action delete" onclick="deleteProject(<?= $p['id'] ?>)" title="Move to Trash"><i class="fas fa-trash"></i></button>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            <?php endforeach; ?>
+
+            <?php if(empty($projects)): ?>
+                <div class="proj-card text-center text-gray">No projects found.</div>
+            <?php endif; ?>
         </div>
     </main>
 
