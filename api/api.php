@@ -70,6 +70,37 @@ switch($action) {
         } catch(Exception $e) { echo json_encode(['status'=>'error', 'msg'=>$e->getMessage()]); }
         break;
 
+    // --- 1.3 ASIGNAR MULTIPLES USUARIOS A PROYECTO (ADMIN ONLY) ---
+    case 'assign_project_users':
+        if($userRole !== 'admin') { echo json_encode(['status'=>'error', 'msg'=>'Access Denied']); exit; }
+
+        $projectId = (int)($_POST['project_id'] ?? 0);
+        $userIds = $_POST['user_ids'] ?? [];
+
+        if($projectId <= 0 || !is_array($userIds) || empty($userIds)) {
+            echo json_encode(['status'=>'error', 'msg'=>'Invalid data']); exit;
+        }
+
+        $cleanIds = [];
+        foreach($userIds as $uid) {
+            $uid = (int)$uid;
+            if($uid > 0) $cleanIds[] = $uid;
+        }
+        if(empty($cleanIds)) { echo json_encode(['status'=>'error', 'msg'=>'Invalid users']); exit; }
+
+        try {
+            $stmtDir = $pdo->prepare("INSERT IGNORE INTO directory (project_id, user_id) VALUES (?, ?)");
+            foreach($cleanIds as $uid) {
+                $stmtDir->execute([$projectId, $uid]);
+            }
+            // Set primary assigned user to first selected
+            $primaryId = $cleanIds[0];
+            $pdo->prepare("UPDATE projects SET assigned_user_id = ? WHERE id = ?")->execute([$primaryId, $projectId]);
+
+            echo json_encode(['status'=>'success']);
+        } catch(Exception $e) { echo json_encode(['status'=>'error', 'msg'=>$e->getMessage()]); }
+        break;
+
     // --- 2. CREAR CARPETA (ADMIN ONLY) ---
     case 'create_folder':
         if($userRole !== 'admin') { echo json_encode(['status'=>'error', 'msg'=>'Access Denied']); exit; }

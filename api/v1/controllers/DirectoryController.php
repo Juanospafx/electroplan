@@ -35,9 +35,26 @@ class DirectoryController
         }
 
         $data = read_json_body();
+        $userIds = $data['user_ids'] ?? null;
         $userId = require_int($data['user_id'] ?? null);
-        if (!$userId) {
-            error_response('VALIDATION_ERROR', 'Invalid user_id', ['field' => 'user_id'], 422);
+
+        if (is_array($userIds)) {
+            $cleanIds = [];
+            foreach ($userIds as $uid) {
+                $uid = require_int($uid);
+                if ($uid) $cleanIds[] = $uid;
+            }
+            if (empty($cleanIds)) {
+                error_response('VALIDATION_ERROR', 'Invalid user_ids', ['field' => 'user_ids'], 422);
+            }
+            $userIds = $cleanIds;
+        } else {
+            $userIds = [];
+            if ($userId) $userIds[] = $userId;
+        }
+
+        if (empty($userIds)) {
+            error_response('VALIDATION_ERROR', 'Invalid user_id(s)', null, 422);
         }
 
         try {
@@ -47,21 +64,22 @@ class DirectoryController
                 error_response('NOT_FOUND', 'Project not found', null, 404);
             }
 
-            $stmt = $this->pdo->prepare("SELECT id FROM users WHERE id = ?");
-            $stmt->execute([$userId]);
-            if (!$stmt->fetch()) {
-                error_response('NOT_FOUND', 'User not found', null, 404);
+            $dir = $this->pdo->prepare("INSERT IGNORE INTO directory (project_id, user_id) VALUES (?, ?)");
+            foreach ($userIds as $uid) {
+                $stmt = $this->pdo->prepare("SELECT id FROM users WHERE id = ?");
+                $stmt->execute([$uid]);
+                if (!$stmt->fetch()) {
+                    error_response('NOT_FOUND', 'User not found', ['user_id' => $uid], 404);
+                }
+                $dir->execute([$projectId, $uid]);
             }
 
+            // Set primary assigned user to first provided
+            $primaryId = $userIds[0];
             $update = $this->pdo->prepare("UPDATE projects SET assigned_user_id = ? WHERE id = ?");
-            $update->execute([$userId, $projectId]);
+            $update->execute([$primaryId, $projectId]);
 
-            $dir = $this->pdo->prepare(
-                "INSERT IGNORE INTO directory (project_id, user_id) VALUES (?, ?)"
-            );
-            $dir->execute([$projectId, $userId]);
-
-            ok_response(['assigned' => true]);
+            ok_response(['assigned' => true, 'count' => count($userIds)]);
         } catch (Exception $e) {
             error_response('INTERNAL_ERROR', 'Unexpected error', null, 500);
         }

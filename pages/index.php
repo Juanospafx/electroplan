@@ -70,6 +70,7 @@ $pageTitle = "Dashboard";
 $project = null; $folder = null;
 $folders = []; $subFolders = []; $files = []; $recentFiles = []; 
 $stats = []; $recentProjects = []; $trashProjects = []; $trashFiles = []; $trashReports = []; 
+$assignUsers = []; $assignedUserIds = [];
 
 // ---------------------------------------------------------
 // 4. CONSULTAS DE DATOS
@@ -100,6 +101,13 @@ else {
         $folders->execute([$projectId]); $folders = $folders->fetchAll(PDO::FETCH_ASSOC);
         $stmtFiles = $pdo->prepare("SELECT f.*, fo.name as folder_name FROM files f LEFT JOIN folders fo ON f.folder_id = fo.id WHERE f.project_id = ? AND f.deleted_at IS NULL ORDER BY f.uploaded_at DESC");
         $stmtFiles->execute([$projectId]); $files = $stmtFiles->fetchAll(PDO::FETCH_ASSOC);
+
+        if ($isAdmin) {
+            $assignUsers = $pdo->query("SELECT id, username, role FROM users ORDER BY username ASC")->fetchAll(PDO::FETCH_ASSOC);
+            $stmtAssigned = $pdo->prepare("SELECT user_id FROM directory WHERE project_id = ?");
+            $stmtAssigned->execute([$projectId]);
+            $assignedUserIds = array_map('intval', $stmtAssigned->fetchAll(PDO::FETCH_COLUMN));
+        }
     } else {
         $viewLevel = 'folder';
         $folder = $pdo->query("SELECT * FROM folders WHERE id=$folderId")->fetch(PDO::FETCH_ASSOC);
@@ -252,6 +260,7 @@ include __DIR__ . '/../views/header.php';
                 <div class="d-flex align-items-center gap-4"><a href="<?= $backUrl ?>" class="btn-back"><i class="fas fa-arrow-left"></i></a><div><h2 class="fw-bold mb-1"><?= htmlspecialchars($viewLevel === 'project' ? $project['name'] : $folder['name']) ?></h2><p class="text-gray mb-0">Project Files</p></div></div>
                 <div class="d-flex gap-3">
                     <?php if($viewLevel === 'project' && $canCreate): ?><button class="btn btn-outline-light rounded-pill px-4 fw-bold" data-bs-toggle="modal" data-bs-target="#newFolderModal"><i class="fas fa-folder-plus me-2"></i> Folder</button><?php endif; ?>
+                    <?php if($viewLevel === 'project' && $isAdmin): ?><button class="btn btn-outline-info rounded-pill px-4 fw-bold" onclick="openAssignUsersModal()"><i class="fas fa-user-plus me-2"></i> Assign Users</button><?php endif; ?>
                     <?php if($canUpload): ?><button class="btn-main" onclick="openUploadModal()"><i class="fas fa-cloud-upload-alt me-2"></i> Upload</button><?php endif; ?>
                 </div>
             </div>
@@ -329,6 +338,37 @@ include __DIR__ . '/../views/header.php';
     </main>
 
 </div> <?php include __DIR__ . '/../views/modals.php'; ?>
+
+<?php if($viewLevel === 'project' && $isAdmin): ?>
+<div class="modal fade" id="assignUsersModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content p-3">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold">Assign Users to Project</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="assignUsersForm">
+                <input type="hidden" name="action" value="assign_project_users">
+                <input type="hidden" name="project_id" value="<?= (int)$projectId ?>">
+                <div class="modal-body">
+                    <label class="text-gray small mb-2">Users (multi-select)</label>
+                    <select name="user_ids[]" id="assign_user_ids" class="form-control" multiple size="6" required>
+                        <?php foreach($assignUsers as $u): ?>
+                            <option value="<?= (int)$u['id'] ?>" <?= in_array((int)$u['id'], $assignedUserIds, true) ? 'selected' : '' ?>>
+                                <?= htmlspecialchars($u['username']) ?> (<?= htmlspecialchars($u['role']) ?>)
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                    <div class="text-gray small mt-2">Tip: Hold Ctrl/Cmd to select multiple users.</div>
+                </div>
+                <div class="modal-footer">
+                    <button type="submit" class="btn-main w-100">Assign Selected Users</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
 
 <script>
     // Variables Globales PHP -> JS
@@ -575,6 +615,27 @@ include __DIR__ . '/../views/header.php';
         if (!confirm(`WARNING: This will permanently delete ${selectedTrash.size} items.`)) return; 
         const promises = Array.from(selectedTrash).map(comp => { const [type, id] = comp.split('_'); const fd = new FormData(); fd.append('action', 'hard_delete_entity'); fd.append('type', type); fd.append('id', id); return fetch('../api/api.php', { method: 'POST', body: fd }); }); 
         try { await Promise.all(promises); location.reload(); } catch (e) { alert("Error processing request"); } 
+    }
+
+    // --- ASIGNAR USUARIOS A PROYECTO ---
+    function openAssignUsersModal() {
+        const modalEl = document.getElementById('assignUsersModal');
+        if (!modalEl) return;
+        new bootstrap.Modal(modalEl).show();
+    }
+    const assignUsersForm = document.getElementById('assignUsersForm');
+    if (assignUsersForm) {
+        assignUsersForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const fd = new FormData(this);
+            fetch('../api/api.php', { method:'POST', body:fd })
+                .then(r => r.json())
+                .then(d => {
+                    if (d.status === 'success') location.reload();
+                    else alert('Error assigning users: ' + (d.msg || 'Unknown'));
+                })
+                .catch(() => alert('Connection error'));
+        });
     }
 </script>
 
