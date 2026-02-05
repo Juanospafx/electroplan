@@ -29,24 +29,50 @@ switch($action) {
         $userIds = $_POST['user_ids'] ?? [];
 
         try {
-            $assignedUserId = null;
-            if (is_array($userIds) && !empty($userIds)) {
+            $selectedIds = [];
+            if (is_array($userIds)) {
                 foreach ($userIds as $uid) {
                     $uid = (int)$uid;
-                    if ($uid > 0) { $assignedUserId = $uid; break; }
+                    if ($uid > 0) $selectedIds[] = $uid;
                 }
+                $selectedIds = array_values(array_unique($selectedIds));
+            }
+
+            $assignedUserId = null;
+            $adminIds = [];
+
+            if (!empty($selectedIds)) {
+                $in = implode(',', array_fill(0, count($selectedIds), '?'));
+                $stmtUsers = $pdo->prepare("SELECT id, role FROM users WHERE id IN ($in)");
+                $stmtUsers->execute($selectedIds);
+                $rows = $stmtUsers->fetchAll(PDO::FETCH_ASSOC);
+                if (count($rows) !== count($selectedIds)) {
+                    echo json_encode(['status'=>'error', 'msg'=>'Invalid users']); exit;
+                }
+                foreach ($rows as $r) {
+                    if ($r['role'] === 'admin') $adminIds[] = (int)$r['id'];
+                }
+                if (empty($adminIds)) {
+                    echo json_encode(['status'=>'error', 'msg'=>'At least one admin must be assigned']); exit;
+                }
+                $assignedUserId = $adminIds[0];
+            } else {
+                $stmtAdmin = $pdo->query("SELECT id FROM users WHERE role='admin' ORDER BY id ASC LIMIT 1");
+                $rowAdmin = $stmtAdmin->fetch(PDO::FETCH_ASSOC);
+                $assignedUserId = $rowAdmin ? (int)$rowAdmin['id'] : null;
+                if (!$assignedUserId) {
+                    echo json_encode(['status'=>'error', 'msg'=>'No admin user available']); exit;
+                }
+                $selectedIds = [$assignedUserId];
             }
 
             $stmt = $pdo->prepare("INSERT INTO projects (name, description, status, created_by, assigned_user_id) VALUES (?, ?, ?, ?, ?)");
             $stmt->execute([$name, $desc, $status, $userId, $assignedUserId]);
             $projectId = (int)$pdo->lastInsertId();
 
-            if (is_array($userIds) && !empty($userIds)) {
-                $stmtDir = $pdo->prepare("INSERT IGNORE INTO directory (project_id, user_id) VALUES (?, ?)");
-                foreach ($userIds as $uid) {
-                    $uid = (int)$uid;
-                    if ($uid > 0) $stmtDir->execute([$projectId, $uid]);
-                }
+            $stmtDir = $pdo->prepare("INSERT IGNORE INTO directory (project_id, user_id) VALUES (?, ?)");
+            foreach ($selectedIds as $uid) {
+                $stmtDir->execute([$projectId, $uid]);
             }
             echo json_encode(['status'=>'success']);
         } catch(Exception $e) { echo json_encode(['status'=>'error', 'msg'=>$e->getMessage()]); }
@@ -99,21 +125,39 @@ switch($action) {
             echo json_encode(['status'=>'error', 'msg'=>'Invalid data']); exit;
         }
 
-        $cleanIds = [];
-        foreach($userIds as $uid) {
-            $uid = (int)$uid;
-            if($uid > 0) $cleanIds[] = $uid;
-        }
-        if(empty($cleanIds)) { echo json_encode(['status'=>'error', 'msg'=>'Invalid users']); exit; }
-
         try {
+            $cleanIds = [];
+            foreach($userIds as $uid) {
+                $uid = (int)$uid;
+                if($uid > 0) $cleanIds[] = $uid;
+            }
+            $cleanIds = array_values(array_unique($cleanIds));
+            if(empty($cleanIds)) { echo json_encode(['status'=>'error', 'msg'=>'Invalid users']); exit; }
+
+            $in = implode(',', array_fill(0, count($cleanIds), '?'));
+            $stmtUsers = $pdo->prepare("SELECT id, role FROM users WHERE id IN ($in)");
+            $stmtUsers->execute($cleanIds);
+            $rows = $stmtUsers->fetchAll(PDO::FETCH_ASSOC);
+            if (count($rows) !== count($cleanIds)) {
+                echo json_encode(['status'=>'error', 'msg'=>'Invalid users']); exit;
+            }
+            $adminIds = [];
+            foreach ($rows as $r) {
+                if ($r['role'] === 'admin') $adminIds[] = (int)$r['id'];
+            }
+            if (empty($adminIds)) {
+                echo json_encode(['status'=>'error', 'msg'=>'At least one admin must be assigned']); exit;
+            }
+
+            $pdo->beginTransaction();
+            $pdo->prepare("DELETE FROM directory WHERE project_id = ?")->execute([$projectId]);
             $stmtDir = $pdo->prepare("INSERT IGNORE INTO directory (project_id, user_id) VALUES (?, ?)");
             foreach($cleanIds as $uid) {
                 $stmtDir->execute([$projectId, $uid]);
             }
-            // Set primary assigned user to first selected
-            $primaryId = $cleanIds[0];
+            $primaryId = $adminIds[0];
             $pdo->prepare("UPDATE projects SET assigned_user_id = ? WHERE id = ?")->execute([$primaryId, $projectId]);
+            $pdo->commit();
 
             echo json_encode(['status'=>'success']);
         } catch(Exception $e) { echo json_encode(['status'=>'error', 'msg'=>$e->getMessage()]); }

@@ -44,10 +44,7 @@ class DirectoryController
                 $uid = require_int($uid);
                 if ($uid) $cleanIds[] = $uid;
             }
-            if (empty($cleanIds)) {
-                error_response('VALIDATION_ERROR', 'Invalid user_ids', ['field' => 'user_ids'], 422);
-            }
-            $userIds = $cleanIds;
+            $userIds = array_values(array_unique($cleanIds));
         } else {
             $userIds = [];
             if ($userId) $userIds[] = $userId;
@@ -64,20 +61,33 @@ class DirectoryController
                 error_response('NOT_FOUND', 'Project not found', null, 404);
             }
 
+            $in = implode(',', array_fill(0, count($userIds), '?'));
+            $stmtUsers = $this->pdo->prepare("SELECT id, role FROM users WHERE id IN ($in)");
+            $stmtUsers->execute($userIds);
+            $rows = $stmtUsers->fetchAll(PDO::FETCH_ASSOC);
+            if (count($rows) !== count($userIds)) {
+                error_response('VALIDATION_ERROR', 'Invalid users', null, 422);
+            }
+
+            $adminIds = [];
+            foreach ($rows as $r) {
+                if ($r['role'] === 'admin') $adminIds[] = (int)$r['id'];
+            }
+            if (empty($adminIds)) {
+                error_response('VALIDATION_ERROR', 'At least one admin must be assigned', null, 422);
+            }
+
+            $this->pdo->beginTransaction();
+            $this->pdo->prepare("DELETE FROM directory WHERE project_id = ?")->execute([$projectId]);
             $dir = $this->pdo->prepare("INSERT IGNORE INTO directory (project_id, user_id) VALUES (?, ?)");
             foreach ($userIds as $uid) {
-                $stmt = $this->pdo->prepare("SELECT id FROM users WHERE id = ?");
-                $stmt->execute([$uid]);
-                if (!$stmt->fetch()) {
-                    error_response('NOT_FOUND', 'User not found', ['user_id' => $uid], 404);
-                }
                 $dir->execute([$projectId, $uid]);
             }
 
-            // Set primary assigned user to first provided
-            $primaryId = $userIds[0];
+            $primaryId = $adminIds[0];
             $update = $this->pdo->prepare("UPDATE projects SET assigned_user_id = ? WHERE id = ?");
             $update->execute([$primaryId, $projectId]);
+            $this->pdo->commit();
 
             ok_response(['assigned' => true, 'count' => count($userIds)]);
         } catch (Exception $e) {

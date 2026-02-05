@@ -217,7 +217,7 @@ include __DIR__ . '/../views/header.php';
                     <div class="border rounded p-2" style="max-height:180px; overflow:auto;">
                         <?php foreach($users as $u): ?>
                             <label class="d-flex align-items-center gap-2 small text-gray mb-2">
-                                <input type="checkbox" name="user_ids[]" value="<?= (int)$u['id'] ?>">
+                                <input type="checkbox" name="user_ids[]" value="<?= (int)$u['id'] ?>" data-role="<?= htmlspecialchars($u['role']) ?>">
                                 <span><?= htmlspecialchars($u['username']) ?> (<?= htmlspecialchars($u['role']) ?>)</span>
                             </label>
                         <?php endforeach; ?>
@@ -275,6 +275,12 @@ include __DIR__ . '/../views/header.php';
     }
     document.getElementById('createForm').addEventListener('submit', function(e) {
         e.preventDefault();
+        const checked = Array.from(this.querySelectorAll('input[name="user_ids[]"]:checked'));
+        const hasAdmin = checked.some(i => i.dataset.role === 'admin');
+        if (checked.length > 0 && !hasAdmin) {
+            alert('At least one admin must be assigned to the project.');
+            return;
+        }
         const fd = new FormData(this);
         fetch('../api/api.php', { method:'POST', body:fd })
         .then(r => r.json()).then(d => { location.reload(); });
