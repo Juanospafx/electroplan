@@ -15,14 +15,21 @@ $isAdmin = ($userRole === 'admin');
 
 // Obtener todos los proyectos (FILTRADO POR NO BORRADOS)
 $stmt = $pdo->query("
-    SELECT p.*, u.username as creator_name, 
+    SELECT p.*, u.username as creator_name, au.username as assigned_name,
     (SELECT COUNT(*) FROM files f WHERE f.project_id = p.id AND f.deleted_at IS NULL) as file_count
     FROM projects p 
-    LEFT JOIN users u ON p.created_by = u.id 
+    LEFT JOIN users u ON p.created_by = u.id
+    LEFT JOIN users au ON p.assigned_user_id = au.id
     WHERE p.deleted_at IS NULL
     ORDER BY p.created_at DESC
 ");
 $projects = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+$users = [];
+if ($isAdmin) {
+    $stmtUsers = $pdo->query("SELECT id, username, role FROM users ORDER BY username ASC");
+    $users = $stmtUsers->fetchAll(PDO::FETCH_ASSOC);
+}
 
 // Configuración del Header
 $pageTitle = "Projects | Brightronix";
@@ -84,6 +91,7 @@ include __DIR__ . '/../views/header.php';
                         <th width="30%">Project Name</th>
                         <th width="15%">Status</th>
                         <th width="25%">Description</th>
+                        <th>Assigned</th>
                         <th>Created</th>
                         <th>Files</th>
                         <th class="text-end">Actions</th>
@@ -114,6 +122,9 @@ include __DIR__ . '/../views/header.php';
                             <span class="text-gray"><?= htmlspecialchars($p['description'] ?: 'No description') ?></span>
                         </td>
                         <td class="small text-gray">
+                            <?= htmlspecialchars($p['assigned_name'] ?: 'Unassigned') ?>
+                        </td>
+                        <td class="small text-gray">
                             <?= date('M d, Y', strtotime($p['created_at'])) ?>
                         </td>
                         <td>
@@ -126,6 +137,7 @@ include __DIR__ . '/../views/header.php';
                             
                             <?php if($isAdmin): ?>
                                 <button class="btn-action me-1" onclick="editProject(<?= $p['id'] ?>, '<?= addslashes($p['name']) ?>', '<?= addslashes($p['description']) ?>', '<?= $p['status'] ?? 'Active' ?>')" title="Edit"><i class="fas fa-pen"></i></button>
+                                <button class="btn-action me-1" onclick="openAssignModal(<?= $p['id'] ?>, '<?= addslashes($p['name']) ?>')" title="Assign User"><i class="fas fa-user-plus"></i></button>
                                 <button class="btn-action delete" onclick="deleteProject(<?= $p['id'] ?>)" title="Move to Trash"><i class="fas fa-trash"></i></button>
                             <?php endif; ?>
                         </td>
@@ -134,7 +146,7 @@ include __DIR__ . '/../views/header.php';
                     
                     <?php if(empty($projects)): ?>
                     <tr>
-                        <td colspan="6" class="text-center py-5 text-gray">
+                        <td colspan="7" class="text-center py-5 text-gray">
                             No projects found.
                         </td>
                     </tr>
@@ -211,6 +223,38 @@ include __DIR__ . '/../views/header.php';
 <?php endif; ?>
 
 <?php if($isAdmin): ?>
+<div class="modal fade" id="assignUserModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content p-3">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold">Assign User to Project</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="assignForm">
+                <input type="hidden" name="action" value="assign_project_user">
+                <input type="hidden" name="project_id" id="assign_project_id">
+                <div class="modal-body">
+                    <label class="text-gray small mb-2">Project</label>
+                    <input type="text" id="assign_project_name" class="form-control mb-3" disabled>
+
+                    <label class="text-gray small mb-2">User</label>
+                    <select name="user_id" id="assign_user_id" class="form-control" required>
+                        <option value="">Select a user...</option>
+                        <?php foreach($users as $u): ?>
+                            <option value="<?= (int)$u['id'] ?>">
+                                <?= htmlspecialchars($u['username']) ?> (<?= htmlspecialchars($u['role']) ?>)
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="modal-footer">
+                    <button type="submit" class="btn-main w-100">Assign</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <script>
     // 1. Crear
     function openCreateModal() {
@@ -256,6 +300,23 @@ include __DIR__ . '/../views/header.php';
             });
         }
     }
+
+    // 4. Asignar Usuario
+    function openAssignModal(projectId, projectName) {
+        document.getElementById('assign_project_id').value = projectId;
+        document.getElementById('assign_project_name').value = projectName;
+        document.getElementById('assign_user_id').value = '';
+        new bootstrap.Modal(document.getElementById('assignUserModal')).show();
+    }
+    document.getElementById('assignForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        const fd = new FormData(this);
+        fetch('../api/api.php', { method:'POST', body:fd })
+        .then(r => r.json()).then(d => {
+            if(d.status === 'success') location.reload();
+            else alert('Error assigning user: ' + (d.msg || 'Unknown'));
+        });
+    });
 </script>
 <?php endif; ?>
 

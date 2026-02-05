@@ -50,6 +50,26 @@ switch($action) {
         } catch(Exception $e) { echo json_encode(['status'=>'error', 'msg'=>$e->getMessage()]); }
         break;
 
+    // --- 1.2 ASIGNAR USUARIO A PROYECTO (ADMIN ONLY) ---
+    case 'assign_project_user':
+        if($userRole !== 'admin') { echo json_encode(['status'=>'error', 'msg'=>'Access Denied']); exit; }
+
+        $projectId = (int)($_POST['project_id'] ?? 0);
+        $userId = (int)($_POST['user_id'] ?? 0);
+
+        if($projectId <= 0 || $userId <= 0) { echo json_encode(['status'=>'error', 'msg'=>'Invalid data']); exit; }
+
+        try {
+            $stmt = $pdo->prepare("UPDATE projects SET assigned_user_id = ? WHERE id = ?");
+            $stmt->execute([$userId, $projectId]);
+
+            $stmtDir = $pdo->prepare("INSERT IGNORE INTO directory (project_id, user_id) VALUES (?, ?)");
+            $stmtDir->execute([$projectId, $userId]);
+
+            echo json_encode(['status'=>'success']);
+        } catch(Exception $e) { echo json_encode(['status'=>'error', 'msg'=>$e->getMessage()]); }
+        break;
+
     // --- 2. CREAR CARPETA (ADMIN ONLY) ---
     case 'create_folder':
         if($userRole !== 'admin') { echo json_encode(['status'=>'error', 'msg'=>'Access Denied']); exit; }

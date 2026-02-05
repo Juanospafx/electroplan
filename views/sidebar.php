@@ -10,6 +10,7 @@ $isTrash     = ($view === 'trash');
 $isTimeline  = ($currentScript === 'timeline.php');
 $isSettings  = ($currentScript === 'settings.php');
 $isProjects  = ($currentScript === 'projects.php' || ($currentScript === 'index.php' && $pId));
+$isDirectory = ($currentScript === 'directorio.php');
 // Dashboard solo se enciende si es index.php Y no hay proyecto Y no es papelera
 $isDashboard = ($currentScript === 'index.php' && !$pId && !$isTrash);
 
@@ -31,6 +32,10 @@ $isAdminSidebar = (strtolower($userRoleRawSidebar) === 'admin');
         
         <a href="../pages/projects.php" class="menu-item <?= $isProjects ? 'active' : '' ?>">
             <i class="fas fa-layer-group"></i> Projects
+        </a>
+
+        <a href="../pages/directorio.php" class="menu-item <?= $isDirectory ? 'active' : '' ?>">
+            <i class="fas fa-address-book"></i> Directory
         </a>
 
         <?php if($isAdminSidebar): ?>
