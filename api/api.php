@@ -57,12 +57,8 @@ switch($action) {
                 }
                 $assignedUserId = $adminIds[0];
             } else {
-                $stmtAdmin = $pdo->query("SELECT id FROM users WHERE role='admin' ORDER BY id ASC LIMIT 1");
-                $rowAdmin = $stmtAdmin->fetch(PDO::FETCH_ASSOC);
-                $assignedUserId = $rowAdmin ? (int)$rowAdmin['id'] : null;
-                if (!$assignedUserId) {
-                    echo json_encode(['status'=>'error', 'msg'=>'No admin user available']); exit;
-                }
+                // Default assignment to the creator (admin) when none selected
+                $assignedUserId = (int)$userId;
                 $selectedIds = [$assignedUserId];
             }
 
