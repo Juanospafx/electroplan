@@ -26,10 +26,28 @@ switch($action) {
         $name = $_POST['name'];
         $desc = $_POST['description'] ?? '';
         $status = $_POST['status'] ?? 'Active';
+        $userIds = $_POST['user_ids'] ?? [];
 
         try {
-            $stmt = $pdo->prepare("INSERT INTO projects (name, description, status, created_by) VALUES (?, ?, ?, ?)");
-            $stmt->execute([$name, $desc, $status, $userId]);
+            $assignedUserId = null;
+            if (is_array($userIds) && !empty($userIds)) {
+                foreach ($userIds as $uid) {
+                    $uid = (int)$uid;
+                    if ($uid > 0) { $assignedUserId = $uid; break; }
+                }
+            }
+
+            $stmt = $pdo->prepare("INSERT INTO projects (name, description, status, created_by, assigned_user_id) VALUES (?, ?, ?, ?, ?)");
+            $stmt->execute([$name, $desc, $status, $userId, $assignedUserId]);
+            $projectId = (int)$pdo->lastInsertId();
+
+            if (is_array($userIds) && !empty($userIds)) {
+                $stmtDir = $pdo->prepare("INSERT IGNORE INTO directory (project_id, user_id) VALUES (?, ?)");
+                foreach ($userIds as $uid) {
+                    $uid = (int)$uid;
+                    if ($uid > 0) $stmtDir->execute([$projectId, $uid]);
+                }
+            }
             echo json_encode(['status'=>'success']);
         } catch(Exception $e) { echo json_encode(['status'=>'error', 'msg'=>$e->getMessage()]); }
         break;
