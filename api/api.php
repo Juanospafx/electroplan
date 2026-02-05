@@ -38,28 +38,18 @@ switch($action) {
                 $selectedIds = array_values(array_unique($selectedIds));
             }
 
-            $assignedUserId = null;
-            $adminIds = [];
+            $assignedUserId = (int)$userId; // creator (admin)
+            $selectedIds[] = $assignedUserId;
+            $selectedIds = array_values(array_unique($selectedIds));
 
             if (!empty($selectedIds)) {
                 $in = implode(',', array_fill(0, count($selectedIds), '?'));
-                $stmtUsers = $pdo->prepare("SELECT id, role FROM users WHERE id IN ($in)");
+                $stmtUsers = $pdo->prepare("SELECT id FROM users WHERE id IN ($in)");
                 $stmtUsers->execute($selectedIds);
                 $rows = $stmtUsers->fetchAll(PDO::FETCH_ASSOC);
                 if (count($rows) !== count($selectedIds)) {
                     echo json_encode(['status'=>'error', 'msg'=>'Invalid users']); exit;
                 }
-                foreach ($rows as $r) {
-                    if ($r['role'] === 'admin') $adminIds[] = (int)$r['id'];
-                }
-                if (empty($adminIds)) {
-                    echo json_encode(['status'=>'error', 'msg'=>'At least one admin must be assigned']); exit;
-                }
-                $assignedUserId = $adminIds[0];
-            } else {
-                // Default assignment to the creator (admin) when none selected
-                $assignedUserId = (int)$userId;
-                $selectedIds = [$assignedUserId];
             }
 
             $stmt = $pdo->prepare("INSERT INTO projects (name, description, status, created_by, assigned_user_id) VALUES (?, ?, ?, ?, ?)");

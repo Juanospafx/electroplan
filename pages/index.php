@@ -16,6 +16,11 @@ $isAdmin = ($userRole === 'admin');
 $canCreate = $isAdmin;
 $canDelete = $isAdmin; 
 $canUpload = $isAdmin;
+$createUsers = [];
+if ($canCreate) {
+    $stmtUsers = $pdo->query("SELECT id, username, role FROM users ORDER BY username ASC");
+    $createUsers = $stmtUsers->fetchAll(PDO::FETCH_ASSOC);
+}
 
 // ---------------------------------------------------------
 // 2. LÓGICA DE ACCIONES (POST y GET)
@@ -26,8 +31,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $name = trim($_POST['name']);
         $desc = trim($_POST['description']);
         if(!empty($name)){
-            $stmt = $pdo->prepare("INSERT INTO projects (name, description, created_by, created_at, status) VALUES (?, ?, ?, NOW(), 'Active')");
-            $stmt->execute([$name, $desc, $userId]);
+            $userIds = $_POST['user_ids'] ?? [];
+            $selectedIds = [];
+            if (is_array($userIds)) {
+                foreach ($userIds as $uid) {
+                    $uid = (int)$uid;
+                    if ($uid > 0) $selectedIds[] = $uid;
+                }
+            }
+            $selectedIds[] = (int)$userId; // creator (admin)
+            $selectedIds = array_values(array_unique($selectedIds));
+
+            if (!empty($selectedIds)) {
+                $in = implode(',', array_fill(0, count($selectedIds), '?'));
+                $stmtUsers = $pdo->prepare("SELECT id FROM users WHERE id IN ($in)");
+                $stmtUsers->execute($selectedIds);
+                $rows = $stmtUsers->fetchAll(PDO::FETCH_ASSOC);
+                if (count($rows) !== count($selectedIds)) {
+                    header("Location: index.php");
+                    exit;
+                }
+            }
+
+            $stmt = $pdo->prepare("INSERT INTO projects (name, description, created_by, created_at, status, assigned_user_id) VALUES (?, ?, ?, NOW(), 'Active', ?)");
+            $stmt->execute([$name, $desc, $userId, $userId]);
+            $projectId = (int)$pdo->lastInsertId();
+
+            $stmtDir = $pdo->prepare("INSERT IGNORE INTO directory (project_id, user_id) VALUES (?, ?)");
+            foreach ($selectedIds as $uid) {
+                $stmtDir->execute([$projectId, $uid]);
+            }
         }
         header("Location: index.php");
         exit;

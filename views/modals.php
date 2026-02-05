@@ -12,6 +12,19 @@
                     <input type="text" name="name" class="form-control mb-3" required>
                     <label class="text-gray small mb-2">Description</label>
                     <textarea name="description" class="form-control" rows="3"></textarea>
+
+                    <label class="text-gray small mb-2 mt-3">Assign Users</label>
+                    <div class="border rounded p-2" style="max-height:180px; overflow:auto;">
+                        <?php foreach(($createUsers ?? []) as $u): ?>
+                            <label class="d-flex align-items-center gap-2 small text-gray mb-2">
+                                <input type="checkbox" name="user_ids[]" value="<?= (int)$u['id'] ?>">
+                                <span><?= htmlspecialchars($u['username']) ?> (<?= htmlspecialchars($u['role']) ?>)</span>
+                            </label>
+                        <?php endforeach; ?>
+                        <?php if(empty($createUsers)): ?>
+                            <div class="text-gray small">No users available.</div>
+                        <?php endif; ?>
+                    </div>
                 </div>
                 <div class="modal-footer">
                     <button class="btn-main w-100">Create Project</button>
