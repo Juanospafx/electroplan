@@ -158,6 +158,18 @@ else {
 include __DIR__ . '/../views/header.php'; 
 ?>
 
+<style>
+    @media (max-width: 992px) {
+        .proj-actions { flex-wrap: wrap; gap: 8px; }
+        .proj-actions .btn,
+        .proj-actions .btn-main { width: 100%; }
+        .folder-grid .col-md-3,
+        .file-grid .col-md-3 { flex: 0 0 100%; max-width: 100%; }
+        .box-card { padding: 16px; }
+        .file-card-item { padding: 16px; }
+    }
+</style>
+
     <main class="main-content">
         
         <header class="header">
@@ -291,7 +303,7 @@ include __DIR__ . '/../views/header.php';
             <?php $backUrl = ($viewLevel === 'folder') ? "index.php?project_id=$projectId" : "index.php"; ?>
             <div class="d-flex justify-content-between align-items-center mb-5">
                 <div class="d-flex align-items-center gap-4"><a href="<?= $backUrl ?>" class="btn-back"><i class="fas fa-arrow-left"></i></a><div><h2 class="fw-bold mb-1"><?= htmlspecialchars($viewLevel === 'project' ? $project['name'] : $folder['name']) ?></h2><p class="text-gray mb-0">Project Files</p></div></div>
-                <div class="d-flex gap-3">
+                <div class="d-flex gap-3 proj-actions">
                     <?php if($viewLevel === 'project' && $canCreate): ?><button class="btn btn-outline-light rounded-pill px-4 fw-bold" data-bs-toggle="modal" data-bs-target="#newFolderModal"><i class="fas fa-folder-plus me-2"></i> Folder</button><?php endif; ?>
                     <?php if($viewLevel === 'project' && $isAdmin): ?><button class="btn btn-outline-info rounded-pill px-4 fw-bold" onclick="openAssignUsersModal()"><i class="fas fa-user-plus me-2"></i> Assign Users</button><?php endif; ?>
                     <?php if($canUpload): ?><button class="btn-main" onclick="openUploadModal()"><i class="fas fa-cloud-upload-alt me-2"></i> Upload</button><?php endif; ?>
@@ -299,7 +311,7 @@ include __DIR__ . '/../views/header.php';
             </div>
 
             <?php if(!empty($folders)): ?>
-            <div class="row g-3 mb-5">
+            <div class="row g-3 mb-5 folder-grid">
                 <?php foreach($folders as $item): $isRep = ($item['name'] === 'Reports'); ?>
                 <div class="col-md-3">
                     <div class="box-card p-3 d-flex align-items-center justify-content-between">
@@ -317,7 +329,7 @@ include __DIR__ . '/../views/header.php';
             <?php endif; ?>
 
             <div class="d-flex justify-content-between align-items-center mb-3"><h6 class="text-gray fw-bold small ls-1 mb-0">Files</h6><?php if(!empty($files) && $canDelete): ?><button class="btn btn-sm btn-outline-light rounded-pill px-3" onclick="selectAll()"><i class="fas fa-check-double me-2"></i> Select All</button><?php endif; ?></div>
-            <div class="row g-3">
+            <div class="row g-3 file-grid">
                 <?php foreach($files as $f): 
                     $ft = strtolower(pathinfo($f['filename'], PATHINFO_EXTENSION));
                     $isPdf = ($ft === 'pdf'); 
