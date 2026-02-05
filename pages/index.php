@@ -351,15 +351,18 @@ include __DIR__ . '/../views/header.php';
                 <input type="hidden" name="action" value="assign_project_users">
                 <input type="hidden" name="project_id" value="<?= (int)$projectId ?>">
                 <div class="modal-body">
-                    <label class="text-gray small mb-2">Users (multi-select)</label>
-                    <select name="user_ids[]" id="assign_user_ids" class="form-control" multiple size="6" required>
+                    <label class="text-gray small mb-2">Assign Users</label>
+                    <div class="border rounded p-2" style="max-height:200px; overflow:auto;">
                         <?php foreach($assignUsers as $u): ?>
-                            <option value="<?= (int)$u['id'] ?>" <?= in_array((int)$u['id'], $assignedUserIds, true) ? 'selected' : '' ?>>
-                                <?= htmlspecialchars($u['username']) ?> (<?= htmlspecialchars($u['role']) ?>)
-                            </option>
+                            <label class="d-flex align-items-center gap-2 small text-gray mb-2">
+                                <input type="checkbox" name="user_ids[]" value="<?= (int)$u['id'] ?>" <?= in_array((int)$u['id'], $assignedUserIds, true) ? 'checked' : '' ?>>
+                                <span><?= htmlspecialchars($u['username']) ?> (<?= htmlspecialchars($u['role']) ?>)</span>
+                            </label>
                         <?php endforeach; ?>
-                    </select>
-                    <div class="text-gray small mt-2">Tip: Hold Ctrl/Cmd to select multiple users.</div>
+                        <?php if(empty($assignUsers)): ?>
+                            <div class="text-gray small">No users available.</div>
+                        <?php endif; ?>
+                    </div>
                 </div>
                 <div class="modal-footer">
                     <button type="submit" class="btn-main w-100">Assign Selected Users</button>
