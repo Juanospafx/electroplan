@@ -59,6 +59,17 @@ include __DIR__ . '/../views/header.php';
     .table-rounded tr:hover td { background: rgba(255,255,255,0.02); }
     .user-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px; border-radius: 8px; background: rgba(255,255,255,0.08); margin-right: 6px; margin-bottom: 6px; font-size: 0.75rem; }
     .user-role { opacity: 0.7; font-size: 0.7rem; }
+
+    /* Responsive cards */
+    .dir-cards { display: none; }
+    .dir-card { background: var(--bg-card); border: 1px solid rgba(255,255,255,0.08); border-radius: 16px; padding: 16px; }
+    .dir-card + .dir-card { margin-top: 12px; }
+    .dir-meta { font-size: 0.8rem; color: var(--text-gray); }
+
+    @media (max-width: 992px) {
+        .table-responsive { display: none; }
+        .dir-cards { display: block; }
+    }
 </style>
 
 <main class="main-content">
@@ -133,6 +144,35 @@ include __DIR__ . '/../views/header.php';
                 <?php endif; ?>
             </tbody>
         </table>
+    </div>
+
+    <div class="dir-cards">
+        <?php foreach($directory as $p): ?>
+            <div class="dir-card">
+                <div class="fw-bold"><?= htmlspecialchars($p['project_name']) ?></div>
+                <div class="dir-meta">ID: #<?= $p['project_id'] ?> · <?= htmlspecialchars($p['project_status'] ?? 'Active') ?></div>
+                <div class="dir-meta mt-2"><?= htmlspecialchars($p['project_description'] ?: 'No description') ?></div>
+                <div class="mt-3">
+                    <?php if (!empty($p['users'])): ?>
+                        <?php foreach($p['users'] as $u): ?>
+                            <span class="user-chip">
+                                <?= htmlspecialchars($u['username']) ?>
+                                <span class="user-role">(<?= htmlspecialchars($u['role']) ?>)</span>
+                                <?php if ((int)$p['primary_user_id'] === (int)$u['id']): ?>
+                                    <span class="user-role">• primary</span>
+                                <?php endif; ?>
+                            </span>
+                        <?php endforeach; ?>
+                    <?php else: ?>
+                        <span class="text-gray">Unassigned</span>
+                    <?php endif; ?>
+                </div>
+            </div>
+        <?php endforeach; ?>
+
+        <?php if(empty($directory)): ?>
+            <div class="dir-card text-center text-gray">No projects found.</div>
+        <?php endif; ?>
     </div>
 </main>
 
