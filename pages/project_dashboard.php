@@ -174,6 +174,9 @@ include __DIR__ . '/../views/header.php';
                                         </div>
                                         <div class="d-flex gap-2">
                                             <a href="preview.php?id=<?= (int)$rf['id'] ?>" class="btn-icon" title="Preview"><i class="fas fa-eye"></i></a>
+                                            <?php if(($_SESSION['role'] ?? '') !== 'viewer'): ?>
+                                                <a href="editor.php?id=<?= (int)$rf['id'] ?>" class="btn-icon text-primary border-primary" title="Edit"><i class="fas fa-pen"></i></a>
+                                            <?php endif; ?>
                                             <?php if(($_SESSION['role'] ?? '') === 'admin'): ?>
                                                 <button class="btn-icon text-danger border-danger" title="Delete" onclick="deleteFile(<?= (int)$rf['id'] ?>)"><i class="fas fa-trash"></i></button>
                                             <?php endif; ?>

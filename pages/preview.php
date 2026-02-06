@@ -543,7 +543,8 @@ if ($filePath !== '') {
     // ---------------------------------------------------------
 
     // VARIABLES
-    const fileUrl = "<?= $filePath ?>";
+    const fileUrlRaw = "<?= $filePath ?>";
+    const fileUrl = encodeURI(fileUrlRaw);
     const fileExt = "<?= $fileExt ?>";
     let allAnnotations = <?= $annotations ?>; 
     if(typeof allAnnotations !== 'object' || allAnnotations === null) allAnnotations = {};
@@ -590,6 +591,8 @@ if ($filePath !== '') {
     resize(); 
 
     // LOAD DOCUMENT
+    const imageExts = ['jpg','jpeg','png','gif','webp','bmp','tiff','tif','heic'];
+
     if(fileExt === 'pdf') {
         pdfjsLib.getDocument(fileUrl).promise.then(pdf => {
             pdfDoc = pdf; document.getElementById('p-total').textContent = pdf.numPages;
@@ -605,9 +608,11 @@ if ($filePath !== '') {
             const url = URL.createObjectURL(blob);
             loadSingleImage(url);
         }).catch(e => console.error(e));
-    } else {
+    } else if (imageExts.includes(fileExt)) {
         document.getElementById('p-total').textContent = '1'; renderPageList(1);
         loadSingleImage(fileUrl);
+    } else {
+        showToast("Unsupported file type", "error");
     }
 
     function loadSingleImage(url) {
