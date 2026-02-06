@@ -1640,7 +1640,7 @@ if ($filePath !== '') {
         else { canvas.defaultCursor = 'default'; }
 
         if (useKonvaRuler) {
-            if (mode === 'measure') {
+            if (mode === 'measure' || mode === 'smart') {
                 initKonvaRuler();
                 setKonvaActive(true);
             } else {
