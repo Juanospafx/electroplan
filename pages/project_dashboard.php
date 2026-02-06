@@ -341,6 +341,16 @@ include __DIR__ . '/../views/header.php';
     </div>
 </div>
 
+<div id="uploadProgressWrap" class="position-fixed bottom-0 end-0 m-3" style="z-index: 2000; width: 280px; display:none;">
+    <div class="box-card p-3">
+        <div class="small text-gray mb-2">Uploading file...</div>
+        <div class="progress" style="height:8px;">
+            <div id="uploadProgressBar" class="progress-bar" role="progressbar" style="width:0%"></div>
+        </div>
+        <div class="small text-gray mt-2" id="uploadProgressText">0%</div>
+    </div>
+</div>
+
 <?php if(($_SESSION['role'] ?? '') === 'admin'): ?>
 <div class="modal fade" id="moveFolderModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
@@ -461,6 +471,55 @@ include __DIR__ . '/../views/header.php';
         });
     }
 
+    function showUploadProgress() {
+        const wrap = document.getElementById('uploadProgressWrap');
+        const bar = document.getElementById('uploadProgressBar');
+        const txt = document.getElementById('uploadProgressText');
+        if (!wrap || !bar || !txt) return;
+        wrap.style.display = 'block';
+        bar.style.width = '0%';
+        txt.textContent = '0%';
+    }
+
+    function updateUploadProgress(pct) {
+        const bar = document.getElementById('uploadProgressBar');
+        const txt = document.getElementById('uploadProgressText');
+        if (!bar || !txt) return;
+        const clamped = Math.max(0, Math.min(100, Math.round(pct)));
+        bar.style.width = clamped + '%';
+        txt.textContent = clamped + '%';
+    }
+
+    function hideUploadProgress(delay = 1200) {
+        const wrap = document.getElementById('uploadProgressWrap');
+        if (!wrap) return;
+        setTimeout(() => { wrap.style.display = 'none'; }, delay);
+    }
+
+    function uploadWithProgress(fd) {
+        showUploadProgress();
+        return new Promise((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', '../api/api.php', true);
+            xhr.upload.addEventListener('progress', (e) => {
+                if (e.lengthComputable) {
+                    updateUploadProgress((e.loaded / e.total) * 100);
+                }
+            });
+            xhr.addEventListener('load', () => {
+                updateUploadProgress(100);
+                try {
+                    const res = JSON.parse(xhr.responseText);
+                    resolve(res);
+                } catch (err) {
+                    reject(err);
+                }
+            });
+            xhr.addEventListener('error', () => reject(new Error('Upload failed')));
+            xhr.send(fd);
+        });
+    }
+
     const uploadFileForm = document.getElementById('uploadFileForm');
     if (uploadFileForm) {
         uploadFileForm.addEventListener('submit', function(e) {
@@ -480,13 +539,25 @@ include __DIR__ . '/../views/header.php';
             fd.append('project_id', pId);
             fd.append('folder_id', folderSelect.value);
             fd.append('file', fileInput.files[0]);
-            fetch('../api/api.php', { method:'POST', body: fd })
-                .then(r => r.json())
+            const modalEl = document.getElementById('uploadFileModal');
+            if (modalEl) {
+                const inst = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+                inst.hide();
+            }
+            uploadWithProgress(fd)
                 .then(d => {
-                    if (d.status === 'success') location.reload();
-                    else alert('Error uploading file: ' + (d.msg || 'Unknown'));
+                    if (d.status === 'success') {
+                        hideUploadProgress(800);
+                        location.reload();
+                    } else {
+                        hideUploadProgress(1500);
+                        alert('Error uploading file: ' + (d.msg || 'Unknown'));
+                    }
                 })
-                .catch(() => alert('Connection error'));
+                .catch(() => {
+                    hideUploadProgress(1500);
+                    alert('Upload failed. The file may still finish uploading in the background.');
+                });
         });
     }
 
