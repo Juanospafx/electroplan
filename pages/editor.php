@@ -600,6 +600,8 @@ if ($filePath !== '') {
     let konvaRulers = [];
     let konvaNotes = [];
     const konvaRulersByPage = {};
+    let konvaTransformer = null;
+    let konvaEditingTextarea = null;
     let konvaDrawing = null;
     let konvaIsPanning = false;
     let pdfDoc = null, pageNum = 1, pdfScale = 2.0;
@@ -930,6 +932,9 @@ if ($filePath !== '') {
         konvaNotes.forEach(n => {
             n.group.draggable(allowEdit);
         });
+        if (konvaTransformer) {
+            if (!allowEdit) konvaTransformer.nodes([]);
+        }
         if (konvaLayer) konvaLayer.batchDraw();
     }
 
@@ -1020,18 +1025,101 @@ if ($filePath !== '') {
         const note = { group, label, page: pageNum };
         konvaNotes.push(note);
 
+        group.on('click tap', (e) => {
+            if (currentMode !== 'smart') return;
+            if (konvaTransformer) konvaTransformer.nodes([group]);
+        });
         label.on('dblclick dbltap', () => {
-            const next = prompt('Edit note', label.text());
-            if (next !== null) {
-                label.text(next);
-                label.offsetX(label.width() / 2);
-                label.offsetY(label.height() / 2);
-                konvaLayer.batchDraw();
-            }
+            if (currentMode !== 'smart') return;
+            startInlineNoteEdit(note);
         });
 
         updateKonvaInteractivity();
         return note;
+    }
+
+    function ensureKonvaTransformer() {
+        if (!konvaLayer) return;
+        if (!konvaTransformer) {
+            konvaTransformer = new Konva.Transformer({
+                enabledAnchors: ['top-left','top-right','bottom-left','bottom-right'],
+                rotateEnabled: false,
+                keepRatio: true,
+                boundBoxFunc: (oldBox, newBox) => {
+                    if (newBox.width < 20 || newBox.height < 20) return oldBox;
+                    return newBox;
+                }
+            });
+            konvaLayer.add(konvaTransformer);
+        }
+    }
+
+    function startInlineNoteEdit(note) {
+        if (!note || !konvaStage || !konvaLayer) return;
+        const container = konvaStage.container();
+        const rect = container.getBoundingClientRect();
+        const vpt = getFabricVpt();
+
+        const textNode = note.label;
+        const absPos = textNode.getAbsolutePosition();
+
+        const areaPosition = {
+            x: rect.left + absPos.x * vpt.scaleX + vpt.translateX,
+            y: rect.top + absPos.y * vpt.scaleY + vpt.translateY
+        };
+
+        if (!konvaEditingTextarea) {
+            konvaEditingTextarea = document.createElement('textarea');
+            konvaEditingTextarea.style.position = 'fixed';
+            konvaEditingTextarea.style.zIndex = '3000';
+            konvaEditingTextarea.style.resize = 'none';
+            konvaEditingTextarea.style.border = '1px solid #475569';
+            konvaEditingTextarea.style.borderRadius = '6px';
+            konvaEditingTextarea.style.padding = '6px 8px';
+            konvaEditingTextarea.style.outline = 'none';
+            konvaEditingTextarea.style.background = '#0f172a';
+            konvaEditingTextarea.style.color = '#ffffff';
+            document.body.appendChild(konvaEditingTextarea);
+        }
+
+        const fontSize = textNode.fontSize() * vpt.scaleX;
+        konvaEditingTextarea.style.fontSize = fontSize + 'px';
+        konvaEditingTextarea.style.lineHeight = '1.2';
+        konvaEditingTextarea.style.left = areaPosition.x + 'px';
+        konvaEditingTextarea.style.top = areaPosition.y + 'px';
+        konvaEditingTextarea.style.width = Math.max(120, textNode.width() * vpt.scaleX) + 'px';
+        konvaEditingTextarea.style.height = Math.max(40, textNode.height() * vpt.scaleY) + 'px';
+        konvaEditingTextarea.value = textNode.text();
+        konvaEditingTextarea.focus();
+
+        const finish = () => {
+            const next = konvaEditingTextarea.value.trim();
+            if (next !== '') {
+                textNode.text(next);
+                textNode.offsetX(textNode.width() / 2);
+                textNode.offsetY(textNode.height() / 2);
+                konvaLayer.batchDraw();
+            }
+            konvaEditingTextarea.style.left = '-9999px';
+            konvaEditingTextarea.style.top = '-9999px';
+            konvaEditingTextarea.blur();
+        };
+
+        const onKey = (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                finish();
+                konvaEditingTextarea.removeEventListener('keydown', onKey);
+                konvaEditingTextarea.removeEventListener('blur', onBlur);
+            }
+        };
+        const onBlur = () => {
+            finish();
+            konvaEditingTextarea.removeEventListener('keydown', onKey);
+            konvaEditingTextarea.removeEventListener('blur', onBlur);
+        };
+        konvaEditingTextarea.addEventListener('keydown', onKey);
+        konvaEditingTextarea.addEventListener('blur', onBlur);
     }
 
     function initKonvaRuler() {
@@ -1045,6 +1133,7 @@ if ($filePath !== '') {
         });
         konvaLayer = new Konva.Layer();
         konvaStage.add(konvaLayer);
+        ensureKonvaTransformer();
 
         // Zoom desde Konva -> Fabric (para no bloquear zoom)
         konvaStage.container().addEventListener('wheel', function(e) {
@@ -2033,7 +2122,8 @@ if ($filePath !== '') {
             setKonvaActive(true);
             updateKonvaInteractivity();
             const center = canvas.getVpCenter();
-            createKonvaNote({ x: center.x, y: center.y }, 'Note');
+            const note = createKonvaNote({ x: center.x, y: center.y }, 'Note');
+            startInlineNoteEdit(note);
             return;
         }
         const center = canvas.getVpCenter();
