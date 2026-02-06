@@ -1000,8 +1000,6 @@ if ($filePath !== '') {
 
         konvaStage.on('mousedown touchstart', (e) => {
             if (currentMode !== 'measure') return;
-            const target = e.target;
-            if (target && target !== konvaStage && target.getParent()) return;
             const pos = konvaStage.getPointerPosition();
             if (!pos) return;
             const world = screenToWorld(pos);
