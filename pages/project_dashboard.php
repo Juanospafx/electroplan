@@ -16,6 +16,15 @@ if (!$project) {
     exit;
 }
 
+$assignUsers = [];
+$assignedUserIds = [];
+if (($_SESSION['role'] ?? '') === 'admin') {
+    $assignUsers = $pdo->query("SELECT id, username, role FROM users ORDER BY username ASC")->fetchAll(PDO::FETCH_ASSOC);
+    $stmtAssigned = $pdo->prepare("SELECT user_id FROM directory WHERE project_id = ?");
+    $stmtAssigned->execute([$projectId]);
+    $assignedUserIds = array_map('intval', $stmtAssigned->fetchAll(PDO::FETCH_COLUMN));
+}
+
 $pageTitle = $project['name'];
 $currentView = $_GET['view'] ?? 'summary'; // summary, desc, files, clockin, etc.
 $currentFolderId = $_GET['folder_id'] ?? null;
@@ -52,6 +61,7 @@ include __DIR__ . '/../views/header.php';
         <div class="d-flex gap-2">
             <?php if($_SESSION['role'] === 'admin'): ?>
                 <button class="btn btn-outline-secondary btn-sm rounded-pill"><i class="fas fa-edit me-2"></i>Edit Info</button>
+                <button class="btn btn-outline-info btn-sm rounded-pill" onclick="openAssignUsersModal()"><i class="fas fa-user-plus me-2"></i>Assign Users</button>
             <?php endif; ?>
             <button class="btn btn-primary rounded-pill btn-sm px-4" onclick="openUploadModal()"><i class="fas fa-cloud-upload-alt me-2"></i> Upload File</button>
         </div>
@@ -211,9 +221,69 @@ include __DIR__ . '/../views/header.php';
 
 <?php include __DIR__ . '/../views/modals.php'; ?>
 
+<?php if(($_SESSION['role'] ?? '') === 'admin'): ?>
+<div class="modal fade" id="assignUsersModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content p-3">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold">Assign Users to Project</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="assignUsersForm">
+                <input type="hidden" name="action" value="assign_project_users">
+                <input type="hidden" name="project_id" value="<?= (int)$projectId ?>">
+                <div class="modal-body">
+                    <label class="text-gray small mb-2">Assign Users</label>
+                    <div class="border rounded p-2" style="max-height:200px; overflow:auto;">
+                        <?php foreach($assignUsers as $u): ?>
+                            <label class="d-flex align-items-center gap-2 small text-gray mb-2">
+                                <input type="checkbox" name="user_ids[]" value="<?= (int)$u['id'] ?>" data-role="<?= htmlspecialchars($u['role']) ?>" <?= in_array((int)$u['id'], $assignedUserIds, true) ? 'checked' : '' ?>>
+                                <span><?= htmlspecialchars($u['username']) ?> (<?= htmlspecialchars($u['role']) ?>)</span>
+                            </label>
+                        <?php endforeach; ?>
+                        <?php if(empty($assignUsers)): ?>
+                            <div class="text-gray small">No users available.</div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="submit" class="btn-main w-100">Assign Selected Users</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
+
 <script>
     const pId = <?= $projectId ?>;
     const fId = <?= $currentFolderId ?? 'null' ?>;
+
+    function openAssignUsersModal() {
+        const modalEl = document.getElementById('assignUsersModal');
+        if (!modalEl) return;
+        new bootstrap.Modal(modalEl).show();
+    }
+    const assignUsersForm = document.getElementById('assignUsersForm');
+    if (assignUsersForm) {
+        assignUsersForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const checked = Array.from(this.querySelectorAll('input[name="user_ids[]"]:checked'));
+            const hasAdmin = checked.some(i => i.dataset.role === 'admin');
+            if (checked.length === 0 || !hasAdmin) {
+                alert('At least one admin must be assigned to the project.');
+                return;
+            }
+            const fd = new FormData(this);
+            fetch('../api/api.php', { method:'POST', body:fd })
+                .then(r => r.json())
+                .then(d => {
+                    if (d.status === 'success') location.reload();
+                    else alert('Error assigning users: ' + (d.msg || 'Unknown'));
+                })
+                .catch(() => alert('Connection error'));
+        });
+    }
 </script>
 
 <?php include __DIR__ . '/../views/footer.php'; ?>

@@ -32,7 +32,34 @@ try {
     $companyName = trim($_POST['company_name'] ?? '');
     $companyPhone = trim($_POST['company_phone'] ?? '');
     $companyAddress = trim($_POST['company_address'] ?? '');
-    
+
+    $userIds = $_POST['user_ids'] ?? [];
+    $selectedIds = [];
+    $adminSelectedIds = [];
+    if (is_array($userIds)) {
+        foreach ($userIds as $uid) {
+            $uid = (int)$uid;
+            if ($uid > 0) $selectedIds[] = $uid;
+        }
+        $selectedIds = array_values(array_unique($selectedIds));
+    }
+    $hasUserSelection = !empty($selectedIds);
+    if (!empty($selectedIds)) {
+        $in = implode(',', array_fill(0, count($selectedIds), '?'));
+        $stmtUsers = $pdo->prepare("SELECT id, role FROM users WHERE id IN ($in)");
+        $stmtUsers->execute($selectedIds);
+        $rows = $stmtUsers->fetchAll(PDO::FETCH_ASSOC);
+        if (count($rows) !== count($selectedIds)) {
+            throw new Exception('Invalid users selected');
+        }
+        foreach ($rows as $row) {
+            if ($row['role'] === 'admin') $adminSelectedIds[] = (int)$row['id'];
+        }
+        if ($hasUserSelection && empty($adminSelectedIds)) {
+            throw new Exception('At least one admin must be assigned');
+        }
+    }
+
     // Fechas (convertir vacíos a NULL)
     $dates = [
         'date_bid_sent' => $_POST['date_bid_send'] ?? null,
@@ -49,18 +76,23 @@ try {
     // 3. Insertar Proyecto en BD
     $pdo->beginTransaction();
 
+    $creatorId = (int)$_SESSION['user_id'];
+    $selectedIds[] = $creatorId;
+    $selectedIds = array_values(array_unique($selectedIds));
+    $assignedUserId = !empty($adminSelectedIds) ? (int)$adminSelectedIds[0] : $creatorId;
+
     $sql = "INSERT INTO projects (
         name, description, address, notes,
         contact_name, contact_phone, 
         company_name, company_phone, company_address,
         date_bid_sent, date_bid_awarded, date_started, date_finished, date_warranty_end,
-        created_by, status, created_at
+        created_by, assigned_user_id, status, created_at
     ) VALUES (
         ?, ?, ?, ?,
         ?, ?, 
         ?, ?, ?,
         ?, ?, ?, ?, ?,
-        ?, 'Active', NOW()
+        ?, ?, 'Active', NOW()
     )";
 
     $stmt = $pdo->prepare($sql);
@@ -69,10 +101,17 @@ try {
         $contactName, $contactPhone,
         $companyName, $companyPhone, $companyAddress,
         $dates['date_bid_sent'], $dates['date_bid_awarded'], $dates['date_started'], $dates['date_finished'], $dates['date_warranty_end'],
-        $_SESSION['user_id']
+        $creatorId, $assignedUserId
     ]);
 
     $projectId = $pdo->lastInsertId();
+
+    if (!empty($selectedIds)) {
+        $stmtDir = $pdo->prepare("INSERT IGNORE INTO directory (project_id, user_id) VALUES (?, ?)");
+        foreach ($selectedIds as $uid) {
+            $stmtDir->execute([$projectId, $uid]);
+        }
+    }
 
     // 4. Crear Carpetas Seleccionadas
     if (isset($_POST['folders']) && is_array($_POST['folders'])) {

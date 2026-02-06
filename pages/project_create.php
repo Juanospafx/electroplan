@@ -9,6 +9,10 @@ if ($_SESSION['role'] !== 'admin') {
     exit;
 }
 
+$createUsers = [];
+$stmtUsers = $pdo->query("SELECT id, username, role FROM users ORDER BY username ASC");
+$createUsers = $stmtUsers->fetchAll(PDO::FETCH_ASSOC);
+
 $pageTitle = "Create New Project";
 include __DIR__ . '/../views/header.php'; 
 ?>
@@ -172,6 +176,26 @@ include __DIR__ . '/../views/header.php';
                     </div>
                 </div>
 
+                <div class="box-card-compact">
+                    <div class="section-header">
+                        <i class="fas fa-user-plus section-icon text-success"></i>
+                        <span class="section-title">Assign Users</span>
+                    </div>
+                    <label class="form-label">Select Users</label>
+                    <div class="border rounded p-2" style="max-height:180px; overflow:auto;">
+                        <?php foreach($createUsers as $u): ?>
+                            <label class="check-item d-flex align-items-center gap-2 small text-gray mb-2">
+                                <input class="form-check-input" type="checkbox" name="user_ids[]" value="<?= (int)$u['id'] ?>" data-role="<?= htmlspecialchars($u['role']) ?>">
+                                <span><?= htmlspecialchars($u['username']) ?> (<?= htmlspecialchars($u['role']) ?>)</span>
+                            </label>
+                        <?php endforeach; ?>
+                        <?php if(empty($createUsers)): ?>
+                            <div class="text-gray small">No users available.</div>
+                        <?php endif; ?>
+                    </div>
+                    <small class="text-muted d-block mt-2" style="font-size:0.7rem;">At least one admin must be assigned when selecting users.</small>
+                </div>
+
                 <div class="box-card-compact mb-0"> <div class="section-header">
                         <i class="fas fa-calendar-alt section-icon text-warning"></i>
                         <span class="section-title">Timeline</span>
@@ -287,6 +311,13 @@ document.getElementById('createProjectForm').addEventListener('submit', function
     e.preventDefault();
     const btn = this.querySelector('button[type="submit"]');
     const original = btn.innerHTML;
+
+    const checked = Array.from(this.querySelectorAll('input[name="user_ids[]"]:checked'));
+    const hasAdmin = checked.some(i => i.dataset.role === 'admin');
+    if (checked.length > 0 && !hasAdmin) {
+        alert('At least one admin must be assigned to the project.');
+        return;
+    }
     
     btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> Creating...';
     btn.disabled = true;

@@ -23,8 +23,6 @@ if(!$file) {
 
 $projectId = $file['project_id'];
 $folderId = $file['folder_id'];
-$backUrl = "project_dashboard.php?id={$projectId}";
-$backUrl .= $folderId ? "&view=files&folder_id={$folderId}" : "&view=summary";
 
 $stmtRep = $pdo->prepare("SELECT annotations_json FROM file_reports WHERE file_id=? ORDER BY created_at DESC LIMIT 1");
 $stmtRep->execute([$id]);
@@ -313,7 +311,7 @@ if (strpos($filePath, 'uploads/') === 0 || strpos($filePath, 'api/uploads/') ===
     
     <header class="app-header">
         <div class="header-left">
-            <a href="<?= $backUrl ?>" class="text-white me-3 d-md-none"><i class="fas fa-chevron-left"></i></a>
+            <a href="index.php?project_id=<?= $projectId ?>" class="text-white me-3 d-md-none"><i class="fas fa-chevron-left"></i></a>
             
             <button class="toggle-icon-btn" onclick="toggleSheets()" title="Show Sheets">
                 <i class="far fa-file-alt"></i>
@@ -414,7 +412,7 @@ if (strpos($filePath, 'uploads/') === 0 || strpos($filePath, 'api/uploads/') ===
                 <i class="fas fa-save"></i> <span>Save</span>
             </button>
             
-            <a href="<?= $backUrl ?>" class="btn-close-custom d-none d-md-flex">
+            <a href="index.php?project_id=<?= $projectId ?><?= $folderId ? "&folder_id=$folderId" : '' ?>" class="btn-close-custom d-none d-md-flex">
                 <i class="fas fa-times"></i>
             </a>
         </div>
@@ -896,27 +894,17 @@ if (strpos($filePath, 'uploads/') === 0 || strpos($filePath, 'api/uploads/') ===
     function deleteSelected() {
         const activeObjects = canvas.getActiveObjects();
         if(!activeObjects.length) return;
-        
-        // MODIFICADO: Eliminado confirm() y agrupado el historial
-        historyProcessing = true; // Pausar guardado automático por objeto para agrupar la acción
-        
-        canvas.discardActiveObject(); // Limpiar selección visual
-        
+        if(!confirm(`Delete ${activeObjects.length} item(s)?`)) return;
+        canvas.discardActiveObject();
         activeObjects.forEach(obj => {
-            // Limpieza de dependencias (Etiquetas de medidas)
             if(obj.isMeasureLine && obj.label) canvas.remove(obj.label);
-            
-            // Limpieza inversa (Si borro etiqueta, buscar y borrar linea)
             if(obj.isMeasureLabel) {
                  const line = canvas.getObjects().find(o => o.labelId === obj.id);
                  if(line) canvas.remove(line);
             }
             canvas.remove(obj);
         });
-        
-        historyProcessing = false; // Reactivar historial
-        saveHistory(); // Guardar el estado UNA vez con todos los objetos borrados
-        showToast("Selection deleted", "success");
+        saveHistory();
     }
 
     // --- PINCH ZOOM & PAN (GESTOS TÁCTILES MEJORADOS) ---
@@ -985,30 +973,6 @@ if (strpos($filePath, 'uploads/') === 0 || strpos($filePath, 'api/uploads/') ===
             }
         }, { passive: false });
     }
-
-    canvas.on('mouse:up', function(opt) {
-        this.setViewportTransform(this.viewportTransform);
-        this.isDragging = false;
-        if (currentMode === 'smart') this.selection = true;
-        if(this.isDrawingModeWasOn) { canvas.isDrawingMode = true; this.isDrawingModeWasOn = false; }
-        
-        // MODIFICADO: Refuerzo contra falsos positivos (líneas cortas/basura)
-        if (lineState === 1 && activeLine) {
-            const ptr = canvas.getPointer(opt.e);
-            const dist = Math.sqrt(Math.pow(ptr.x - startPoint.x, 2) + Math.pow(ptr.y - startPoint.y, 2));
-            
-            if (dist > 10) {
-                finishLineLogic();
-            } else {
-                // BUG FIX: Si la distancia es muy corta (misclick), limpiar el objeto temporal
-                canvas.remove(activeLine);
-                activeLine = null;
-                lineState = 0;
-                canvas.requestRenderAll();
-            }
-        }
-        canvas.setCursor('default');
-    });
 
     // --- LOAD LOGIC ---
     if(fileExt === 'pdf') {

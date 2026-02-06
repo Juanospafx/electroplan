@@ -16,9 +16,6 @@ $file = $stmt->fetch(PDO::FETCH_ASSOC);
 if(!$file) die("File not found");
 
 $projectId = $file['project_id'];
-$folderId = $file['folder_id'] ?? null;
-$backUrl = "project_dashboard.php?id={$projectId}";
-$backUrl .= $folderId ? "&view=files&folder_id={$folderId}" : "&view=summary";
 
 // 3. Historial (Solo activos)
 $stmtRep = $pdo->prepare("SELECT * FROM file_reports WHERE file_id=? AND is_deleted = 0 ORDER BY created_at DESC");
@@ -262,7 +259,7 @@ if (strpos($filePath, 'uploads/') === 0 || strpos($filePath, 'api/uploads/') ===
     
     <header class="app-header">
         <div class="d-flex align-items-center">
-            <a href="<?= $backUrl ?>" class="text-white me-3 d-md-none"><i class="fas fa-chevron-left"></i></a>
+            <a href="index.php?project_id=<?= $projectId ?>" class="text-white me-3 d-md-none"><i class="fas fa-chevron-left"></i></a>
             
             <button class="mobile-toggle-header me-2" onclick="toggleSidebar('left')">
                 <i class="far fa-file-alt"></i>
@@ -287,7 +284,7 @@ if (strpos($filePath, 'uploads/') === 0 || strpos($filePath, 'api/uploads/') ===
                 </a>
             <?php endif; ?>
 
-            <a href="<?= $backUrl ?>" class="btn-close-custom ms-2">
+            <a href="index.php?project_id=<?= $projectId ?>" class="btn-close-custom ms-2">
                 <i class="fas fa-times"></i>
             </a>
         </div>
