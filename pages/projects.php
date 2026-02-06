@@ -18,11 +18,7 @@ $stmt = $pdo->query("
     SELECT p.*, u.username as creator_name, au.username as assigned_name,
     (SELECT COUNT(*) FROM files f WHERE f.project_id = p.id AND f.deleted_at IS NULL) as file_count
     FROM projects p 
-<<<<<<< HEAD
-    LEFT JOIN users u ON p.created_by = u.id
-=======
     LEFT JOIN users u ON p.created_by = u.id 
->>>>>>> Isaac_probe
     LEFT JOIN users au ON p.assigned_user_id = au.id
     WHERE p.deleted_at IS NULL
     ORDER BY p.created_at DESC
@@ -35,10 +31,6 @@ if ($isAdmin) {
     $users = $stmtUsers->fetchAll(PDO::FETCH_ASSOC);
 }
 
-<<<<<<< HEAD
-// Configuración del Header
-=======
->>>>>>> Isaac_probe
 $pageTitle = "Projects | Brightronix";
 include __DIR__ . '/../views/header.php';
 ?>
@@ -56,7 +48,7 @@ include __DIR__ . '/../views/header.php';
         .btn-action.delete:hover { background: #ef4444; color: white; border-color: #ef4444; }
 
         .status-badge { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; padding: 5px 10px; border-radius: 8px; letter-spacing: 0.5px; }
-<<<<<<< HEAD
+        .info-pill { background: rgba(255,255,255,0.05); padding: 4px 10px; border-radius: 5px; font-size: 0.75rem; color: var(--text-gray); display: inline-flex; align-items: center; gap: 6px; }
 
         /* Responsive cards */
         .proj-cards { display: none; }
@@ -68,9 +60,6 @@ include __DIR__ . '/../views/header.php';
             .table-responsive { display: none; }
             .proj-cards { display: block; }
         }
-=======
-        .info-pill { background: rgba(255,255,255,0.05); padding: 4px 10px; border-radius: 5px; font-size: 0.75rem; color: var(--text-gray); display: inline-flex; align-items: center; gap: 6px; }
->>>>>>> Isaac_probe
     </style>
 
     <main class="main-content">
@@ -110,21 +99,12 @@ include __DIR__ . '/../views/header.php';
             <table class="table-rounded">
                 <thead>
                     <tr>
-<<<<<<< HEAD
-                        <th width="30%">Project Name</th>
-                        <th width="15%">Status</th>
-                        <th width="25%">Description</th>
-                        <th>Assigned</th>
-                        <th>Created</th>
-                        <th>Files</th>
-=======
                         <th width="35%">Project Details</th>
                         <th width="20%">Company / Client</th>
                         <th width="15%">Timeline</th>
                         <th width="12%">Assigned</th>
                         <th width="10%">Status</th>
                         <th width="10%">Files</th>
->>>>>>> Isaac_probe
                         <th class="text-end">Actions</th>
                     </tr>
                 </thead>
@@ -172,18 +152,6 @@ include __DIR__ . '/../views/header.php';
                             </span>
                         </td>
                         <td>
-<<<<<<< HEAD
-                            <span class="text-gray"><?= htmlspecialchars($p['description'] ?: 'No description') ?></span>
-                        </td>
-                        <td class="small text-gray">
-                            <?= htmlspecialchars($p['assigned_name'] ?: 'Unassigned') ?>
-                        </td>
-                        <td class="small text-gray">
-                            <?= date('M d, Y', strtotime($p['created_at'])) ?>
-                        </td>
-                        <td>
-=======
->>>>>>> Isaac_probe
                             <span class="badge bg-dark border border-secondary fw-normal">
                                 <?= $p['file_count'] ?> Files
                             </span>
@@ -192,11 +160,7 @@ include __DIR__ . '/../views/header.php';
                             <a href="project_dashboard.php?id=<?= $p['id'] ?>" class="btn-action me-1" title="Open Dashboard"><i class="fas fa-columns"></i></a>
                             
                             <?php if($isAdmin): ?>
-<<<<<<< HEAD
-                                <button class="btn-action me-1" onclick="editProject(<?= $p['id'] ?>, '<?= addslashes($p['name']) ?>', '<?= addslashes($p['description']) ?>', '<?= $p['status'] ?? 'Active' ?>')" title="Edit"><i class="fas fa-pen"></i></button>
-=======
                                 <button class="btn-action me-1" onclick="editProject(<?= $p['id'] ?>, '<?= addslashes($p['name']) ?>', '<?= addslashes($p['description']) ?>', '<?= $p['status'] ?? 'Active' ?>')" title="Quick Edit"><i class="fas fa-pen"></i></button>
->>>>>>> Isaac_probe
                                 <button class="btn-action me-1" onclick="openAssignModal(<?= $p['id'] ?>, '<?= addslashes($p['name']) ?>')" title="Assign User"><i class="fas fa-user-plus"></i></button>
                                 <button class="btn-action delete" onclick="deleteProject(<?= $p['id'] ?>)" title="Move to Trash"><i class="fas fa-trash"></i></button>
                             <?php endif; ?>
