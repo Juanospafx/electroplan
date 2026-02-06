@@ -866,7 +866,7 @@ if ($filePath !== '') {
     function setKonvaActive(active) {
         if (!konvaOverlay) return;
         konvaOverlay.style.pointerEvents = active ? 'auto' : 'none';
-        konvaOverlay.style.display = active ? 'block' : 'none';
+        konvaOverlay.style.display = 'block';
         if (active) syncKonvaToFabric();
     }
 
