@@ -152,7 +152,12 @@ include __DIR__ . '/../views/header.php';
                                             <div class="fw-bold text-truncate" style="max-width:160px;"><?= htmlspecialchars($rf['filename']) ?></div>
                                             <div class="small text-gray"><?= date('M d, Y', strtotime($rf['uploaded_at'])) ?></div>
                                         </div>
-                                        <a href="preview.php?id=<?= (int)$rf['id'] ?>" class="btn-icon" title="Preview"><i class="fas fa-eye"></i></a>
+                                        <div class="d-flex gap-2">
+                                            <a href="preview.php?id=<?= (int)$rf['id'] ?>" class="btn-icon" title="Preview"><i class="fas fa-eye"></i></a>
+                                            <?php if(($_SESSION['role'] ?? '') === 'admin'): ?>
+                                                <button class="btn-icon text-danger border-danger" title="Delete" onclick="deleteFile(<?= (int)$rf['id'] ?>)"><i class="fas fa-trash"></i></button>
+                                            <?php endif; ?>
+                                        </div>
                                     </div>
                                 </div>
                             <?php endforeach; ?>

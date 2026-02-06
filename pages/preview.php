@@ -30,6 +30,9 @@ $annotations = (empty($latestJson) || $latestJson === 'null') ? '{}' : $latestJs
 
 // 4. Determinar extension
 $fileExt = strtolower(pathinfo($file['filename'], PATHINFO_EXTENSION));
+if ($fileExt === '' && !empty($file['file_type'])) {
+    $fileExt = strtolower($file['file_type']);
+}
 // 5. Ajustar ruta publica si el archivo quedo en api/uploads por refactor previo
 $filePath = $file['filepath'];
 if (strpos($filePath, 'uploads/') === 0) {
@@ -584,10 +587,25 @@ if (strpos($filePath, 'uploads/') === 0 || strpos($filePath, 'api/uploads/') ===
     function loadSingleImage(url) {
         // Obtener dimensiones reales de imagen
         const img = new Image();
+        img.crossOrigin = 'anonymous';
         img.onload = function() {
             editor.loadPageBackground(url, this.width, this.height);
             loadPageAnnotations(1);
         }
+        img.onerror = function() {
+            fetch(url)
+                .then(r => r.blob())
+                .then(b => {
+                    const objUrl = URL.createObjectURL(b);
+                    const img2 = new Image();
+                    img2.onload = function() {
+                        editor.loadPageBackground(objUrl, this.width, this.height);
+                        loadPageAnnotations(1);
+                    };
+                    img2.src = objUrl;
+                })
+                .catch(e => console.error(e));
+        };
         img.src = url;
     }
 

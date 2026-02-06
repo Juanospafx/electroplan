@@ -155,6 +155,51 @@ switch($action) {
         } catch(Exception $e) { echo json_encode(['status'=>'error', 'msg'=>$e->getMessage()]); }
         break;
 
+    // --- 1.1.2 AGREGAR CARPETAS A PROYECTO (ADMIN ONLY) ---
+    case 'add_project_folders':
+        if($userRole !== 'admin') { echo json_encode(['status'=>'error', 'msg'=>'Access Denied']); exit; }
+        $projectId = (int)($_POST['project_id'] ?? 0);
+        $folders = $_POST['folders'] ?? [];
+        if($projectId <= 0 || !is_array($folders)) { echo json_encode(['status'=>'error', 'msg'=>'Invalid data']); exit; }
+
+        $folderNames = [
+            'bom' => 'BoM',
+            'schedule_values' => 'Schedule of Values',
+            'rfi' => 'RFI',
+            'drawings' => 'Drawings',
+            'photos' => 'Photos',
+            'panel_schedule' => 'Panel Schedule',
+            'panel_tags' => 'Panel Tags',
+            'noc' => 'NOC',
+            'submittal' => 'Submittal',
+            'permit' => 'Permit',
+            'acknowledgement' => 'Acknowledgement',
+            'payapp' => 'Payapp',
+            'insurance' => 'Certificate of Insurance',
+            'fault_calc' => 'Fault Current Calc',
+            'labor_record' => 'Labor Record',
+            'expenses' => 'Expenses',
+            'warranty_sup' => 'Warranty Supplier',
+            'clock_in' => 'Clock In'
+        ];
+
+        try {
+            $stmtExisting = $pdo->prepare("SELECT name FROM folders WHERE project_id = ? AND deleted_at IS NULL");
+            $stmtExisting->execute([$projectId]);
+            $existing = array_map('strtolower', $stmtExisting->fetchAll(PDO::FETCH_COLUMN));
+
+            $stmtIns = $pdo->prepare("INSERT INTO folders (project_id, name) VALUES (?, ?)");
+            foreach ($folders as $key) {
+                if (!isset($folderNames[$key])) continue;
+                $name = $folderNames[$key];
+                if (in_array(strtolower($name), $existing, true)) continue;
+                $stmtIns->execute([$projectId, $name]);
+                $existing[] = strtolower($name);
+            }
+            echo json_encode(['status'=>'success']);
+        } catch(Exception $e) { echo json_encode(['status'=>'error', 'msg'=>$e->getMessage()]); }
+        break;
+
     // --- 1.3 ASIGNAR MULTIPLES USUARIOS A PROYECTO (ADMIN ONLY) ---
     case 'assign_project_users':
         if($userRole !== 'admin') { echo json_encode(['status'=>'error', 'msg'=>'Access Denied']); exit; }

@@ -293,66 +293,66 @@ include __DIR__ . '/../views/header.php';
                 <div class="box-card-compact h-100 d-flex flex-column">
                     <div class="section-header">
                         <i class="fas fa-folder-tree section-icon text-success"></i>
-                        <span class="section-title"><?= $isEdit ? 'Folders (Existing)' : 'Folders' ?></span>
-                        <small class="ms-auto text-muted" style="font-size:0.65rem">Uncheck unused</small>
+                        <span class="section-title"><?= $isEdit ? 'Folders' : 'Folders' ?></span>
+                        <small class="ms-auto text-muted" style="font-size:0.65rem"><?= $isEdit ? 'Select to (re)create' : 'Uncheck unused' ?></small>
                     </div>
 
                     <div class="folder-list flex-grow-1">
                         <div class="d-flex flex-column gap-1">
                             <label class="check-item d-flex align-items-center gap-2">
-                                <input class="form-check-input" type="checkbox" name="folders[]" value="bom" <?= $isEdit ? (in_array($folderMap['bom'], $existingFolders, true) ? 'checked' : '') . ' disabled' : 'checked' ?>> <span class="small">BoM</span>
+                                <input class="form-check-input" type="checkbox" name="folders[]" value="bom" <?= $isEdit ? (in_array($folderMap['bom'], $existingFolders, true) ? 'checked' : '') : 'checked' ?>> <span class="small">BoM</span>
                             </label>
                             <label class="check-item d-flex align-items-center gap-2">
-                                <input class="form-check-input" type="checkbox" name="folders[]" value="schedule_values" <?= $isEdit ? (in_array($folderMap['schedule_values'], $existingFolders, true) ? 'checked' : '') . ' disabled' : 'checked' ?>> <span class="small">Schedule of Values</span>
+                                <input class="form-check-input" type="checkbox" name="folders[]" value="schedule_values" <?= $isEdit ? (in_array($folderMap['schedule_values'], $existingFolders, true) ? 'checked' : '') : 'checked' ?>> <span class="small">Schedule of Values</span>
                             </label>
                             <label class="check-item d-flex align-items-center gap-2">
-                                <input class="form-check-input" type="checkbox" name="folders[]" value="rfi" <?= $isEdit ? (in_array($folderMap['rfi'], $existingFolders, true) ? 'checked' : '') . ' disabled' : 'checked' ?>> <span class="small">RFI</span>
+                                <input class="form-check-input" type="checkbox" name="folders[]" value="rfi" <?= $isEdit ? (in_array($folderMap['rfi'], $existingFolders, true) ? 'checked' : '') : 'checked' ?>> <span class="small">RFI</span>
                             </label>
                             <label class="check-item d-flex align-items-center gap-2">
-                                <input class="form-check-input" type="checkbox" name="folders[]" value="drawings" <?= $isEdit ? (in_array($folderMap['drawings'], $existingFolders, true) ? 'checked' : '') . ' disabled' : 'checked' ?>> <span class="small">Drawings</span>
+                                <input class="form-check-input" type="checkbox" name="folders[]" value="drawings" <?= $isEdit ? (in_array($folderMap['drawings'], $existingFolders, true) ? 'checked' : '') : 'checked' ?>> <span class="small">Drawings</span>
                             </label>
                             <label class="check-item d-flex align-items-center gap-2">
-                                <input class="form-check-input" type="checkbox" name="folders[]" value="photos" <?= $isEdit ? (in_array($folderMap['photos'], $existingFolders, true) ? 'checked' : '') . ' disabled' : 'checked' ?>> <span class="small">Photos</span>
+                                <input class="form-check-input" type="checkbox" name="folders[]" value="photos" <?= $isEdit ? (in_array($folderMap['photos'], $existingFolders, true) ? 'checked' : '') : 'checked' ?>> <span class="small">Photos</span>
                             </label>
                             <label class="check-item d-flex align-items-center gap-2">
-                                <input class="form-check-input" type="checkbox" name="folders[]" value="panel_schedule" <?= $isEdit ? (in_array($folderMap['panel_schedule'], $existingFolders, true) ? 'checked' : '') . ' disabled' : 'checked' ?>> <span class="small">Panel Schedule</span>
+                                <input class="form-check-input" type="checkbox" name="folders[]" value="panel_schedule" <?= $isEdit ? (in_array($folderMap['panel_schedule'], $existingFolders, true) ? 'checked' : '') : 'checked' ?>> <span class="small">Panel Schedule</span>
                             </label>
                             <div class="my-1 border-top border-secondary opacity-25"></div>
                             <label class="check-item d-flex align-items-center gap-2">
-                                <input class="form-check-input" type="checkbox" name="folders[]" value="panel_tags" <?= $isEdit ? (in_array($folderMap['panel_tags'], $existingFolders, true) ? 'checked' : '') . ' disabled' : '' ?>> <span class="small">Panel/Meter Tags</span>
+                                <input class="form-check-input" type="checkbox" name="folders[]" value="panel_tags" <?= $isEdit ? (in_array($folderMap['panel_tags'], $existingFolders, true) ? 'checked' : '') : '' ?>> <span class="small">Panel/Meter Tags</span>
                             </label>
                             <label class="check-item d-flex align-items-center gap-2">
-                                <input class="form-check-input" type="checkbox" name="folders[]" value="noc" <?= $isEdit ? (in_array($folderMap['noc'], $existingFolders, true) ? 'checked' : '') . ' disabled' : '' ?>> <span class="small">NOC</span>
+                                <input class="form-check-input" type="checkbox" name="folders[]" value="noc" <?= $isEdit ? (in_array($folderMap['noc'], $existingFolders, true) ? 'checked' : '') : '' ?>> <span class="small">NOC</span>
                             </label>
                             <label class="check-item d-flex align-items-center gap-2">
-                                <input class="form-check-input" type="checkbox" name="folders[]" value="submittal" <?= $isEdit ? (in_array($folderMap['submittal'], $existingFolders, true) ? 'checked' : '') . ' disabled' : '' ?>> <span class="small">Submittal</span>
+                                <input class="form-check-input" type="checkbox" name="folders[]" value="submittal" <?= $isEdit ? (in_array($folderMap['submittal'], $existingFolders, true) ? 'checked' : '') : '' ?>> <span class="small">Submittal</span>
                             </label>
                             <label class="check-item d-flex align-items-center gap-2">
-                                <input class="form-check-input" type="checkbox" name="folders[]" value="permit" <?= $isEdit ? (in_array($folderMap['permit'], $existingFolders, true) ? 'checked' : '') . ' disabled' : '' ?>> <span class="small">Permit</span>
+                                <input class="form-check-input" type="checkbox" name="folders[]" value="permit" <?= $isEdit ? (in_array($folderMap['permit'], $existingFolders, true) ? 'checked' : '') : '' ?>> <span class="small">Permit</span>
                             </label>
                             <label class="check-item d-flex align-items-center gap-2">
-                                <input class="form-check-input" type="checkbox" name="folders[]" value="acknowledgement" <?= $isEdit ? (in_array($folderMap['acknowledgement'], $existingFolders, true) ? 'checked' : '') . ' disabled' : '' ?>> <span class="small">Acknowledgement</span>
+                                <input class="form-check-input" type="checkbox" name="folders[]" value="acknowledgement" <?= $isEdit ? (in_array($folderMap['acknowledgement'], $existingFolders, true) ? 'checked' : '') : '' ?>> <span class="small">Acknowledgement</span>
                             </label>
                             <label class="check-item d-flex align-items-center gap-2">
-                                <input class="form-check-input" type="checkbox" name="folders[]" value="payapp" <?= $isEdit ? (in_array($folderMap['payapp'], $existingFolders, true) ? 'checked' : '') . ' disabled' : '' ?>> <span class="small">Payapp</span>
+                                <input class="form-check-input" type="checkbox" name="folders[]" value="payapp" <?= $isEdit ? (in_array($folderMap['payapp'], $existingFolders, true) ? 'checked' : '') : '' ?>> <span class="small">Payapp</span>
                             </label>
                             <label class="check-item d-flex align-items-center gap-2">
-                                <input class="form-check-input" type="checkbox" name="folders[]" value="insurance" <?= $isEdit ? (in_array($folderMap['insurance'], $existingFolders, true) ? 'checked' : '') . ' disabled' : '' ?>> <span class="small">Insurance</span>
+                                <input class="form-check-input" type="checkbox" name="folders[]" value="insurance" <?= $isEdit ? (in_array($folderMap['insurance'], $existingFolders, true) ? 'checked' : '') : '' ?>> <span class="small">Insurance</span>
                             </label>
                             <label class="check-item d-flex align-items-center gap-2">
-                                <input class="form-check-input" type="checkbox" name="folders[]" value="fault_calc" <?= $isEdit ? (in_array($folderMap['fault_calc'], $existingFolders, true) ? 'checked' : '') . ' disabled' : '' ?>> <span class="small">Fault Calc</span>
+                                <input class="form-check-input" type="checkbox" name="folders[]" value="fault_calc" <?= $isEdit ? (in_array($folderMap['fault_calc'], $existingFolders, true) ? 'checked' : '') : '' ?>> <span class="small">Fault Calc</span>
                             </label>
                             <label class="check-item d-flex align-items-center gap-2">
-                                <input class="form-check-input" type="checkbox" name="folders[]" value="labor_record" <?= $isEdit ? (in_array($folderMap['labor_record'], $existingFolders, true) ? 'checked' : '') . ' disabled' : '' ?>> <span class="small">Labor Record</span>
+                                <input class="form-check-input" type="checkbox" name="folders[]" value="labor_record" <?= $isEdit ? (in_array($folderMap['labor_record'], $existingFolders, true) ? 'checked' : '') : '' ?>> <span class="small">Labor Record</span>
                             </label>
                             <label class="check-item d-flex align-items-center gap-2">
-                                <input class="form-check-input" type="checkbox" name="folders[]" value="expenses" <?= $isEdit ? (in_array($folderMap['expenses'], $existingFolders, true) ? 'checked' : '') . ' disabled' : '' ?>> <span class="small">Expenses</span>
+                                <input class="form-check-input" type="checkbox" name="folders[]" value="expenses" <?= $isEdit ? (in_array($folderMap['expenses'], $existingFolders, true) ? 'checked' : '') : '' ?>> <span class="small">Expenses</span>
                             </label>
                             <label class="check-item d-flex align-items-center gap-2">
-                                <input class="form-check-input" type="checkbox" name="folders[]" value="warranty_sup" <?= $isEdit ? (in_array($folderMap['warranty_sup'], $existingFolders, true) ? 'checked' : '') . ' disabled' : '' ?>> <span class="small">Warranty Sup</span>
+                                <input class="form-check-input" type="checkbox" name="folders[]" value="warranty_sup" <?= $isEdit ? (in_array($folderMap['warranty_sup'], $existingFolders, true) ? 'checked' : '') : '' ?>> <span class="small">Warranty Sup</span>
                             </label>
                             <label class="check-item d-flex align-items-center gap-2">
-                                <input class="form-check-input" type="checkbox" name="folders[]" value="clock_in" <?= $isEdit ? (in_array($folderMap['clock_in'], $existingFolders, true) ? 'checked' : '') . ' disabled' : '' ?>> <span class="small">Clock in</span>
+                                <input class="form-check-input" type="checkbox" name="folders[]" value="clock_in" <?= $isEdit ? (in_array($folderMap['clock_in'], $existingFolders, true) ? 'checked' : '') : '' ?>> <span class="small">Clock in</span>
                             </label>
                         </div>
                     </div>
@@ -391,17 +391,41 @@ document.getElementById('createProjectForm').addEventListener('submit', function
     const fd = new FormData(this);
     const isEdit = this.querySelector('input[name="is_edit"]')?.value === '1';
     if (isEdit) {
+        const projectId = fd.get('project_id');
         fd.append('action', 'update_project_info');
         fetch('../api/api.php', { method: 'POST', body: fd })
             .then(r => r.json())
             .then(res => {
-                if(res.status === 'success') {
-                    window.location.href = 'project_dashboard.php?id=' + fd.get('project_id');
-                } else {
+                if(res.status !== 'success') {
                     alert('Error: ' + res.msg);
                     btn.innerHTML = original;
                     btn.disabled = false;
+                    return;
                 }
+                const folders = Array.from(document.querySelectorAll('input[name="folders[]"]:checked')).map(i => i.value);
+                if (folders.length === 0) {
+                    window.location.href = 'project_dashboard.php?id=' + projectId;
+                    return;
+                }
+                const fd2 = new FormData();
+                fd2.append('action', 'add_project_folders');
+                fd2.append('project_id', projectId);
+                folders.forEach(f => fd2.append('folders[]', f));
+                fetch('../api/api.php', { method: 'POST', body: fd2 })
+                    .then(r => r.json())
+                    .then(r2 => {
+                        if(r2.status === 'success') window.location.href = 'project_dashboard.php?id=' + projectId;
+                        else {
+                            alert('Error: ' + (r2.msg || 'Unknown'));
+                            btn.innerHTML = original;
+                            btn.disabled = false;
+                        }
+                    })
+                    .catch(() => {
+                        alert('Connection Error');
+                        btn.innerHTML = original;
+                        btn.disabled = false;
+                    });
             })
             .catch(() => {
                 alert('Connection Error');
