@@ -918,6 +918,16 @@ if ($filePath !== '') {
         r.label.position({ x: midX, y: midY });
     }
 
+    function updateKonvaInteractivity() {
+        const allowEdit = (currentMode === 'smart');
+        konvaRulers.forEach(r => {
+            r.group.draggable(allowEdit);
+            r.a1.draggable(allowEdit);
+            r.a2.draggable(allowEdit);
+        });
+        if (konvaLayer) konvaLayer.batchDraw();
+    }
+
     function createKonvaRuler(p1, p2) {
         const group = new Konva.Group({ draggable: true });
         const line = new Konva.Line({
@@ -972,6 +982,7 @@ if ($filePath !== '') {
         });
 
         updateKonvaLabel(ruler);
+        updateKonvaInteractivity();
         return ruler;
     }
 
@@ -1635,6 +1646,7 @@ if ($filePath !== '') {
             } else {
                 setKonvaActive(false);
             }
+            updateKonvaInteractivity();
         }
         
         if(mode === 'smart') {
