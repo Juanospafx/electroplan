@@ -51,6 +51,15 @@ include __DIR__ . '/../views/header.php';
         .table-responsive { display: none; }
         .file-cards { display: block; }
     }
+
+    @media (max-width: 768px) {
+        .header { flex-direction: column; align-items: flex-start; gap: 12px; }
+        .breadcrumbs { margin-top: 4px; }
+        .main-content { padding: 20px; }
+        .d-flex.justify-content-between.align-items-end { flex-direction: column; align-items: flex-start; gap: 12px; }
+        form.d-flex { width: 100%; }
+        form.d-flex .form-control { flex: 1; }
+    }
 </style>
 
 <main class="main-content">

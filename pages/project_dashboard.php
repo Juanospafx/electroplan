@@ -228,6 +228,14 @@ include __DIR__ . '/../views/header.php';
         background: rgba(255,255,255,0.05);
         transform: translateY(-2px);
     }
+
+    @media (max-width: 992px) {
+        .bg-header { flex-direction: column; align-items: flex-start; gap: 12px; }
+        .bg-header .d-flex.gap-2 { width: 100%; flex-wrap: wrap; }
+        .project-sidebar { width: 100% !important; border-right: 0; border-bottom: 1px solid rgba(255,255,255,0.08); }
+        .project-content { padding: 20px !important; }
+        .flex-grow-1.d-flex.overflow-hidden { flex-direction: column; }
+    }
 </style>
 
 <?php include __DIR__ . '/../views/modals.php'; ?>

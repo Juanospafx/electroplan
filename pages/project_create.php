@@ -131,6 +131,13 @@ include __DIR__ . '/../views/header.php';
     }
     .check-item:hover { background: rgba(255,255,255,0.03); }
     .form-check-input { width: 0.9em; height: 0.9em; margin-top: 0.25em; }
+
+    @media (max-width: 768px) {
+        .main-content { padding: 20px !important; }
+        .d-flex.justify-content-between.align-items-center { flex-direction: column; align-items: flex-start; gap: 8px; }
+        .box-card-compact { padding: 12px; }
+        .folder-list { max-height: 260px; }
+    }
 </style>
 
 <div class="main-content p-3">

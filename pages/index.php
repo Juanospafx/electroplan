@@ -141,6 +141,12 @@ include __DIR__ . '/../views/header.php';
         .box-card { padding: 16px; }
         .file-card-item { padding: 16px; }
     }
+    @media (max-width: 768px) {
+        .header { flex-direction: column; align-items: flex-start; gap: 12px; }
+        .breadcrumbs { margin-top: 4px; }
+        .main-content { padding: 20px; }
+        .d-flex.justify-content-between.align-items-end { flex-direction: column; align-items: flex-start; gap: 12px; }
+    }
 </style>
 
     <main class="main-content">

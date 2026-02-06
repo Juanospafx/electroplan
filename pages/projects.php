@@ -56,11 +56,17 @@ include __DIR__ . '/../views/header.php';
         .proj-card + .proj-card { margin-top: 12px; }
         .proj-meta { font-size: 0.8rem; color: var(--text-gray); }
 
-        @media (max-width: 992px) {
-            .table-responsive { display: none; }
-            .proj-cards { display: block; }
-        }
-    </style>
+    @media (max-width: 992px) {
+        .table-responsive { display: none; }
+        .proj-cards { display: block; }
+    }
+    @media (max-width: 768px) {
+        .header { flex-direction: column; align-items: flex-start; gap: 12px; }
+        .breadcrumbs { margin-top: 4px; }
+        .main-content { padding: 20px; }
+        .d-flex.justify-content-between.align-items-end { flex-direction: column; align-items: flex-start; gap: 12px; }
+    }
+</style>
 
     <main class="main-content">
         
