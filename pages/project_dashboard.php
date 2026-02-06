@@ -16,6 +16,17 @@ if (!$project) {
     exit;
 }
 
+$projectDesc = $project['description'] ?? '';
+if ($projectDesc === '' && !empty($project['notes'])) $projectDesc = $project['notes'];
+$projectNotes = $project['notes'] ?? '';
+if ($projectNotes === '' && !empty($project['description'])) $projectNotes = $project['description'];
+$projectAddress = $project['address'] ?? ($project['job_address'] ?? '');
+$projectContactName = $project['contact_name'] ?? ($project['site_contact_name'] ?? '');
+$projectContactPhone = $project['contact_phone'] ?? ($project['site_contact_phone'] ?? '');
+$projectCompanyName = $project['company_name'] ?? ($project['gc_company'] ?? '');
+$projectCompanyPhone = $project['company_phone'] ?? ($project['office_phone'] ?? '');
+$projectCompanyAddress = $project['company_address'] ?? ($project['hq_address'] ?? '');
+
 $assignUsers = [];
 $assignedUserIds = [];
 if (($_SESSION['role'] ?? '') === 'admin') {
@@ -249,16 +260,16 @@ include __DIR__ . '/../views/header.php';
                         </div>
                         <div class="col-12">
                             <label class="text-gray small mb-2">Description</label>
-                            <textarea name="description" class="form-control" rows="2"><?= htmlspecialchars($project['description'] ?? '') ?></textarea>
+                            <textarea name="description" class="form-control" rows="2"><?= htmlspecialchars($projectDesc) ?></textarea>
                         </div>
                         <div class="col-12">
                             <label class="text-gray small mb-2">Notes</label>
-                            <textarea name="notes" class="form-control" rows="3"><?= htmlspecialchars($project['notes'] ?? '') ?></textarea>
+                            <textarea name="notes" class="form-control" rows="3"><?= htmlspecialchars($projectNotes) ?></textarea>
                         </div>
 
                         <div class="col-md-6">
                             <label class="text-gray small mb-2">Address</label>
-                            <input type="text" name="address" class="form-control" value="<?= htmlspecialchars($project['address'] ?? '') ?>">
+                            <input type="text" name="address" class="form-control" value="<?= htmlspecialchars($projectAddress) ?>">
                         </div>
                         <div class="col-md-3">
                             <label class="text-gray small mb-2">Start</label>
@@ -271,24 +282,24 @@ include __DIR__ . '/../views/header.php';
 
                         <div class="col-md-6">
                             <label class="text-gray small mb-2">Contact Name</label>
-                            <input type="text" name="contact_name" class="form-control" value="<?= htmlspecialchars($project['contact_name'] ?? '') ?>">
+                            <input type="text" name="contact_name" class="form-control" value="<?= htmlspecialchars($projectContactName) ?>">
                         </div>
                         <div class="col-md-6">
                             <label class="text-gray small mb-2">Contact Phone</label>
-                            <input type="text" name="contact_phone" class="form-control" value="<?= htmlspecialchars($project['contact_phone'] ?? '') ?>">
+                            <input type="text" name="contact_phone" class="form-control" value="<?= htmlspecialchars($projectContactPhone) ?>">
                         </div>
 
                         <div class="col-md-4">
                             <label class="text-gray small mb-2">Company Name</label>
-                            <input type="text" name="company_name" class="form-control" value="<?= htmlspecialchars($project['company_name'] ?? '') ?>">
+                            <input type="text" name="company_name" class="form-control" value="<?= htmlspecialchars($projectCompanyName) ?>">
                         </div>
                         <div class="col-md-4">
                             <label class="text-gray small mb-2">Company Phone</label>
-                            <input type="text" name="company_phone" class="form-control" value="<?= htmlspecialchars($project['company_phone'] ?? '') ?>">
+                            <input type="text" name="company_phone" class="form-control" value="<?= htmlspecialchars($projectCompanyPhone) ?>">
                         </div>
                         <div class="col-md-4">
                             <label class="text-gray small mb-2">Company Address</label>
-                            <input type="text" name="company_address" class="form-control" value="<?= htmlspecialchars($project['company_address'] ?? '') ?>">
+                            <input type="text" name="company_address" class="form-control" value="<?= htmlspecialchars($projectCompanyAddress) ?>">
                         </div>
                     </div>
                 </div>
