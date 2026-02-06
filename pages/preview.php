@@ -166,7 +166,10 @@ if ($filePath !== '') {
 
         /* CANVAS AREA */
         .canvas-area { grid-row: 2; grid-column: 2; background: #0f172a; position: relative; overflow: hidden; }
-        #map { width: 100%; height: 100%; background: #0f172a; }
+        #map { width: 100%; height: 100%; background: #0f172a; position: relative; overflow: hidden; }
+        .viewer-content { position: absolute; top: 0; left: 0; transform-origin: 0 0; }
+        #pdf-canvas { display: none; }
+        #img-view { display: none; max-width: none; max-height: none; }
 
         /* FLOATING CONTROLS */
         .floating-controls {
@@ -329,7 +332,10 @@ if ($filePath !== '') {
     </aside>
 
     <main class="canvas-area" id="canvas-wrapper">
-        <div id="map"></div>
+        <div id="map">
+            <canvas id="pdf-canvas" class="viewer-content"></canvas>
+            <img id="img-view" class="viewer-content" alt="Preview">
+        </div>
         
         <div class="floating-controls">
             <button class="float-btn text-warning" id="btn-pan" onclick="togglePan()" title="Toggle Pan/Hand"><i class="fas fa-hand-paper"></i></button>
@@ -414,8 +420,6 @@ if ($filePath !== '') {
 
 <div id="toast-container"></div>
 
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@v7.4.0/ol.css">
-<script src="https://cdn.jsdelivr.net/npm/ol@v7.4.0/dist/ol.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
 
 <script>
@@ -436,207 +440,105 @@ if ($filePath !== '') {
     // --- SETUP ---
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
 
-    // --- OL EDITOR ENGINE (INLINED FOR DEMO, SHOULD BE IN assets/editor/ol-editor.js) ---
-    class OlEditorEngine {
-        constructor(targetId, options = {}) {
-            this.targetId = targetId;
-            this.map = null;
-            this.imageLayer = null;
-            this.pixelProjection = null;
-            this.initMap();
-        }
+    // --- Lightweight Viewer (PDF.js + Image) ---
+    const viewer = {
+        container: document.getElementById('map'),
+        canvas: document.getElementById('pdf-canvas'),
+        img: document.getElementById('img-view'),
+        mode: null,
+        scale: 1,
+        minScale: 0.1,
+        maxScale: 6,
+        translateX: 0,
+        translateY: 0,
+        naturalW: 0,
+        naturalH: 0,
+        isPanningMode: false,
+        isDragging: false,
+        dragStartX: 0,
+        dragStartY: 0,
+        startTx: 0,
+        startTy: 0
+    };
 
-        initMap() {
-            const targetEl = document.getElementById(this.targetId);
-            if (!targetEl) {
-                console.error('[OL] target not found:', this.targetId);
-                return;
-            }
-
-            // Proyección pixel-space propia (OpenLayers v7 no trae 'identity' por defecto)
-            this.pixelProjection = new ol.proj.Projection({
-                code: 'pixel',
-                units: 'pixels',
-                extent: [0, 0, 1, 1]
-            });
-            ol.proj.addProjection(this.pixelProjection);
-
-            // Capa vacía para futuras anotaciones
-            const vectorSource = new ol.source.Vector({ wrapX: false });
-            const vectorLayer = new ol.layer.Vector({ source: vectorSource });
-
-            this.map = new ol.Map({
-                target: targetEl,
-                layers: [vectorLayer],
-                view: new ol.View({
-                    projection: this.pixelProjection,
-                    center: [0.5, 0.5],
-                    zoom: 2,
-                    minZoom: 0.5,
-                    maxZoom: 8
-                }),
-                controls: [], // Limpio
-                interactions: ol.interaction.defaults.defaults({
-                    pinchRotate: false, 
-                    altShiftDragRotate: false
-                })
-            });
-            
-            // Listener para actualizar zoom display
-            this.map.getView().on('change:resolution', () => {
-                const zoom = this.map.getView().getZoom();
-                // Aproximación simple de porcentaje basado en zoom level arbitrario
-                // En OL zoom 2 es base, ajustamos visualmente
-                const pct = Math.round(Math.pow(2, zoom - 2) * 100); 
-                const disp = document.getElementById('zoom-disp');
-                if(disp) disp.innerText = pct + '%';
-            });
-        }
-
-        loadPageBackground(dataUrl, width, height) {
-            const map = this.map;
-            if (!map) {
-                console.error('[OL] map not initialized');
-                return;
-            }
-            if (!width || !height || !Number.isFinite(width) || !Number.isFinite(height)) {
-                console.error('[OL] invalid image dimensions', width, height);
-                return;
-            }
-            
-            const extent = [0, 0, width, height];
-            if (!Array.isArray(extent) || extent.length !== 4) {
-                console.error('[OL] invalid extent', extent);
-                return;
-            }
-
-            // Actualizar proyección pixel-space con el extent real
-            if (!this.pixelProjection) {
-                this.pixelProjection = new ol.proj.Projection({
-                    code: 'pixel',
-                    units: 'pixels',
-                    extent: extent
-                });
-                ol.proj.addProjection(this.pixelProjection);
-            } else {
-                this.pixelProjection.setExtent(extent);
-            }
-
-            if (!this.pixelProjection) {
-                console.error('[OL] pixel projection not available');
-                return;
-            }
-
-            try {
-                const imageSource = new ol.source.ImageStatic({
-                    url: dataUrl,
-                    projection: this.pixelProjection,
-                    imageExtent: extent
-                });
-
-                if (this.imageLayer) this.map.removeLayer(this.imageLayer);
-                
-                this.imageLayer = new ol.layer.Image({ source: imageSource });
-                this.map.getLayers().insertAt(0, this.imageLayer);
-                imageSource.on('error', (e) => {
-                    console.error('[OL] image source error', e);
-                });
-
-                // Obtener la vista actual en lugar de crear una nueva
-                const currentView = map.getView();
-                const center = ol.extent.getCenter(extent);
-                
-                const updateView = () => {
-                    try {
-                        const mapSize = map.getSize();
-                        console.debug('[OL] mapSize', mapSize, 'extent', extent, 'projection', this.pixelProjection);
-                        if (mapSize && mapSize[0] > 0 && mapSize[1] > 0) {
-                            // Calcular el zoom necesario para mostrar el extent completo con padding
-                            const padding = 40; // 20px en cada lado
-                            const mapWidth = mapSize[0] - padding;
-                            const mapHeight = mapSize[1] - padding;
-                            
-                            const extentWidth = extent[2] - extent[0];
-                            const extentHeight = extent[3] - extent[1];
-                            
-                            const scaleX = mapWidth / extentWidth;
-                            const scaleY = mapHeight / extentHeight;
-                            const scale = Math.min(scaleX, scaleY);
-                            
-                            // Calcular zoom basado en la escala
-                            const calculatedZoom = Math.log2(scale);
-                            
-                            // Limitar el zoom dentro de los límites permitidos
-                            const finalZoom = Math.max(0.5, Math.min(8, calculatedZoom));
-                            
-                            currentView.setCenter(center);
-                            currentView.setZoom(finalZoom);
-                            currentView.setProjection(this.pixelProjection);
-                        } else {
-                            // Si el mapa no tiene tamaño aún, usar valores por defecto
-                            currentView.setCenter(center);
-                            currentView.setZoom(2);
-                            currentView.setProjection(this.pixelProjection);
-                        }
-                    } catch (e) {
-                        console.error('[OL] zoom calculation failed', e);
-                        // Fallback: usar valores por defecto
-                        try {
-                            currentView.setCenter(center);
-                            currentView.setZoom(2);
-                            currentView.setProjection(this.pixelProjection);
-                        } catch (fallbackError) {
-                            console.error('[OL] fallback center/zoom failed', fallbackError);
-                        }
-                    }
-                };
-                
-                // Actualizar el tamaño del mapa primero
-                map.updateSize();
-                
-                // Usar requestAnimationFrame para asegurar que el mapa esté completamente renderizado
-                requestAnimationFrame(() => {
-                    updateView();
-                });
-                
-            } catch (mainError) {
-                console.error('[OL] Error in loadPageBackground:', mainError);
-                // Intentar cargar la imagen como último recurso
-                try {
-                    const center = ol.extent.getCenter(extent);
-                    const currentView = map.getView();
-                    if (currentView) {
-                        currentView.setCenter(center);
-                        currentView.setZoom(2);
-                        currentView.setProjection(this.pixelProjection);
-                    }
-                } catch (finalError) {
-                    console.error('[OL] final fallback failed:', finalError);
-                }
-            }
-        }
-        
-        clearAnnotations() {
-            // TODO: Limpiar vector source
-        }
-        
-        // Helpers para controles externos
-        zoomIn() { 
-            const v = this.map.getView(); 
-            v.animate({ zoom: v.getZoom() + 0.5, duration: 200 }); 
-        }
-        zoomOut() { 
-            const v = this.map.getView(); 
-            v.animate({ zoom: v.getZoom() - 0.5, duration: 200 }); 
-        }
-        togglePan(enable) {
-            // En OL el pan es default, aquí podríamos desactivar interacciones si fuera modo dibujo
-            // Por ahora solo cambiamos cursor
-            const target = document.getElementById(this.targetId);
-            target.style.cursor = enable ? 'grab' : 'default';
-        }
+    function setZoomDisplay() {
+        const disp = document.getElementById('zoom-disp');
+        if (disp) disp.innerText = Math.round(viewer.scale * 100) + '%';
     }
-    // ---------------------------------------------------------
+
+    function applyTransform() {
+        const el = viewer.mode === 'pdf' ? viewer.canvas : viewer.img;
+        if (!el) return;
+        el.style.transform = `translate(${viewer.translateX}px, ${viewer.translateY}px) scale(${viewer.scale})`;
+        setZoomDisplay();
+    }
+
+    function fitToContainer() {
+        const cw = viewer.container.clientWidth;
+        const ch = viewer.container.clientHeight;
+        if (!cw || !ch || !viewer.naturalW || !viewer.naturalH) return;
+
+        const scaleX = cw / viewer.naturalW;
+        const scaleY = ch / viewer.naturalH;
+        viewer.scale = Math.min(scaleX, scaleY);
+        viewer.scale = Math.max(viewer.minScale, Math.min(viewer.maxScale, viewer.scale));
+
+        viewer.translateX = Math.round((cw - viewer.naturalW * viewer.scale) / 2);
+        viewer.translateY = Math.round((ch - viewer.naturalH * viewer.scale) / 2);
+        applyTransform();
+    }
+
+    function setMode(mode) {
+        viewer.mode = mode;
+        viewer.canvas.style.display = mode === 'pdf' ? 'block' : 'none';
+        viewer.img.style.display = mode === 'image' ? 'block' : 'none';
+    }
+
+    function zoomAt(clientX, clientY, delta) {
+        const rect = viewer.container.getBoundingClientRect();
+        const px = clientX - rect.left;
+        const py = clientY - rect.top;
+        const prevScale = viewer.scale;
+        const nextScale = Math.max(viewer.minScale, Math.min(viewer.maxScale, viewer.scale * delta));
+        if (nextScale === prevScale) return;
+
+        // Mantener el punto bajo el cursor
+        const nx = (px - viewer.translateX) / prevScale;
+        const ny = (py - viewer.translateY) / prevScale;
+        viewer.scale = nextScale;
+        viewer.translateX = px - nx * viewer.scale;
+        viewer.translateY = py - ny * viewer.scale;
+        applyTransform();
+    }
+
+    viewer.container.addEventListener('wheel', (e) => {
+        if (!viewer.mode) return;
+        e.preventDefault();
+        const delta = e.deltaY < 0 ? 1.1 : 0.9;
+        zoomAt(e.clientX, e.clientY, delta);
+    }, { passive: false });
+
+    viewer.container.addEventListener('mousedown', (e) => {
+        if (!viewer.isPanningMode || !viewer.mode) return;
+        viewer.isDragging = true;
+        viewer.dragStartX = e.clientX;
+        viewer.dragStartY = e.clientY;
+        viewer.startTx = viewer.translateX;
+        viewer.startTy = viewer.translateY;
+        viewer.container.style.cursor = 'grabbing';
+    });
+    window.addEventListener('mousemove', (e) => {
+        if (!viewer.isDragging) return;
+        const dx = e.clientX - viewer.dragStartX;
+        const dy = e.clientY - viewer.dragStartY;
+        viewer.translateX = viewer.startTx + dx;
+        viewer.translateY = viewer.startTy + dy;
+        applyTransform();
+    });
+    window.addEventListener('mouseup', () => {
+        viewer.isDragging = false;
+        viewer.container.style.cursor = viewer.isPanningMode ? 'grab' : 'default';
+    });
 
     // VARIABLES
     const fileUrlRaw = "<?= $filePath ?>";
@@ -645,9 +547,6 @@ if ($filePath !== '') {
     let allAnnotations = <?= $annotations ?>; 
     if(typeof allAnnotations !== 'object' || allAnnotations === null) allAnnotations = {};
 
-    // Inicializar Motor OL
-    const editor = new OlEditorEngine('map', { readOnly: true });
-    
     let pdfDoc = null, pageNum = 1, pdfScale = 2.0; // Scale alto para nitidez en canvas
     
     // --- DELETE REPORT LOGIC ---
@@ -681,7 +580,7 @@ if ($filePath !== '') {
 
     // Resize
     function resize() { 
-        if(editor.map) editor.map.updateSize(); 
+        if (viewer.mode) fitToContainer();
     }
     window.addEventListener('resize', resize);
     resize(); 
@@ -690,6 +589,7 @@ if ($filePath !== '') {
     const imageExts = ['jpg','jpeg','png','gif','webp','bmp','tiff','tif','heic'];
 
     if(fileExt === 'pdf') {
+        setMode('pdf');
         pdfjsLib.getDocument(fileUrl).promise.then(pdf => {
             pdfDoc = pdf; document.getElementById('p-total').textContent = pdf.numPages;
             renderPageList(pdf.numPages); renderPage(pageNum);
@@ -698,6 +598,7 @@ if ($filePath !== '') {
             showToast("Error loading PDF", "error");
         });
     } else if (fileExt === 'heic') {
+        setMode('image');
         document.getElementById('p-total').textContent = '1'; renderPageList(1);
         fetch(fileUrl).then(res => res.blob()).then(blob => heic2any({ blob, toType: "image/jpeg" })).then(conversionResult => {
             const blob = Array.isArray(conversionResult) ? conversionResult[0] : conversionResult;
@@ -705,6 +606,7 @@ if ($filePath !== '') {
             loadSingleImage(url);
         }).catch(e => console.error(e));
     } else if (imageExts.includes(fileExt)) {
+        setMode('image');
         document.getElementById('p-total').textContent = '1'; renderPageList(1);
         loadSingleImage(fileUrl);
     } else {
@@ -716,7 +618,10 @@ if ($filePath !== '') {
         const img = new Image();
         img.crossOrigin = 'anonymous';
         img.onload = function() {
-            editor.loadPageBackground(url, this.width, this.height);
+            viewer.img.src = url;
+            viewer.naturalW = this.width;
+            viewer.naturalH = this.height;
+            fitToContainer();
             loadPageAnnotations(1);
         }
         img.onerror = function() {
@@ -726,7 +631,10 @@ if ($filePath !== '') {
                     const objUrl = URL.createObjectURL(b);
                     const img2 = new Image();
                     img2.onload = function() {
-                        editor.loadPageBackground(objUrl, this.width, this.height);
+                        viewer.img.src = objUrl;
+                        viewer.naturalW = this.width;
+                        viewer.naturalH = this.height;
+                        fitToContainer();
                         loadPageAnnotations(1);
                     };
                     img2.src = objUrl;
@@ -752,12 +660,13 @@ if ($filePath !== '') {
     async function renderPage(num) {
         if(pdfDoc) {
             const page = await pdfDoc.getPage(num); const viewport = page.getViewport({ scale: pdfScale });
-            const tempC = document.createElement('canvas'); tempC.width = viewport.width; tempC.height = viewport.height;
-            await page.render({ canvasContext: tempC.getContext('2d'), viewport }).promise;
-            
-            // Convertir a imagen para OL
-            const imgData = tempC.toDataURL('image/jpeg', 0.8);
-            editor.loadPageBackground(imgData, viewport.width, viewport.height);
+            const canvas = viewer.canvas;
+            canvas.width = viewport.width;
+            canvas.height = viewport.height;
+            await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+            viewer.naturalW = viewport.width;
+            viewer.naturalH = viewport.height;
+            fitToContainer();
             loadPageAnnotations(num);
         }
         updatePageListUI(num);
@@ -767,7 +676,7 @@ if ($filePath !== '') {
         if(newPage < 1 || newPage > max) return; jumpToPage(newPage);
     }
     function jumpToPage(targetPage) {
-        editor.clearAnnotations(); pageNum = targetPage; if(pdfDoc) renderPage(pageNum); else loadPageAnnotations(pageNum);
+        pageNum = targetPage; if(pdfDoc) renderPage(pageNum); else loadPageAnnotations(pageNum);
     }
     
     function loadPageAnnotations(pg) {
@@ -778,19 +687,17 @@ if ($filePath !== '') {
     }
 
     // --- V8.0: PANNING LOGIC (MANUAL TOGGLE) ---
-    let isPanningMode = false;
-    
     function togglePan() {
-        isPanningMode = !isPanningMode;
+        viewer.isPanningMode = !viewer.isPanningMode;
         const btn = document.getElementById('btn-pan');
-        if(isPanningMode) {
+        if(viewer.isPanningMode) {
             btn.classList.add('text-white', 'bg-primary');
             btn.classList.remove('text-warning');
-            editor.togglePan(true);
+            viewer.container.style.cursor = 'grab';
         } else {
             btn.classList.remove('text-white', 'bg-primary');
             btn.classList.add('text-warning');
-            editor.togglePan(false);
+            viewer.container.style.cursor = 'default';
         }
     }
 
