@@ -894,17 +894,27 @@ if (strpos($filePath, 'uploads/') === 0 || strpos($filePath, 'api/uploads/') ===
     function deleteSelected() {
         const activeObjects = canvas.getActiveObjects();
         if(!activeObjects.length) return;
-        if(!confirm(`Delete ${activeObjects.length} item(s)?`)) return;
-        canvas.discardActiveObject();
+        
+        // MODIFICADO: Eliminado confirm() y agrupado el historial
+        historyProcessing = true; // Pausar guardado automático por objeto para agrupar la acción
+        
+        canvas.discardActiveObject(); // Limpiar selección visual
+        
         activeObjects.forEach(obj => {
+            // Limpieza de dependencias (Etiquetas de medidas)
             if(obj.isMeasureLine && obj.label) canvas.remove(obj.label);
+            
+            // Limpieza inversa (Si borro etiqueta, buscar y borrar linea)
             if(obj.isMeasureLabel) {
                  const line = canvas.getObjects().find(o => o.labelId === obj.id);
                  if(line) canvas.remove(line);
             }
             canvas.remove(obj);
         });
-        saveHistory();
+        
+        historyProcessing = false; // Reactivar historial
+        saveHistory(); // Guardar el estado UNA vez con todos los objetos borrados
+        showToast("Selection deleted", "success");
     }
 
     // --- PINCH ZOOM & PAN (GESTOS TÁCTILES MEJORADOS) ---
@@ -973,6 +983,30 @@ if (strpos($filePath, 'uploads/') === 0 || strpos($filePath, 'api/uploads/') ===
             }
         }, { passive: false });
     }
+
+    canvas.on('mouse:up', function(opt) {
+        this.setViewportTransform(this.viewportTransform);
+        this.isDragging = false;
+        if (currentMode === 'smart') this.selection = true;
+        if(this.isDrawingModeWasOn) { canvas.isDrawingMode = true; this.isDrawingModeWasOn = false; }
+        
+        // MODIFICADO: Refuerzo contra falsos positivos (líneas cortas/basura)
+        if (lineState === 1 && activeLine) {
+            const ptr = canvas.getPointer(opt.e);
+            const dist = Math.sqrt(Math.pow(ptr.x - startPoint.x, 2) + Math.pow(ptr.y - startPoint.y, 2));
+            
+            if (dist > 10) {
+                finishLineLogic();
+            } else {
+                // BUG FIX: Si la distancia es muy corta (misclick), limpiar el objeto temporal
+                canvas.remove(activeLine);
+                activeLine = null;
+                lineState = 0;
+                canvas.requestRenderAll();
+            }
+        }
+        canvas.setCursor('default');
+    });
 
     // --- LOAD LOGIC ---
     if(fileExt === 'pdf') {

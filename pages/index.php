@@ -1,5 +1,5 @@
 <?php
-// index.php - V8.3 (Select All in Recycle Bin & Validations)
+// index.php - V8.4 (Updated for New Project Structure)
 require_once __DIR__ . '/../core/auth/session.php';
 require_once __DIR__ . '/../core/db/connection.php';
 require_once __DIR__ . '/../core/time.php'; 
@@ -20,19 +20,10 @@ $canUpload = $isAdmin;
 // ---------------------------------------------------------
 // 2. LÓGICA DE ACCIONES (POST y GET)
 // ---------------------------------------------------------
+// Nota: La creación de proyectos ahora se maneja en 'api/create_project.php'
+// Mantenemos la lógica de carpetas por si acaso, aunque el dashboard nuevo la gestionará.
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
-    // CREAR PROYECTO
-    if ($_POST['action'] === 'create_project' && $isAdmin) {
-        $name = trim($_POST['name']);
-        $desc = trim($_POST['description']);
-        if(!empty($name)){
-            $stmt = $pdo->prepare("INSERT INTO projects (name, description, created_by, created_at, status) VALUES (?, ?, ?, NOW(), 'Active')");
-            $stmt->execute([$name, $desc, $userId]);
-        }
-        header("Location: index.php");
-        exit;
-    }
-    // CREAR CARPETA
+    // CREAR CARPETA (Legacy support / Quick create)
     if ($_POST['action'] === 'create_folder' && $isAdmin) {
         $name = trim($_POST['new_folder_name']);
         $pId = $_POST['project_id'];
@@ -44,7 +35,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
                 $stmt->execute([$name, $pId]);
             }
         }
-        header("Location: index.php?project_id=$pId");
+        // Redirigir al nuevo dashboard si se crea desde ahí
+        header("Location: project_dashboard.php?id=$pId"); 
         exit;
     }
 }
@@ -83,13 +75,22 @@ if ($viewTrash) {
     $trashReports = $pdo->query("SELECT r.*, f.filename FROM file_reports r LEFT JOIN files f ON r.file_id = f.id WHERE r.is_deleted = 1 ORDER BY r.created_at DESC")->fetchAll(PDO::FETCH_ASSOC);
 }
 elseif (!$projectId) {
+    // VISTA PRINCIPAL (HOME)
     $stats['total_projects'] = $pdo->query("SELECT COUNT(*) FROM projects WHERE deleted_at IS NULL")->fetchColumn();
     $stats['total_files'] = $pdo->query("SELECT COUNT(*) FROM files WHERE deleted_at IS NULL")->fetchColumn();
     $stats['total_users'] = $pdo->query("SELECT COUNT(*) FROM users")->fetchColumn();
+    
+    // Obtener proyectos recientes
     $recentProjects = $pdo->query("SELECT * FROM projects WHERE deleted_at IS NULL ORDER BY created_at DESC LIMIT 10")->fetchAll(PDO::FETCH_ASSOC);
+    
+    // Obtener archivos recientes globalmente
     $recentFiles = $pdo->query("SELECT f.*, p.name as project_name, fo.name as folder_name FROM files f LEFT JOIN projects p ON f.project_id = p.id LEFT JOIN folders fo ON f.folder_id = fo.id WHERE f.deleted_at IS NULL ORDER BY f.uploaded_at DESC LIMIT 8")->fetchAll(PDO::FETCH_ASSOC);
 }
 else {
+    // VISTA LEGACY (Si alguien entra por un link antiguo) - Redirigir al nuevo dashboard recomendado
+    // Descomenta la siguiente linea si quieres forzar la redirección:
+    // header("Location: project_dashboard.php?id=$projectId"); exit;
+
     $project = $pdo->query("SELECT * FROM projects WHERE id=$projectId")->fetch(PDO::FETCH_ASSOC);
     if(!$project) die("Project not found");
     $pageTitle = $project['name'];
@@ -147,8 +148,13 @@ include __DIR__ . '/../views/header.php';
         <?php if(!$projectId && !$viewTrash): ?>
             <div class="d-flex justify-content-between align-items-end mb-5">
                 <div><h1 class="fw-bold mb-2">Welcome Back!</h1><p class="text-gray mb-0">Here is the latest activity.</p></div>
-                <?php if($canCreate): ?><button class="btn-main" data-bs-toggle="modal" data-bs-target="#newProjectModal"><i class="fas fa-plus me-2"></i> New Project</button><?php endif; ?>
+                <?php if($canCreate): ?>
+                    <a href="project_create.php" class="btn-main text-decoration-none">
+                        <i class="fas fa-plus me-2"></i> New Project
+                    </a>
+                <?php endif; ?>
             </div>
+
             <div class="row g-4 mb-5">
                 <div class="col-md-4"><div class="box-card"><i class="fas fa-folder-open stat-icon-bg"></i><div class="stat-num"><?= $stats['total_projects'] ?></div><div class="stat-label">Active Projects</div></div></div>
                 <div class="col-md-4"><div class="box-card"><i class="fas fa-file-contract stat-icon-bg"></i><div class="stat-num"><?= $stats['total_files'] ?></div><div class="stat-label">Files Uploaded</div></div></div>
@@ -158,9 +164,29 @@ include __DIR__ . '/../views/header.php';
             <h5 class="fw-bold mb-4">Recent Projects (Latest 10)</h5>
             <div class="row g-4 mb-5">
                 <?php foreach($recentProjects as $p): ?>
-                <div class="col-md-4 col-xl-3"><a href="index.php?project_id=<?= $p['id'] ?>" class="box-card d-block"><div class="proj-status">Active</div><div class="proj-title"><?= htmlspecialchars($p['name']) ?></div><div class="proj-desc"><?= htmlspecialchars($p['description'] ?: 'No description.') ?></div><div class="mt-4 pt-3 border-top border-secondary d-flex justify-content-between align-items-center text-gray small"><span><?= date('M d', strtotime($p['created_at'])) ?></span><i class="fas fa-arrow-right"></i></div></a></div>
+                <div class="col-md-4 col-xl-3">
+                    <a href="project_dashboard.php?id=<?= $p['id'] ?>" class="box-card d-block">
+                        <div class="proj-status">Active</div>
+                        <div class="proj-title"><?= htmlspecialchars($p['name']) ?></div>
+                        <div class="proj-desc"><?= htmlspecialchars($p['description'] ?: 'No description.') ?></div>
+                        <div class="mt-4 pt-3 border-top border-secondary d-flex justify-content-between align-items-center text-gray small">
+                            <span><?= date('M d', strtotime($p['created_at'])) ?></span>
+                            <i class="fas fa-arrow-right"></i>
+                        </div>
+                    </a>
+                </div>
                 <?php endforeach; ?>
-                <?php if($canCreate): ?><div class="col-md-4 col-xl-3"><div class="box-card box-card-dashed" data-bs-toggle="modal" data-bs-target="#newProjectModal"><div class="mb-2 p-3 rounded-circle bg-dark"><i class="fas fa-plus fa-lg"></i></div><div class="fw-bold">Create New Project</div></div></div><?php endif; ?>
+                
+                <?php if($canCreate): ?>
+                <div class="col-md-4 col-xl-3">
+                    <a href="project_create.php" class="text-decoration-none">
+                        <div class="box-card box-card-dashed h-100 d-flex flex-column align-items-center justify-content-center">
+                            <div class="mb-2 p-3 rounded-circle bg-dark"><i class="fas fa-plus fa-lg text-white"></i></div>
+                            <div class="fw-bold text-white">Create New Project</div>
+                        </div>
+                    </a>
+                </div>
+                <?php endif; ?>
             </div>
 
             <?php if(!empty($recentFiles)): ?>

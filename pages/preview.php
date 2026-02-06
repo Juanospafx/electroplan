@@ -148,7 +148,8 @@ if (strpos($filePath, 'uploads/') === 0 || strpos($filePath, 'api/uploads/') ===
         .btn-del-report:disabled { opacity: 0.5; cursor: not-allowed; }
 
         /* CANVAS AREA */
-        .canvas-area { grid-row: 2; grid-column: 2; background: #0f172a; position: relative; overflow: hidden; display: flex; justify-content: center; align-items: center; }
+        .canvas-area { grid-row: 2; grid-column: 2; background: #0f172a; position: relative; overflow: hidden; }
+        #map { width: 100%; height: 100%; background: #0f172a; }
 
         /* FLOATING CONTROLS */
         .floating-controls {
@@ -311,7 +312,7 @@ if (strpos($filePath, 'uploads/') === 0 || strpos($filePath, 'api/uploads/') ===
     </aside>
 
     <main class="canvas-area" id="canvas-wrapper">
-        <canvas id="c"></canvas>
+        <div id="map"></div>
         
         <div class="floating-controls">
             <button class="float-btn text-warning" id="btn-pan" onclick="togglePan()" title="Toggle Pan/Hand"><i class="fas fa-hand-paper"></i></button>
@@ -396,7 +397,8 @@ if (strpos($filePath, 'uploads/') === 0 || strpos($filePath, 'api/uploads/') ===
 
 <div id="toast-container"></div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@v7.4.0/ol.css">
+<script src="https://cdn.jsdelivr.net/npm/ol@v7.4.0/dist/ol.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
 
 <script>
@@ -417,55 +419,110 @@ if (strpos($filePath, 'uploads/') === 0 || strpos($filePath, 'api/uploads/') ===
     // --- SETUP ---
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
 
+    // --- OL EDITOR ENGINE (INLINED FOR DEMO, SHOULD BE IN assets/editor/ol-editor.js) ---
+    class OlEditorEngine {
+        constructor(targetId, options = {}) {
+            this.targetId = targetId;
+            this.map = null;
+            this.imageLayer = null;
+            this.initMap();
+        }
+
+        initMap() {
+            // Capa vacía para futuras anotaciones
+            const vectorSource = new ol.source.Vector({ wrapX: false });
+            const vectorLayer = new ol.layer.Vector({ source: vectorSource });
+
+            this.map = new ol.Map({
+                target: this.targetId,
+                layers: [vectorLayer],
+                view: new ol.View({
+                    projection: 'identity',
+                    center: [0, 0],
+                    zoom: 2
+                }),
+                controls: [], // Limpio
+                interactions: ol.interaction.defaults.defaults({
+                    pinchRotate: false, 
+                    altShiftDragRotate: false
+                })
+            });
+            
+            // Listener para actualizar zoom display
+            this.map.getView().on('change:resolution', () => {
+                const zoom = this.map.getView().getZoom();
+                // Aproximación simple de porcentaje basado en zoom level arbitrario
+                // En OL zoom 2 es base, ajustamos visualmente
+                const pct = Math.round(Math.pow(2, zoom - 2) * 100); 
+                const disp = document.getElementById('zoom-disp');
+                if(disp) disp.innerText = pct + '%';
+            });
+        }
+
+        loadPageBackground(dataUrl, width, height) {
+            // Definir proyección pixel-space para esta página
+            const extent = [0, 0, width, height];
+            const projection = new ol.proj.Projection({
+                code: 'pixel-page',
+                units: 'pixels',
+                extent: extent
+            });
+
+            const imageSource = new ol.source.ImageStatic({
+                url: dataUrl,
+                projection: projection,
+                imageExtent: extent
+            });
+
+            if (this.imageLayer) this.map.removeLayer(this.imageLayer);
+            
+            this.imageLayer = new ol.layer.Image({ source: imageSource });
+            this.map.getLayers().insertAt(0, this.imageLayer);
+
+            // Ajustar vista
+            const newView = new ol.View({
+                projection: projection,
+                center: ol.extent.getCenter(extent),
+                zoom: 2,
+                minZoom: 0.5,
+                maxZoom: 8
+            });
+            this.map.setView(newView);
+            newView.fit(extent, { padding: [20, 20, 20, 20] });
+        }
+        
+        clearAnnotations() {
+            // TODO: Limpiar vector source
+        }
+        
+        // Helpers para controles externos
+        zoomIn() { 
+            const v = this.map.getView(); 
+            v.animate({ zoom: v.getZoom() + 0.5, duration: 200 }); 
+        }
+        zoomOut() { 
+            const v = this.map.getView(); 
+            v.animate({ zoom: v.getZoom() - 0.5, duration: 200 }); 
+        }
+        togglePan(enable) {
+            // En OL el pan es default, aquí podríamos desactivar interacciones si fuera modo dibujo
+            // Por ahora solo cambiamos cursor
+            const target = document.getElementById(this.targetId);
+            target.style.cursor = enable ? 'grab' : 'default';
+        }
+    }
+    // ---------------------------------------------------------
+
     // VARIABLES
     const fileUrl = "<?= $filePath ?>";
     const fileExt = "<?= $fileExt ?>";
     let allAnnotations = <?= $annotations ?>; 
     if(typeof allAnnotations !== 'object' || allAnnotations === null) allAnnotations = {};
 
-    // V8.0: Touch Scrolling Desactivado para Canvas
-    let canvas = new fabric.Canvas('c', { selection: false, allowTouchScrolling: false });
-    let pdfDoc = null, pageNum = 1, pdfScale = 2.0;
-
-    // --- PINCH TO ZOOM LOGIC (NATIVE JS) ---
-    const canvasWrapper = document.querySelector('.upper-canvas'); // Fabric wrapper
-    let lastDist = 0;
-
-    if(canvasWrapper) {
-        canvasWrapper.addEventListener('touchstart', function(e) {
-            if (e.touches.length === 2) {
-                const dx = e.touches[0].clientX - e.touches[1].clientX;
-                const dy = e.touches[0].clientY - e.touches[1].clientY;
-                lastDist = Math.sqrt(dx * dx + dy * dy);
-                e.preventDefault(); 
-            }
-        }, { passive: false });
-
-        canvasWrapper.addEventListener('touchmove', function(e) {
-            if (e.touches.length === 2) {
-                e.preventDefault();
-                const dx = e.touches[0].clientX - e.touches[1].clientX;
-                const dy = e.touches[0].clientY - e.touches[1].clientY;
-                const dist = Math.sqrt(dx * dx + dy * dy);
-                
-                // Punto medio (centro del zoom)
-                const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
-                const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
-                
-                const scale = dist / lastDist;
-                let newZoom = canvas.getZoom() * scale;
-                if (newZoom > 20) newZoom = 20; if (newZoom < 0.1) newZoom = 0.1;
-
-                // Zoom al punto medio
-                const point = new fabric.Point(midX, midY);
-                canvas.zoomToPoint(point, newZoom);
-                
-                lastDist = dist;
-                document.getElementById('zoom-disp').innerText = Math.round(newZoom * 100) + '%';
-                updateTextScales(newZoom);
-            }
-        }, { passive: false });
-    }
+    // Inicializar Motor OL
+    const editor = new OlEditorEngine('map', { readOnly: true });
+    
+    let pdfDoc = null, pageNum = 1, pdfScale = 2.0; // Scale alto para nitidez en canvas
     
     // --- DELETE REPORT LOGIC ---
     async function deleteReport(reportId, btn) {
@@ -497,9 +554,8 @@ if (strpos($filePath, 'uploads/') === 0 || strpos($filePath, 'api/uploads/') ===
     }
 
     // Resize
-    function resize() {
-        const w = document.getElementById('canvas-wrapper');
-        canvas.setWidth(w.clientWidth); canvas.setHeight(w.clientHeight);
+    function resize() { 
+        if(editor.map) editor.map.updateSize(); 
     }
     window.addEventListener('resize', resize);
     resize(); 
@@ -515,11 +571,21 @@ if (strpos($filePath, 'uploads/') === 0 || strpos($filePath, 'api/uploads/') ===
         fetch(fileUrl).then(res => res.blob()).then(blob => heic2any({ blob, toType: "image/jpeg" })).then(conversionResult => {
             const blob = Array.isArray(conversionResult) ? conversionResult[0] : conversionResult;
             const url = URL.createObjectURL(blob);
-            fabric.Image.fromURL(url, img => { setBg(img); loadPageAnnotations(1); });
+            loadSingleImage(url);
         }).catch(e => console.error(e));
     } else {
         document.getElementById('p-total').textContent = '1'; renderPageList(1);
-        fabric.Image.fromURL(fileUrl, img => { setBg(img); loadPageAnnotations(1); });
+        loadSingleImage(fileUrl);
+    }
+
+    function loadSingleImage(url) {
+        // Obtener dimensiones reales de imagen
+        const img = new Image();
+        img.onload = function() {
+            editor.loadPageBackground(url, this.width, this.height);
+            loadPageAnnotations(1);
+        }
+        img.src = url;
     }
 
     function renderPageList(total) {
@@ -540,8 +606,11 @@ if (strpos($filePath, 'uploads/') === 0 || strpos($filePath, 'api/uploads/') ===
             const page = await pdfDoc.getPage(num); const viewport = page.getViewport({ scale: pdfScale });
             const tempC = document.createElement('canvas'); tempC.width = viewport.width; tempC.height = viewport.height;
             await page.render({ canvasContext: tempC.getContext('2d'), viewport }).promise;
+            
+            // Convertir a imagen para OL
             const imgData = tempC.toDataURL('image/jpeg', 0.8);
-            fabric.Image.fromURL(imgData, img => { setBg(img); loadPageAnnotations(num); });
+            editor.loadPageBackground(imgData, viewport.width, viewport.height);
+            loadPageAnnotations(num);
         }
         updatePageListUI(num);
     }
@@ -550,15 +619,13 @@ if (strpos($filePath, 'uploads/') === 0 || strpos($filePath, 'api/uploads/') ===
         if(newPage < 1 || newPage > max) return; jumpToPage(newPage);
     }
     function jumpToPage(targetPage) {
-        canvas.clear(); pageNum = targetPage; if(pdfDoc) renderPage(pageNum); else loadPageAnnotations(pageNum);
+        editor.clearAnnotations(); pageNum = targetPage; if(pdfDoc) renderPage(pageNum); else loadPageAnnotations(pageNum);
     }
-    function setBg(img) { canvas.setBackgroundImage(img, canvas.renderAll.bind(canvas), { originX: 'left', originY: 'top' }); }
+    
     function loadPageAnnotations(pg) {
         if(allAnnotations[pg]) {
-            canvas.loadFromJSON(allAnnotations[pg], function() {
-                canvas.getObjects().forEach(obj => { obj.selectable = false; obj.evented = false; });
-                updateTextScales(canvas.getZoom()); canvas.renderAll();
-            });
+            console.log("TODO: Implementar adaptador Fabric->OL para página " + pg);
+            // Aquí irá la lógica de la Fase 2/8
         }
     }
 
@@ -571,81 +638,14 @@ if (strpos($filePath, 'uploads/') === 0 || strpos($filePath, 'api/uploads/') ===
         if(isPanningMode) {
             btn.classList.add('text-white', 'bg-primary');
             btn.classList.remove('text-warning');
-            canvas.defaultCursor = 'grab';
+            editor.togglePan(true);
         } else {
             btn.classList.remove('text-white', 'bg-primary');
             btn.classList.add('text-warning');
-            canvas.defaultCursor = 'default';
+            editor.togglePan(false);
         }
     }
 
-    // Zoom & Pan
-    canvas.on('mouse:wheel', function(opt) {
-        let delta = opt.e.deltaY; let zoom = canvas.getZoom() * (0.999 ** delta);
-        if (zoom > 20) zoom=20; if (zoom < 0.05) zoom=0.05;
-        canvas.zoomToPoint({ x: opt.e.offsetX, y: opt.e.offsetY }, zoom);
-        document.getElementById('zoom-disp').innerText = Math.round(zoom*100)+'%';
-        updateTextScales(zoom);
-        opt.e.preventDefault(); opt.e.stopPropagation();
-    });
-
-    // Panning (Updated for Touch)
-    let isDragging = false, lastX, lastY;
-    
-    canvas.on('mouse:down', function(opt) { 
-        const evt = opt.e;
-        const isTouch = evt.type.startsWith('touch');
-        const clientX = isTouch ? evt.touches[0].clientX : evt.clientX;
-        const clientY = isTouch ? evt.touches[0].clientY : evt.clientY;
-
-        if(evt.button === 2 || isPanningMode) {
-            isDragging = true; 
-            lastX = clientX; 
-            lastY = clientY; 
-            canvas.defaultCursor = 'grabbing';
-            canvas.setCursor('grabbing');
-        }
-    });
-
-    canvas.on('mouse:move', function(opt) {
-        if(isDragging) {
-            const evt = opt.e;
-            const isTouch = evt.type.startsWith('touch');
-            
-            if(isTouch) evt.preventDefault(); 
-
-            const clientX = isTouch ? evt.touches[0].clientX : evt.clientX;
-            const clientY = isTouch ? evt.touches[0].clientY : evt.clientY;
-
-            const vpt = this.viewportTransform;
-            vpt[4] += clientX - lastX; 
-            vpt[5] += clientY - lastY;
-            this.requestRenderAll(); 
-            lastX = clientX; 
-            lastY = clientY;
-        }
-    });
-
-    canvas.on('mouse:up', () => { 
-        isDragging = false; 
-        canvas.defaultCursor = isPanningMode ? 'grab' : 'default'; 
-        canvas.setCursor(isPanningMode ? 'grab' : 'default');
-    });
-
-    // Helper Scales
-    function getClampedScale(zoom) { let invScale = 1 / zoom; if(invScale > 1.5) invScale = 1.5; if(invScale < 0.2) invScale = 0.2; return invScale; }
-    function updateTextScales(zoom) {
-        const scale = getClampedScale(zoom);
-        canvas.getObjects().forEach(obj => {
-            if (obj.isMeasureGroup) {
-                const lineObj = obj.getObjects()[0]; const textObj = obj.getObjects()[1]; 
-                if(lineObj) lineObj.set({ strokeWidth: 3 * scale }); 
-                if(textObj) textObj.set({ scaleX: scale, scaleY: scale });
-                obj.addWithUpdate(); 
-            }
-        });
-        canvas.requestRenderAll();
-    }
 </script>
 </body>
 </html>
