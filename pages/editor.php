@@ -598,6 +598,7 @@ if ($filePath !== '') {
     let konvaStage = null;
     let konvaLayer = null;
     let konvaRulers = [];
+    const konvaRulersByPage = {};
     let konvaDrawing = null;
     let konvaIsPanning = false;
     let pdfDoc = null, pageNum = 1, pdfScale = 2.0;
@@ -928,6 +929,13 @@ if ($filePath !== '') {
         if (konvaLayer) konvaLayer.batchDraw();
     }
 
+    function setKonvaPage(page) {
+        konvaRulers.forEach(r => {
+            r.group.visible(r.page === page);
+        });
+        if (konvaLayer) konvaLayer.batchDraw();
+    }
+
     function createKonvaRuler(p1, p2) {
         const group = new Konva.Group({ draggable: true });
         const line = new Konva.Line({
@@ -963,8 +971,10 @@ if ($filePath !== '') {
         group.add(line, a1, a2, label);
         konvaLayer.add(group);
 
-        const ruler = { group, line, a1, a2, label };
+        const ruler = { group, line, a1, a2, label, page: pageNum };
         konvaRulers.push(ruler);
+        if (!konvaRulersByPage[pageNum]) konvaRulersByPage[pageNum] = [];
+        konvaRulersByPage[pageNum].push(ruler);
 
         const updateLine = () => {
             const p1c = a1.position();
@@ -998,6 +1008,44 @@ if ($filePath !== '') {
         konvaLayer = new Konva.Layer();
         konvaStage.add(konvaLayer);
 
+        // Zoom desde Konva -> Fabric (para no bloquear zoom)
+        konvaStage.container().addEventListener('wheel', function(e) {
+            e.preventDefault();
+            const delta = e.deltaY;
+            let zoom = canvas.getZoom() * (0.999 ** delta);
+            if (zoom > 20) zoom = 20; if (zoom < 0.05) zoom = 0.05;
+            const rect = konvaStage.container().getBoundingClientRect();
+            const point = new fabric.Point(e.clientX - rect.left, e.clientY - rect.top);
+            canvas.zoomToPoint(point, zoom);
+            document.getElementById('zoom-disp').innerText = Math.round(zoom * 100) + '%';
+            updateTextScales(zoom);
+            syncKonvaToFabric();
+        }, { passive: false });
+
+        // Pan desde Konva -> Fabric (ALT o botón derecho)
+        let panStart = null;
+        konvaStage.on('mousedown', (e) => {
+            const evt = e.evt;
+            if (evt && (evt.altKey || evt.button === 2)) {
+                panStart = { x: evt.clientX, y: evt.clientY };
+                konvaIsPanning = true;
+            }
+        });
+        konvaStage.on('mousemove', (e) => {
+            if (!konvaIsPanning || !panStart) return;
+            const evt = e.evt;
+            const vpt = canvas.viewportTransform;
+            vpt[4] += evt.clientX - panStart.x;
+            vpt[5] += evt.clientY - panStart.y;
+            panStart = { x: evt.clientX, y: evt.clientY };
+            canvas.requestRenderAll();
+            syncKonvaToFabric();
+        });
+        konvaStage.on('mouseup', () => {
+            konvaIsPanning = false;
+            panStart = null;
+        });
+
         konvaStage.on('mousedown touchstart', (e) => {
             if (currentMode !== 'measure') return;
             const pos = konvaStage.getPointerPosition();
@@ -1029,10 +1077,15 @@ if ($filePath !== '') {
             if (dist < 10) {
                 konvaDrawing.group.destroy();
                 konvaRulers = konvaRulers.filter(r => r !== konvaDrawing);
+                if (konvaRulersByPage[pageNum]) {
+                    konvaRulersByPage[pageNum] = konvaRulersByPage[pageNum].filter(r => r !== konvaDrawing);
+                }
                 konvaLayer.draw();
             }
             konvaDrawing = null;
         });
+
+        setKonvaPage(pageNum);
     }
 
     // --- DOUBLE TAP & NODE LOGIC ---
@@ -1444,6 +1497,7 @@ if ($filePath !== '') {
         canvas.clear(); undoStack = []; historyIndex = -1;
         pageNum = targetPage; 
         loadCalibrationForPage(false);
+        if (useKonvaRuler) setKonvaPage(pageNum);
         if(pdfDoc) renderPage(pageNum); else loadPageAnnotations(pageNum);
         
         // AUTO-HIDE SIDEBAR ON PAGE SELECT (Universal)
