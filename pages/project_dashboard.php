@@ -302,6 +302,37 @@ include __DIR__ . '/../views/header.php';
 
 <?php include __DIR__ . '/../views/modals.php'; ?>
 
+<div class="modal fade" id="uploadFileModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content p-3">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold">Upload File</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="uploadFileForm">
+                <div class="modal-body">
+                    <label class="text-gray small mb-2">Select File</label>
+                    <input type="file" name="file" id="upload_file_input" class="form-control mb-3" required>
+
+                    <label class="text-gray small mb-2">Select Folder</label>
+                    <select name="folder_id" id="upload_folder_select" class="form-select text-white bg-dark border-secondary" required>
+                        <option value="">Select a folder...</option>
+                        <?php foreach($allFolders as $folder): ?>
+                            <option value="<?= (int)$folder['id'] ?>"><?= htmlspecialchars($folder['name']) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                    <?php if(empty($allFolders)): ?>
+                        <div class="text-muted small mt-2">No folders available. Create a folder first.</div>
+                    <?php endif; ?>
+                </div>
+                <div class="modal-footer">
+                    <button type="submit" class="btn-main w-100">Upload</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <?php if(($_SESSION['role'] ?? '') === 'admin'): ?>
 <div class="modal fade" id="moveFolderModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
@@ -393,19 +424,54 @@ include __DIR__ . '/../views/header.php';
     const fId = <?= $currentFolderId ?? 'null' ?>;
 
     function openUploadModal() {
-        const input = document.getElementById('projectUploadInput');
-        if (input) input.click();
+        if (fId) {
+            const input = document.getElementById('projectUploadInput');
+            if (input) input.click();
+            return;
+        }
+        const modalEl = document.getElementById('uploadFileModal');
+        if (modalEl) new bootstrap.Modal(modalEl).show();
     }
 
     const projectUploadInput = document.getElementById('projectUploadInput');
     if (projectUploadInput) {
         projectUploadInput.addEventListener('change', function() {
             if (!this.files || this.files.length === 0) return;
+            if (!fId) return;
             const fd = new FormData();
             fd.append('action', 'upload_file');
             fd.append('project_id', pId);
             if (fId) fd.append('folder_id', fId);
             fd.append('file', this.files[0]);
+            fetch('../api/api.php', { method:'POST', body: fd })
+                .then(r => r.json())
+                .then(d => {
+                    if (d.status === 'success') location.reload();
+                    else alert('Error uploading file: ' + (d.msg || 'Unknown'));
+                })
+                .catch(() => alert('Connection error'));
+        });
+    }
+
+    const uploadFileForm = document.getElementById('uploadFileForm');
+    if (uploadFileForm) {
+        uploadFileForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const fileInput = document.getElementById('upload_file_input');
+            const folderSelect = document.getElementById('upload_folder_select');
+            if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
+                alert('Please select a file.');
+                return;
+            }
+            if (!folderSelect || !folderSelect.value) {
+                alert('Please select a folder.');
+                return;
+            }
+            const fd = new FormData();
+            fd.append('action', 'upload_file');
+            fd.append('project_id', pId);
+            fd.append('folder_id', folderSelect.value);
+            fd.append('file', fileInput.files[0]);
             fetch('../api/api.php', { method:'POST', body: fd })
                 .then(r => r.json())
                 .then(d => {
