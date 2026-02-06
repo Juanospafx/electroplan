@@ -46,6 +46,13 @@ foreach ($rows as $row) {
     }
 }
 
+$q = trim($_GET['q'] ?? '');
+if ($q !== '') {
+    $directory = array_filter($directory, function($p) use ($q) {
+        return stripos($p['project_name'], $q) !== false;
+    });
+}
+
 $pageTitle = "Directory | Brightronix";
 include __DIR__ . '/../views/header.php';
 ?>
@@ -85,6 +92,10 @@ include __DIR__ . '/../views/header.php';
             <h2 class="fw-bold mb-1">Directory</h2>
             <p class="text-gray mb-0">Projects and their assigned users.</p>
         </div>
+        <form class="d-flex gap-2" method="get" action="directorio.php">
+            <input type="text" name="q" class="form-control form-control-sm" style="max-width:240px" placeholder="Search project..." value="<?= htmlspecialchars($q) ?>">
+            <button class="btn btn-outline-light btn-sm rounded-pill px-3" type="submit"><i class="fas fa-search"></i></button>
+        </form>
     </div>
 
     <div class="table-responsive">

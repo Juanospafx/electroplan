@@ -102,6 +102,9 @@ include __DIR__ . '/../views/header.php';
                     <td class="small text-gray"><?= !empty($f['uploaded_at']) ? date('M d, Y', strtotime($f['uploaded_at'])) : '-' ?></td>
                     <td class="text-end">
                         <a href="preview.php?id=<?= (int)$f['id'] ?>" class="btn-action me-1" title="Preview"><i class="fas fa-eye"></i></a>
+                        <?php if(($_SESSION['role'] ?? '') === 'admin'): ?>
+                            <button class="btn-action text-danger border-danger" title="Delete" onclick="deleteFile(<?= (int)$f['id'] ?>)"><i class="fas fa-trash"></i></button>
+                        <?php endif; ?>
                         <?php if(!empty($filePath)): ?>
                             <a href="<?= htmlspecialchars($filePath) ?>" class="btn-action" title="Download" target="_blank" rel="noopener"><i class="fas fa-download"></i></a>
                         <?php endif; ?>
@@ -130,6 +133,9 @@ include __DIR__ . '/../views/header.php';
                 <div class="file-meta">Uploaded: <?= !empty($f['uploaded_at']) ? date('M d, Y', strtotime($f['uploaded_at'])) : '-' ?></div>
                 <div class="d-flex gap-2 mt-3">
                     <a href="preview.php?id=<?= (int)$f['id'] ?>" class="btn-action" title="Preview"><i class="fas fa-eye"></i></a>
+                    <?php if(($_SESSION['role'] ?? '') === 'admin'): ?>
+                        <button class="btn-action text-danger border-danger" title="Delete" onclick="deleteFile(<?= (int)$f['id'] ?>)"><i class="fas fa-trash"></i></button>
+                    <?php endif; ?>
                 </div>
             </div>
         <?php endforeach; ?>
@@ -139,5 +145,21 @@ include __DIR__ . '/../views/header.php';
         <?php endif; ?>
     </div>
 </main>
+
+<script>
+    function deleteFile(id) {
+        if(!confirm("Move file to Recycle Bin?")) return;
+        const fd = new FormData();
+        fd.append('action', 'delete_file');
+        fd.append('id', id);
+        fetch('../api/api.php', { method:'POST', body: fd })
+            .then(r => r.json())
+            .then(d => {
+                if(d.status === 'success') location.reload();
+                else alert('Error deleting file: ' + (d.msg || 'Unknown'));
+            })
+            .catch(() => alert('Connection error'));
+    }
+</script>
 
 <?php include __DIR__ . '/../views/footer.php'; ?>
