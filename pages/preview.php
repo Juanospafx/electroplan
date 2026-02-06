@@ -485,100 +485,102 @@ if ($filePath !== '') {
                 console.error('Map not initialized');
                 return;
             }
-            // Definir proyección pixel-space para esta página
+            
+            // Usar la proyección 'identity' existente en lugar de crear una personalizada
+            // Esto evita problemas con getExtent() en proyecciones personalizadas
             const extent = [0, 0, width, height];
+            const identityProjection = ol.proj.get('identity');
             
-            // Crear un código único para esta proyección basado en las dimensiones
-            const projectionCode = `pixel-page-${width}-${height}`;
-            
-            // Verificar si la proyección ya existe, si no, crearla y registrarla
-            let projection = ol.proj.get(projectionCode);
-            if (!projection) {
-                projection = new ol.proj.Projection({
-                    code: projectionCode,
-                    units: 'pixels',
-                    extent: extent
-                });
-                // Registrar la proyección con OpenLayers antes de usarla
-                ol.proj.addProjection(projection);
-            } else {
-                // Si la proyección ya existe, asegurarse de que tiene el extent correcto
-                projection.setExtent(extent);
+            if (!identityProjection) {
+                console.error('Identity projection not found');
+                return;
             }
 
-            const imageSource = new ol.source.ImageStatic({
-                url: dataUrl,
-                projection: projection,
-                imageExtent: extent
-            });
+            try {
+                const imageSource = new ol.source.ImageStatic({
+                    url: dataUrl,
+                    projection: identityProjection,
+                    imageExtent: extent
+                });
 
-            if (this.imageLayer) this.map.removeLayer(this.imageLayer);
-            
-            this.imageLayer = new ol.layer.Image({ source: imageSource });
-            this.map.getLayers().insertAt(0, this.imageLayer);
-            imageSource.on('error', (e) => {
-                console.error('Image source error', e);
-            });
+                if (this.imageLayer) this.map.removeLayer(this.imageLayer);
+                
+                this.imageLayer = new ol.layer.Image({ source: imageSource });
+                this.map.getLayers().insertAt(0, this.imageLayer);
+                imageSource.on('error', (e) => {
+                    console.error('Image source error', e);
+                });
 
-            // Ajustar vista - asegurarse de que la proyección está completamente configurada
-            const newView = new ol.View({
-                projection: projection,
-                center: ol.extent.getCenter(extent),
-                zoom: 2,
-                minZoom: 0.5,
-                maxZoom: 8
-            });
-            
-            this.map.setView(newView);
-            
-            // Actualizar el tamaño del mapa para asegurar que esté sincronizado
-            this.map.updateSize();
-            
-            // Usar requestAnimationFrame para asegurar que la vista esté completamente inicializada
-            // y que la proyección esté disponible cuando fit() se ejecute
-            requestAnimationFrame(() => {
-                try {
-                    // Verificar que la vista tiene una proyección válida antes de llamar fit
-                    const viewProj = newView.getProjection();
-                    if (!viewProj) {
-                        console.warn('View projection is null, skipping fit');
-                        // Fallback: ajustar zoom manualmente
-                        const center = ol.extent.getCenter(extent);
-                        newView.setCenter(center);
-                        newView.setZoom(2);
-                        return;
-                    }
-                    
-                    // Verificar que el extent es válido
-                    if (Array.isArray(extent) && extent.length === 4 && 
-                        extent.every(v => typeof v === 'number' && isFinite(v))) {
-                        // Asegurarse de que el mapa tiene tamaño antes de hacer fit
+                // Obtener la vista actual en lugar de crear una nueva
+                const currentView = this.map.getView();
+                const center = ol.extent.getCenter(extent);
+                
+                // Calcular zoom manualmente basado en el tamaño del mapa y el extent
+                // Esto evita el problema con getExtent() en fit()
+                const updateView = () => {
+                    try {
                         const mapSize = this.map.getSize();
                         if (mapSize && mapSize[0] > 0 && mapSize[1] > 0) {
-                            newView.fit(extent, { padding: [20, 20, 20, 20] });
+                            // Calcular el zoom necesario para mostrar el extent completo con padding
+                            const padding = 40; // 20px en cada lado
+                            const mapWidth = mapSize[0] - padding;
+                            const mapHeight = mapSize[1] - padding;
+                            
+                            const extentWidth = extent[2] - extent[0];
+                            const extentHeight = extent[3] - extent[1];
+                            
+                            const scaleX = mapWidth / extentWidth;
+                            const scaleY = mapHeight / extentHeight;
+                            const scale = Math.min(scaleX, scaleY);
+                            
+                            // Calcular zoom basado en la escala
+                            // En OpenLayers con proyección identity, zoom funciona directamente con la escala
+                            const calculatedZoom = Math.log2(scale);
+                            
+                            // Limitar el zoom dentro de los límites permitidos
+                            const finalZoom = Math.max(0.5, Math.min(8, calculatedZoom));
+                            
+                            currentView.setCenter(center);
+                            currentView.setZoom(finalZoom);
                         } else {
-                            // Si el mapa no tiene tamaño aún, esperar un poco más
-                            setTimeout(() => {
-                                try {
-                                    newView.fit(extent, { padding: [20, 20, 20, 20] });
-                                } catch (e) {
-                                    console.error('Delayed fit failed', e);
-                                }
-                            }, 100);
+                            // Si el mapa no tiene tamaño aún, usar valores por defecto
+                            currentView.setCenter(center);
+                            currentView.setZoom(2);
+                        }
+                    } catch (e) {
+                        console.error('Zoom calculation failed', e);
+                        // Fallback: usar valores por defecto
+                        try {
+                            currentView.setCenter(center);
+                            currentView.setZoom(2);
+                        } catch (fallbackError) {
+                            console.error('Fallback center/zoom failed', fallbackError);
                         }
                     }
-                } catch (e) {
-                    console.error('fit failed', e);
-                    // Fallback: ajustar zoom manualmente si fit falla
-                    try {
-                        const center = ol.extent.getCenter(extent);
-                        newView.setCenter(center);
-                        newView.setZoom(2);
-                    } catch (fallbackError) {
-                        console.error('Fallback center/zoom failed', fallbackError);
+                };
+                
+                // Actualizar el tamaño del mapa primero
+                this.map.updateSize();
+                
+                // Usar requestAnimationFrame para asegurar que el mapa esté completamente renderizado
+                requestAnimationFrame(() => {
+                    updateView();
+                });
+                
+            } catch (mainError) {
+                console.error('Error in loadPageBackground:', mainError);
+                // Intentar cargar la imagen como último recurso
+                try {
+                    const center = ol.extent.getCenter(extent);
+                    const currentView = this.map.getView();
+                    if (currentView) {
+                        currentView.setCenter(center);
+                        currentView.setZoom(2);
                     }
+                } catch (finalError) {
+                    console.error('Final fallback failed:', finalError);
                 }
-            });
+            }
         }
         
         clearAnnotations() {
