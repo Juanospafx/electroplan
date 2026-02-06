@@ -277,6 +277,17 @@ switch($action) {
         else echo json_encode(['status'=>'error']);
         break;
 
+    // --- 4.1 ELIMINAR ARCHIVO (SOFT DELETE) ---
+    case 'delete_file':
+        if($userRole !== 'admin') { echo json_encode(['status'=>'error', 'msg'=>'Access Denied']); exit; }
+        $id = $_POST['id'] ?? 0;
+        if(!$id) { echo json_encode(['status'=>'error', 'msg'=>'Invalid data']); exit; }
+        $now = date('Y-m-d H:i:s');
+        $stmt = $pdo->prepare("UPDATE files SET deleted_at = ? WHERE id = ?");
+        if($stmt->execute([$now, $id])) echo json_encode(['status'=>'success']);
+        else echo json_encode(['status'=>'error']);
+        break;
+
     // --- 5. RESTAURAR (DE PAPELERA - UPDATED FOR REPORTS) ---
     case 'restore_entity':
         if($userRole !== 'admin') { echo json_encode(['status'=>'error', 'msg'=>'Access Denied']); exit; }
