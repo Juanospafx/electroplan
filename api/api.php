@@ -119,6 +119,42 @@ switch($action) {
         } catch(Exception $e) { echo json_encode(['status'=>'error', 'msg'=>$e->getMessage()]); }
         break;
 
+    // --- 1.1.1 ACTUALIZAR INFO DE PROYECTO (ADMIN ONLY) ---
+    case 'update_project_info':
+        if($userRole !== 'admin') { echo json_encode(['status'=>'error', 'msg'=>'Access Denied']); exit; }
+
+        $id = (int)($_POST['id'] ?? 0);
+        if ($id <= 0) { echo json_encode(['status'=>'error', 'msg'=>'Invalid project']); exit; }
+
+        try {
+            $cols = $pdo->query("DESCRIBE projects")->fetchAll(PDO::FETCH_COLUMN);
+            $allowed = [
+                'name','status','description','notes','address',
+                'contact_name','contact_phone',
+                'company_name','company_phone','company_address',
+                'date_bid_sent','date_bid_awarded','date_started','date_finished','date_warranty_end'
+            ];
+
+            $set = [];
+            $params = [];
+            foreach ($allowed as $col) {
+                if (in_array($col, $cols, true) && array_key_exists($col, $_POST)) {
+                    $set[] = "$col = ?";
+                    $val = $_POST[$col];
+                    if ($val === '') $val = null;
+                    $params[] = $val;
+                }
+            }
+            if (empty($set)) { echo json_encode(['status'=>'error', 'msg'=>'No valid fields']); exit; }
+
+            $params[] = $id;
+            $sql = "UPDATE projects SET " . implode(', ', $set) . " WHERE id = ?";
+            $stmt = $pdo->prepare($sql);
+            $stmt->execute($params);
+            echo json_encode(['status'=>'success']);
+        } catch(Exception $e) { echo json_encode(['status'=>'error', 'msg'=>$e->getMessage()]); }
+        break;
+
     // --- 1.3 ASIGNAR MULTIPLES USUARIOS A PROYECTO (ADMIN ONLY) ---
     case 'assign_project_users':
         if($userRole !== 'admin') { echo json_encode(['status'=>'error', 'msg'=>'Access Denied']); exit; }

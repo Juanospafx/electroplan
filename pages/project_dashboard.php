@@ -60,7 +60,7 @@ include __DIR__ . '/../views/header.php';
         
         <div class="d-flex gap-2">
             <?php if($_SESSION['role'] === 'admin'): ?>
-                <button class="btn btn-outline-secondary btn-sm rounded-pill"><i class="fas fa-edit me-2"></i>Edit Info</button>
+                <button class="btn btn-outline-secondary btn-sm rounded-pill" onclick="openEditInfoModal()"><i class="fas fa-edit me-2"></i>Edit Info</button>
                 <button class="btn btn-outline-info btn-sm rounded-pill" onclick="openAssignUsersModal()"><i class="fas fa-user-plus me-2"></i>Assign Users</button>
             <?php endif; ?>
             <button class="btn btn-primary rounded-pill btn-sm px-4" onclick="openUploadModal()"><i class="fas fa-cloud-upload-alt me-2"></i> Upload File</button>
@@ -222,6 +222,84 @@ include __DIR__ . '/../views/header.php';
 <?php include __DIR__ . '/../views/modals.php'; ?>
 
 <?php if(($_SESSION['role'] ?? '') === 'admin'): ?>
+<div class="modal fade" id="editInfoModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content p-3">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold">Edit Project Info</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="editInfoForm">
+                <input type="hidden" name="action" value="update_project_info">
+                <input type="hidden" name="id" value="<?= (int)$projectId ?>">
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-md-8">
+                            <label class="text-gray small mb-2">Project Name</label>
+                            <input type="text" name="name" class="form-control" value="<?= htmlspecialchars($project['name'] ?? '') ?>" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="text-gray small mb-2">Status</label>
+                            <select name="status" class="form-control">
+                                <option value="Planning" <?= ($project['status'] ?? '') === 'Planning' ? 'selected' : '' ?>>Planning</option>
+                                <option value="Active" <?= ($project['status'] ?? '') === 'Active' ? 'selected' : '' ?>>Active</option>
+                                <option value="On Hold" <?= ($project['status'] ?? '') === 'On Hold' ? 'selected' : '' ?>>On Hold</option>
+                                <option value="Completed" <?= ($project['status'] ?? '') === 'Completed' ? 'selected' : '' ?>>Completed</option>
+                            </select>
+                        </div>
+                        <div class="col-12">
+                            <label class="text-gray small mb-2">Description</label>
+                            <textarea name="description" class="form-control" rows="2"><?= htmlspecialchars($project['description'] ?? '') ?></textarea>
+                        </div>
+                        <div class="col-12">
+                            <label class="text-gray small mb-2">Notes</label>
+                            <textarea name="notes" class="form-control" rows="3"><?= htmlspecialchars($project['notes'] ?? '') ?></textarea>
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="text-gray small mb-2">Address</label>
+                            <input type="text" name="address" class="form-control" value="<?= htmlspecialchars($project['address'] ?? '') ?>">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="text-gray small mb-2">Start</label>
+                            <input type="date" name="date_started" class="form-control" value="<?= htmlspecialchars($project['date_started'] ?? '') ?>">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="text-gray small mb-2">Finish</label>
+                            <input type="date" name="date_finished" class="form-control" value="<?= htmlspecialchars($project['date_finished'] ?? '') ?>">
+                        </div>
+
+                        <div class="col-md-6">
+                            <label class="text-gray small mb-2">Contact Name</label>
+                            <input type="text" name="contact_name" class="form-control" value="<?= htmlspecialchars($project['contact_name'] ?? '') ?>">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="text-gray small mb-2">Contact Phone</label>
+                            <input type="text" name="contact_phone" class="form-control" value="<?= htmlspecialchars($project['contact_phone'] ?? '') ?>">
+                        </div>
+
+                        <div class="col-md-4">
+                            <label class="text-gray small mb-2">Company Name</label>
+                            <input type="text" name="company_name" class="form-control" value="<?= htmlspecialchars($project['company_name'] ?? '') ?>">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="text-gray small mb-2">Company Phone</label>
+                            <input type="text" name="company_phone" class="form-control" value="<?= htmlspecialchars($project['company_phone'] ?? '') ?>">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="text-gray small mb-2">Company Address</label>
+                            <input type="text" name="company_address" class="form-control" value="<?= htmlspecialchars($project['company_address'] ?? '') ?>">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="submit" class="btn-main w-100">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <div class="modal fade" id="assignUsersModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content p-3">
@@ -259,6 +337,51 @@ include __DIR__ . '/../views/header.php';
     const pId = <?= $projectId ?>;
     const fId = <?= $currentFolderId ?? 'null' ?>;
 
+    function openUploadModal() {
+        const input = document.getElementById('projectUploadInput');
+        if (input) input.click();
+    }
+
+    const projectUploadInput = document.getElementById('projectUploadInput');
+    if (projectUploadInput) {
+        projectUploadInput.addEventListener('change', function() {
+            if (!this.files || this.files.length === 0) return;
+            const fd = new FormData();
+            fd.append('action', 'upload_file');
+            fd.append('project_id', pId);
+            if (fId) fd.append('folder_id', fId);
+            fd.append('file', this.files[0]);
+            fetch('../api/api.php', { method:'POST', body: fd })
+                .then(r => r.json())
+                .then(d => {
+                    if (d.status === 'success') location.reload();
+                    else alert('Error uploading file: ' + (d.msg || 'Unknown'));
+                })
+                .catch(() => alert('Connection error'));
+        });
+    }
+
+    function openEditInfoModal() {
+        const modalEl = document.getElementById('editInfoModal');
+        if (!modalEl) return;
+        new bootstrap.Modal(modalEl).show();
+    }
+
+    const editInfoForm = document.getElementById('editInfoForm');
+    if (editInfoForm) {
+        editInfoForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const fd = new FormData(this);
+            fetch('../api/api.php', { method:'POST', body: fd })
+                .then(r => r.json())
+                .then(d => {
+                    if (d.status === 'success') location.reload();
+                    else alert('Error saving project: ' + (d.msg || 'Unknown'));
+                })
+                .catch(() => alert('Connection error'));
+        });
+    }
+
     function openAssignUsersModal() {
         const modalEl = document.getElementById('assignUsersModal');
         if (!modalEl) return;
@@ -285,5 +408,7 @@ include __DIR__ . '/../views/header.php';
         });
     }
 </script>
+
+<input type="file" id="projectUploadInput" class="d-none">
 
 <?php include __DIR__ . '/../views/footer.php'; ?>
