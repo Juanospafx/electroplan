@@ -487,11 +487,24 @@ if ($filePath !== '') {
             }
             // Definir proyección pixel-space para esta página
             const extent = [0, 0, width, height];
-            const projection = new ol.proj.Projection({
-                code: 'pixel-page',
-                units: 'pixels',
-                extent: extent
-            });
+            
+            // Crear un código único para esta proyección basado en las dimensiones
+            const projectionCode = `pixel-page-${width}-${height}`;
+            
+            // Verificar si la proyección ya existe, si no, crearla y registrarla
+            let projection = ol.proj.get(projectionCode);
+            if (!projection) {
+                projection = new ol.proj.Projection({
+                    code: projectionCode,
+                    units: 'pixels',
+                    extent: extent
+                });
+                // Registrar la proyección con OpenLayers antes de usarla
+                ol.proj.addProjection(projection);
+            } else {
+                // Si la proyección ya existe, asegurarse de que tiene el extent correcto
+                projection.setExtent(extent);
+            }
 
             const imageSource = new ol.source.ImageStatic({
                 url: dataUrl,
@@ -507,7 +520,7 @@ if ($filePath !== '') {
                 console.error('Image source error', e);
             });
 
-            // Ajustar vista
+            // Ajustar vista - asegurarse de que la proyección está completamente configurada
             const newView = new ol.View({
                 projection: projection,
                 center: ol.extent.getCenter(extent),
@@ -515,14 +528,57 @@ if ($filePath !== '') {
                 minZoom: 0.5,
                 maxZoom: 8
             });
+            
             this.map.setView(newView);
-            try {
-                if (newView.getProjection() && Array.isArray(extent) && extent.length === 4) {
-                    newView.fit(extent, { padding: [20, 20, 20, 20] });
+            
+            // Actualizar el tamaño del mapa para asegurar que esté sincronizado
+            this.map.updateSize();
+            
+            // Usar requestAnimationFrame para asegurar que la vista esté completamente inicializada
+            // y que la proyección esté disponible cuando fit() se ejecute
+            requestAnimationFrame(() => {
+                try {
+                    // Verificar que la vista tiene una proyección válida antes de llamar fit
+                    const viewProj = newView.getProjection();
+                    if (!viewProj) {
+                        console.warn('View projection is null, skipping fit');
+                        // Fallback: ajustar zoom manualmente
+                        const center = ol.extent.getCenter(extent);
+                        newView.setCenter(center);
+                        newView.setZoom(2);
+                        return;
+                    }
+                    
+                    // Verificar que el extent es válido
+                    if (Array.isArray(extent) && extent.length === 4 && 
+                        extent.every(v => typeof v === 'number' && isFinite(v))) {
+                        // Asegurarse de que el mapa tiene tamaño antes de hacer fit
+                        const mapSize = this.map.getSize();
+                        if (mapSize && mapSize[0] > 0 && mapSize[1] > 0) {
+                            newView.fit(extent, { padding: [20, 20, 20, 20] });
+                        } else {
+                            // Si el mapa no tiene tamaño aún, esperar un poco más
+                            setTimeout(() => {
+                                try {
+                                    newView.fit(extent, { padding: [20, 20, 20, 20] });
+                                } catch (e) {
+                                    console.error('Delayed fit failed', e);
+                                }
+                            }, 100);
+                        }
+                    }
+                } catch (e) {
+                    console.error('fit failed', e);
+                    // Fallback: ajustar zoom manualmente si fit falla
+                    try {
+                        const center = ol.extent.getCenter(extent);
+                        newView.setCenter(center);
+                        newView.setZoom(2);
+                    } catch (fallbackError) {
+                        console.error('Fallback center/zoom failed', fallbackError);
+                    }
                 }
-            } catch (e) {
-                console.error('fit failed', e);
-            }
+            });
         }
         
         clearAnnotations() {
