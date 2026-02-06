@@ -477,6 +477,14 @@ if ($filePath !== '') {
         }
 
         loadPageBackground(dataUrl, width, height) {
+            if (!width || !height || !Number.isFinite(width) || !Number.isFinite(height)) {
+                console.error('Invalid image dimensions', width, height);
+                return;
+            }
+            if (!this.map) {
+                console.error('Map not initialized');
+                return;
+            }
             // Definir proyección pixel-space para esta página
             const extent = [0, 0, width, height];
             const projection = new ol.proj.Projection({
@@ -505,7 +513,11 @@ if ($filePath !== '') {
                 maxZoom: 8
             });
             this.map.setView(newView);
-            newView.fit(extent, { padding: [20, 20, 20, 20] });
+            try {
+                newView.fit(extent, { padding: [20, 20, 20, 20] });
+            } catch (e) {
+                console.error('fit failed', e);
+            }
         }
         
         clearAnnotations() {
@@ -582,6 +594,9 @@ if ($filePath !== '') {
         pdfjsLib.getDocument(fileUrl).promise.then(pdf => {
             pdfDoc = pdf; document.getElementById('p-total').textContent = pdf.numPages;
             renderPageList(pdf.numPages); renderPage(pageNum);
+        }).catch(err => {
+            console.error(err);
+            showToast("Error loading PDF", "error");
         });
     } else if (fileExt === 'heic') {
         document.getElementById('p-total').textContent = '1'; renderPageList(1);
