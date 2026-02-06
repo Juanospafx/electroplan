@@ -274,6 +274,8 @@ include __DIR__ . '/../views/header.php';
 </div>
 <?php endif; ?>
 
+<input type="file" id="projectUploadInput" class="d-none">
+
 <script>
     const pId = <?= $projectId ?>;
     const fId = <?= $currentFolderId ?? 'null' ?>;
@@ -329,7 +331,5 @@ include __DIR__ . '/../views/header.php';
         });
     }
 </script>
-
-<input type="file" id="projectUploadInput" class="d-none">
 
 <?php include __DIR__ . '/../views/footer.php'; ?>
