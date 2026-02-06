@@ -160,7 +160,7 @@ include __DIR__ . '/../views/header.php';
                             <a href="project_dashboard.php?id=<?= $p['id'] ?>" class="btn-action me-1" title="Open Dashboard"><i class="fas fa-columns"></i></a>
                             
                             <?php if($isAdmin): ?>
-                                <button class="btn-action me-1" onclick="editProject(<?= $p['id'] ?>, '<?= addslashes($p['name']) ?>', '<?= addslashes($p['description']) ?>', '<?= $p['status'] ?? 'Active' ?>')" title="Quick Edit"><i class="fas fa-pen"></i></button>
+                                <a class="btn-action me-1" href="project_create.php?id=<?= (int)$p['id'] ?>" title="Edit"><i class="fas fa-pen"></i></a>
                                 <button class="btn-action me-1" onclick="openAssignModal(<?= $p['id'] ?>, '<?= addslashes($p['name']) ?>')" title="Assign User"><i class="fas fa-user-plus"></i></button>
                                 <button class="btn-action delete" onclick="deleteProject(<?= $p['id'] ?>)" title="Move to Trash"><i class="fas fa-trash"></i></button>
                             <?php endif; ?>
@@ -204,7 +204,7 @@ include __DIR__ . '/../views/header.php';
                     <div class="d-flex gap-2">
                         <a href="index.php?project_id=<?= $p['id'] ?>" class="btn-action" title="Open"><i class="fas fa-external-link-alt"></i></a>
                         <?php if($isAdmin): ?>
-                            <button class="btn-action" onclick="editProject(<?= $p['id'] ?>, '<?= addslashes($p['name']) ?>', '<?= addslashes($p['description']) ?>', '<?= $p['status'] ?? 'Active' ?>')" title="Edit"><i class="fas fa-pen"></i></button>
+                            <a class="btn-action" href="project_create.php?id=<?= (int)$p['id'] ?>" title="Edit"><i class="fas fa-pen"></i></a>
                             <button class="btn-action" onclick="openAssignModal(<?= $p['id'] ?>, '<?= addslashes($p['name']) ?>')" title="Assign User"><i class="fas fa-user-plus"></i></button>
                             <button class="btn-action delete" onclick="deleteProject(<?= $p['id'] ?>)" title="Move to Trash"><i class="fas fa-trash"></i></button>
                         <?php endif; ?>
