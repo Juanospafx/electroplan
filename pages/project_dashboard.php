@@ -95,9 +95,14 @@ include __DIR__ . '/../views/header.php';
                     <div class="mt-3 mb-2 ps-2 text-muted small fw-bold text-uppercase ls-1">Files & Folders</div>
                     
                     <?php foreach($allFolders as $folder): ?>
-                        <a href="?id=<?= $projectId ?>&view=files&folder_id=<?= $folder['id'] ?>" class="nav-link <?= ($currentView=='files' && $currentFolderId==$folder['id'])?'active':'' ?>">
-                            <i class="fas fa-folder me-2 text-warning opacity-75"></i> <?= htmlspecialchars($folder['name']) ?>
-                        </a>
+                        <div class="d-flex align-items-center justify-content-between">
+                            <a href="?id=<?= $projectId ?>&view=files&folder_id=<?= $folder['id'] ?>" class="nav-link <?= ($currentView=='files' && $currentFolderId==$folder['id'])?'active':'' ?>">
+                                <i class="fas fa-folder me-2 text-warning opacity-75"></i> <?= htmlspecialchars($folder['name']) ?>
+                            </a>
+                            <?php if(($_SESSION['role'] ?? '') === 'admin' && $folder['name'] !== 'Reports'): ?>
+                                <button class="btn btn-sm btn-outline-danger border-0" onclick="deleteFolder(<?= (int)$folder['id'] ?>)" title="Delete Folder"><i class="fas fa-trash"></i></button>
+                            <?php endif; ?>
+                        </div>
                     <?php endforeach; ?>
 
                     <div class="mt-3 mb-2 ps-2 text-muted small fw-bold text-uppercase ls-1">Management</div>
@@ -214,6 +219,10 @@ include __DIR__ . '/../views/header.php';
                                 <div class="d-flex justify-content-center gap-2">
                                     <a href="preview.php?id=<?= $f['id'] ?>" class="btn btn-sm btn-dark rounded-circle"><i class="fas fa-eye"></i></a>
                                     <a href="editor.php?id=<?= $f['id'] ?>" class="btn btn-sm btn-dark rounded-circle text-primary"><i class="fas fa-pen"></i></a>
+                                    <?php if(($_SESSION['role'] ?? '') === 'admin'): ?>
+                                        <button class="btn btn-sm btn-dark rounded-circle text-warning" onclick="openMoveModal(<?= (int)$f['id'] ?>)" title="Move"><i class="fas fa-exchange-alt"></i></button>
+                                        <button class="btn btn-sm btn-dark rounded-circle text-danger" onclick="deleteFile(<?= (int)$f['id'] ?>)" title="Delete"><i class="fas fa-trash"></i></button>
+                                    <?php endif; ?>
                                 </div>
                             </div>
                         </div>
@@ -371,6 +380,101 @@ include __DIR__ . '/../views/header.php';
                 .then(d => {
                     if (d.status === 'success') location.reload();
                     else alert('Error assigning users: ' + (d.msg || 'Unknown'));
+                })
+                .catch(() => alert('Connection error'));
+        });
+    }
+
+    function deleteFile(id) {
+        if(!confirm("Move file to Recycle Bin?")) return;
+        const fd = new FormData();
+        fd.append('action', 'delete_entity');
+        fd.append('type', 'file');
+        fd.append('id', id);
+        fetch('../api/api.php', { method:'POST', body: fd })
+            .then(r => r.json())
+            .then(d => {
+                if(d.status === 'success') location.reload();
+                else alert('Error deleting file: ' + (d.msg || 'Unknown'));
+            })
+            .catch(() => alert('Connection error'));
+    }
+
+    function deleteFolder(id) {
+        if(!confirm("Move folder to Recycle Bin?")) return;
+        const fd = new FormData();
+        fd.append('action', 'delete_entity');
+        fd.append('type', 'folder');
+        fd.append('id', id);
+        fetch('../api/api.php', { method:'POST', body: fd })
+            .then(r => r.json())
+            .then(d => {
+                if(d.status === 'success') location.reload();
+                else alert('Error deleting folder: ' + (d.msg || 'Unknown'));
+            })
+            .catch(() => alert('Connection error'));
+    }
+
+    function openMoveModal(fileId) {
+        const moveId = document.getElementById('move_id');
+        const moveType = document.getElementById('move_type');
+        const projSelect = document.getElementById('move_project_select');
+        const folderSelect = document.getElementById('move_folder_select');
+        if (!moveId || !moveType || !projSelect || !folderSelect) return;
+
+        moveId.value = fileId;
+        moveType.value = 'file';
+        projSelect.innerHTML = '<option value="">Loading projects...</option>';
+        folderSelect.innerHTML = '<option value="">Root Folder</option>';
+
+        const modalEl = document.getElementById('moveFileModal');
+        if (modalEl) new bootstrap.Modal(modalEl).show();
+
+        const fd = new FormData();
+        fd.append('action', 'get_projects_list');
+        fetch('../api/api.php', { method: 'POST', body: fd })
+            .then(r => r.json())
+            .then(res => {
+                if(res.status === 'success') {
+                    projSelect.innerHTML = '<option value="">Select Target Project...</option>';
+                    res.data.forEach(p => { projSelect.innerHTML += `<option value="${p.id}">${p.name}</option>`; });
+                } else {
+                    projSelect.innerHTML = '<option value="">Error loading</option>';
+                }
+            })
+            .catch(() => { projSelect.innerHTML = '<option value="">Connection Error</option>'; });
+    }
+
+    function loadFoldersForMove(projId) {
+        const folderSel = document.getElementById('move_folder_select');
+        if (!folderSel) return;
+        folderSel.innerHTML = '<option value="">Loading...</option>';
+        if(!projId) { folderSel.innerHTML = '<option value="">Root Folder</option>'; return; }
+
+        const fd = new FormData();
+        fd.append('action', 'get_folders_list');
+        fd.append('project_id', projId);
+        fetch('../api/api.php', { method: 'POST', body: fd })
+            .then(r => r.json())
+            .then(res => {
+                folderSel.innerHTML = '<option value="">Root Folder (No specific folder)</option>';
+                if(res.status === 'success') {
+                    res.data.forEach(f => { folderSel.innerHTML += `<option value="${f.id}">${f.name}</option>`; });
+                }
+            })
+            .catch(() => { folderSel.innerHTML = '<option value="">Connection Error</option>'; });
+    }
+
+    const moveForm = document.getElementById('moveFileForm');
+    if (moveForm) {
+        moveForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const fd = new FormData(this);
+            fetch('../api/api.php', { method: 'POST', body: fd })
+                .then(r => r.json())
+                .then(d => {
+                    if(d.status === 'success') location.reload();
+                    else alert('Error moving file: ' + (d.msg || 'Unknown'));
                 })
                 .catch(() => alert('Connection error'));
         });
