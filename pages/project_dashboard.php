@@ -167,12 +167,12 @@ include __DIR__ . '/../views/header.php';
                         <div class="row g-3">
                             <?php foreach($recentFiles as $rf): ?>
                                 <div class="col-md-4 col-xl-3">
-                                    <div class="box-card p-3 d-flex align-items-center justify-content-between">
-                                        <div class="me-3">
-                                            <div class="fw-bold text-truncate" style="max-width:160px;"><?= htmlspecialchars($rf['filename']) ?></div>
+                                    <div class="box-card p-3 d-flex align-items-center justify-content-between recent-upload-card">
+                                        <div class="me-3 recent-upload-info">
+                                            <div class="fw-bold text-truncate"><?= htmlspecialchars($rf['filename']) ?></div>
                                             <div class="small text-gray"><?= date('M d, Y', strtotime($rf['uploaded_at'])) ?></div>
                                         </div>
-                                        <div class="d-flex gap-2">
+                                        <div class="d-flex gap-2 recent-upload-actions">
                                             <a href="preview.php?id=<?= (int)$rf['id'] ?>" class="btn-icon" title="Preview"><i class="fas fa-eye"></i></a>
                                             <?php if(($_SESSION['role'] ?? '') !== 'viewer'): ?>
                                                 <a href="editor.php?id=<?= (int)$rf['id'] ?>" class="btn-icon text-primary border-primary" title="Edit"><i class="fas fa-pen"></i></a>
@@ -297,6 +297,14 @@ include __DIR__ . '/../views/header.php';
         .project-sidebar { width: 100% !important; border-right: 0; border-bottom: 1px solid rgba(255,255,255,0.08); }
         .project-content { padding: 20px !important; }
         .flex-grow-1.d-flex.overflow-hidden { flex-direction: column; }
+    }
+
+    .recent-upload-card { gap: 12px; }
+    .recent-upload-info { min-width: 0; }
+    .recent-upload-actions { flex-shrink: 0; }
+    @media (max-width: 768px) {
+        .recent-upload-card { flex-wrap: wrap; }
+        .recent-upload-actions { width: 100%; justify-content: flex-end; }
     }
 </style>
 
