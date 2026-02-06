@@ -1,5 +1,5 @@
 <?php
-// pages/projects.php - Gestión de Proyectos V2.5 (Enlazado con Nueva Creación y Layout Mejorado)
+// pages/projects.php - Gesti??n de Proyectos V2.5 (Enlazado con Nueva Creaci??n y Layout Mejorado)
 require_once __DIR__ . '/../core/auth/session.php';
 require_once __DIR__ . '/../core/db/connection.php';
 require_once __DIR__ . '/../core/time.php';
@@ -200,7 +200,7 @@ include __DIR__ . '/../views/header.php';
                     </div>
                     <div class="proj-meta mb-2"><?= htmlspecialchars($p['description'] ?: 'No description') ?></div>
                     <div class="proj-meta mb-2">Assigned: <?= htmlspecialchars($p['assigned_name'] ?: 'Unassigned') ?></div>
-                    <div class="proj-meta mb-3">Created: <?= date('M d, Y', strtotime($p['created_at'])) ?> · <?= $p['file_count'] ?> Files</div>
+                    <div class="proj-meta mb-3">Created: <?= date('M d, Y', strtotime($p['created_at'])) ?> ?? <?= $p['file_count'] ?> Files</div>
                     <div class="d-flex gap-2">
                         <a href="index.php?project_id=<?= $p['id'] ?>" class="btn-action" title="Open"><i class="fas fa-external-link-alt"></i></a>
                         <?php if($isAdmin): ?>
@@ -272,58 +272,6 @@ include __DIR__ . '/../views/header.php';
                     <label class="text-gray small mb-2">Project</label>
                     <input type="text" id="assign_project_name" class="form-control mb-3" disabled>
 
-<<<<<<< HEAD
-                    <label class="text-gray small mb-2">Description</label>
-                    <textarea name="description" class="form-control" rows="3"></textarea>
-
-                    <label class="text-gray small mb-2 mt-3">Assign Users</label>
-                    <div class="border rounded p-2" style="max-height:180px; overflow:auto;">
-                        <?php foreach($users as $u): ?>
-                            <label class="d-flex align-items-center gap-2 small text-gray mb-2">
-                                <input type="checkbox" name="user_ids[]" value="<?= (int)$u['id'] ?>" data-role="<?= htmlspecialchars($u['role']) ?>">
-                                <span><?= htmlspecialchars($u['username']) ?> (<?= htmlspecialchars($u['role']) ?>)</span>
-                            </label>
-                        <?php endforeach; ?>
-                        <?php if(empty($users)): ?>
-                            <div class="text-gray small">No users available.</div>
-                        <?php endif; ?>
-                    </div>
-=======
-                    <label class="text-gray small mb-2">User</label>
-                    <select name="user_id" id="assign_user_id" class="form-control" required>
-                        <option value="">Select a user...</option>
-                        <?php foreach($users as $u): ?>
-                            <option value="<?= (int)$u['id'] ?>">
-                                <?= htmlspecialchars($u['username']) ?> (<?= htmlspecialchars($u['role']) ?>)
-                            </option>
-                        <?php endforeach; ?>
-                    </select>
->>>>>>> Isaac_probe
-                </div>
-                <div class="modal-footer">
-                    <button type="submit" class="btn-main w-100">Assign</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-
-<<<<<<< HEAD
-<?php if($isAdmin): ?>
-<div class="modal fade" id="assignUserModal" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content p-3">
-            <div class="modal-header">
-                <h5 class="modal-title fw-bold">Assign User to Project</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <form id="assignForm">
-                <input type="hidden" name="action" value="assign_project_user">
-                <input type="hidden" name="project_id" id="assign_project_id">
-                <div class="modal-body">
-                    <label class="text-gray small mb-2">Project</label>
-                    <input type="text" id="assign_project_name" class="form-control mb-3" disabled>
-
                     <label class="text-gray small mb-2">User</label>
                     <select name="user_id" id="assign_user_id" class="form-control" required>
                         <option value="">Select a user...</option>
@@ -342,29 +290,8 @@ include __DIR__ . '/../views/header.php';
     </div>
 </div>
 
-<script>
-    // 1. Crear
-    function openCreateModal() {
-        new bootstrap.Modal(document.getElementById('createProjectModal')).show();
-    }
-    document.getElementById('createForm').addEventListener('submit', function(e) {
-        e.preventDefault();
-        const checked = Array.from(this.querySelectorAll('input[name="user_ids[]"]:checked'));
-        const hasAdmin = checked.some(i => i.dataset.role === 'admin');
-        if (checked.length > 0 && !hasAdmin) {
-            alert('At least one admin must be assigned to the project.');
-            return;
-        }
-        const fd = new FormData(this);
-        fetch('../api/api.php', { method:'POST', body:fd })
-        .then(r => r.json()).then(d => { location.reload(); });
-    });
-
-    // 2. Editar
-=======
 <script>
     // 1. Editar
->>>>>>> Isaac_probe
     function editProject(id, name, desc, status) {
         document.getElementById('edit_id').value = id;
         document.getElementById('edit_name').value = name;
@@ -396,11 +323,7 @@ include __DIR__ . '/../views/header.php';
         }
     }
 
-<<<<<<< HEAD
-    // 4. Asignar Usuario
-=======
     // 3. Asignar Usuario
->>>>>>> Isaac_probe
     function openAssignModal(projectId, projectName) {
         document.getElementById('assign_project_id').value = projectId;
         document.getElementById('assign_project_name').value = projectName;
@@ -420,3 +343,4 @@ include __DIR__ . '/../views/header.php';
 <?php endif; ?>
 
 <?php include __DIR__ . '/../views/footer.php'; ?>
+

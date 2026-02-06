@@ -34,10 +34,6 @@ $isAdminSidebar = (strtolower($userRoleRawSidebar) === 'admin');
             <i class="fas fa-layer-group"></i> Projects
         </a>
 
-        <a href="../pages/directorio.php" class="menu-item <?= $isDirectory ? 'active' : '' ?>">
-            <i class="fas fa-address-book"></i> Directory
-        </a>
-
         <?php if($isAdminSidebar): ?>
             <a href="../pages/directorio.php" class="menu-item <?= $isDirectory ? 'active' : '' ?>">
                 <i class="fas fa-sitemap"></i> Directory
