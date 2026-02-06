@@ -97,6 +97,7 @@ if ($filePath !== '') {
 
         .app-header { grid-area: header; z-index: 50; border-bottom: 1px solid var(--border-color); }
         .canvas-area { grid-area: canvas; position: relative; overflow: hidden; background: #1e293b; }
+        #konva-overlay { position: absolute; inset: 0; z-index: 25; pointer-events: none; }
 
         /* --- SIDEBAR IZQUIERDA (Overlay Universal) --- */
         .sidebar-left {
@@ -456,6 +457,7 @@ if ($filePath !== '') {
 
     <main class="canvas-area" id="canvas-wrapper">
         <canvas id="c"></canvas>
+        <div id="konva-overlay"></div>
         
         <div class="floating-controls">
             <button class="float-btn" onclick="changePage(-1)"><i class="fas fa-chevron-left"></i></button>
@@ -516,6 +518,7 @@ if ($filePath !== '') {
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/konva@9.3.3/konva.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
@@ -590,6 +593,13 @@ if ($filePath !== '') {
         renderOnAddRemove: true, // Mantener renderizado automÃ¡tico
         stateful: false // OptimizaciÃ³n de rendimiento
     });
+    const useKonvaRuler = true;
+    const konvaOverlay = document.getElementById('konva-overlay');
+    let konvaStage = null;
+    let konvaLayer = null;
+    let konvaRulers = [];
+    let konvaDrawing = null;
+    let konvaIsPanning = false;
     let pdfDoc = null, pageNum = 1, pdfScale = 2.0;
     const LOW_RES_SCALE = 1.0;
     const MAX_HIGH_CACHE = 4;
@@ -806,6 +816,10 @@ if ($filePath !== '') {
         canvas.getObjects().forEach(obj => {
             if (obj.isMeasureLine && obj.label) updateMeasureLabel(obj);
         });
+        if (useKonvaRuler) {
+            konvaRulers.forEach(r => updateKonvaLabel(r));
+            syncKonvaToFabric();
+        }
         canvas.requestRenderAll();
     }
 
@@ -840,9 +854,177 @@ if ($filePath !== '') {
     function resize() {
         const w = document.getElementById('canvas-wrapper');
         if(w) { canvas.setWidth(w.clientWidth); canvas.setHeight(w.clientHeight); }
+        if (konvaStage && w) {
+            konvaStage.width(w.clientWidth);
+            konvaStage.height(w.clientHeight);
+            konvaStage.draw();
+        }
     }
     window.addEventListener('resize', resize);
     setTimeout(resize, 100); 
+
+    function setKonvaActive(active) {
+        if (!konvaOverlay) return;
+        konvaOverlay.style.pointerEvents = active ? 'auto' : 'none';
+        konvaOverlay.style.display = active ? 'block' : 'none';
+        if (active) syncKonvaToFabric();
+    }
+
+    function getFabricVpt() {
+        const vpt = canvas.viewportTransform || [1, 0, 0, 1, 0, 0];
+        return { scaleX: vpt[0], scaleY: vpt[3], translateX: vpt[4], translateY: vpt[5] };
+    }
+
+    function screenToWorld(pos) {
+        const vpt = getFabricVpt();
+        return {
+            x: (pos.x - vpt.translateX) / vpt.scaleX,
+            y: (pos.y - vpt.translateY) / vpt.scaleY
+        };
+    }
+
+    function syncKonvaToFabric() {
+        if (!konvaLayer) return;
+        const vpt = getFabricVpt();
+        konvaLayer.position({ x: vpt.translateX, y: vpt.translateY });
+        konvaLayer.scale({ x: vpt.scaleX, y: vpt.scaleY });
+        const invScale = vpt.scaleX ? 1 / vpt.scaleX : 1;
+        konvaRulers.forEach(r => {
+            r.line.strokeWidth(4 * invScale);
+            r.a1.radius(6 * invScale);
+            r.a2.radius(6 * invScale);
+            r.label.fontSize(16 * invScale);
+            r.label.padding(4 * invScale);
+        });
+        konvaLayer.batchDraw();
+    }
+
+    function updateKonvaLabel(r) {
+        const p1 = r.a1.position();
+        const p2 = r.a2.position();
+        const distPx = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+        let textVal = "";
+        if (pixelsPerFoot > 0) {
+            const feet = distPx / pixelsPerFoot;
+            textVal = feet.toFixed(2) + " ft";
+        } else {
+            textVal = Math.round(distPx) + " px";
+        }
+        r.label.text(textVal);
+        const vpt = getFabricVpt();
+        const invScale = vpt.scaleX ? 1 / vpt.scaleX : 1;
+        const midX = (p1.x + p2.x) / 2;
+        const midY = (p1.y + p2.y) / 2 - (15 * invScale);
+        r.label.position({ x: midX, y: midY });
+    }
+
+    function createKonvaRuler(p1, p2) {
+        const group = new Konva.Group({ draggable: true });
+        const line = new Konva.Line({
+            points: [p1.x, p1.y, p2.x, p2.y],
+            stroke: '#22c55e',
+            strokeWidth: 4
+        });
+        const a1 = new Konva.Circle({
+            x: p1.x, y: p1.y,
+            radius: 6,
+            fill: '#ffffff',
+            stroke: '#22c55e',
+            strokeWidth: 2,
+            draggable: true
+        });
+        const a2 = new Konva.Circle({
+            x: p2.x, y: p2.y,
+            radius: 6,
+            fill: '#ffffff',
+            stroke: '#22c55e',
+            strokeWidth: 2,
+            draggable: true
+        });
+        const label = new Konva.Text({
+            x: (p1.x + p2.x) / 2,
+            y: (p1.y + p2.y) / 2 - 15,
+            text: '',
+            fontSize: 16,
+            fill: '#22c55e',
+            padding: 4
+        });
+
+        group.add(line, a1, a2, label);
+        konvaLayer.add(group);
+
+        const ruler = { group, line, a1, a2, label };
+        konvaRulers.push(ruler);
+
+        const updateLine = () => {
+            const p1c = a1.position();
+            const p2c = a2.position();
+            line.points([p1c.x, p1c.y, p2c.x, p2c.y]);
+            updateKonvaLabel(ruler);
+            konvaLayer.batchDraw();
+        };
+
+        a1.on('dragmove', updateLine);
+        a2.on('dragmove', updateLine);
+        group.on('dragmove', () => {
+            updateKonvaLabel(ruler);
+            konvaLayer.batchDraw();
+        });
+
+        updateKonvaLabel(ruler);
+        return ruler;
+    }
+
+    function initKonvaRuler() {
+        if (!useKonvaRuler || konvaStage) return;
+        const w = document.getElementById('canvas-wrapper');
+        if (!w) return;
+        konvaStage = new Konva.Stage({
+            container: 'konva-overlay',
+            width: w.clientWidth,
+            height: w.clientHeight
+        });
+        konvaLayer = new Konva.Layer();
+        konvaStage.add(konvaLayer);
+
+        konvaStage.on('mousedown touchstart', (e) => {
+            if (currentMode !== 'measure') return;
+            const target = e.target;
+            if (target && target !== konvaStage && target.getParent()) return;
+            const pos = konvaStage.getPointerPosition();
+            if (!pos) return;
+            const world = screenToWorld(pos);
+            konvaDrawing = createKonvaRuler(world, world);
+            syncKonvaToFabric();
+        });
+
+        konvaStage.on('mousemove touchmove', () => {
+            if (!konvaDrawing) return;
+            const pos = konvaStage.getPointerPosition();
+            if (!pos) return;
+            const world = screenToWorld(pos);
+            konvaDrawing.a2.position(world);
+            konvaDrawing.line.points([
+                konvaDrawing.a1.x(), konvaDrawing.a1.y(),
+                world.x, world.y
+            ]);
+            updateKonvaLabel(konvaDrawing);
+            konvaLayer.batchDraw();
+        });
+
+        konvaStage.on('mouseup touchend', () => {
+            if (!konvaDrawing) return;
+            const p1 = konvaDrawing.a1.position();
+            const p2 = konvaDrawing.a2.position();
+            const dist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+            if (dist < 10) {
+                konvaDrawing.group.destroy();
+                konvaRulers = konvaRulers.filter(r => r !== konvaDrawing);
+                konvaLayer.draw();
+            }
+            konvaDrawing = null;
+        });
+    }
 
     // --- DOUBLE TAP & NODE LOGIC ---
     let lastTapTime = 0;
@@ -1074,6 +1256,7 @@ if ($filePath !== '') {
                     
                     document.getElementById('zoom-disp').innerText = Math.round(newZoom * 100) + '%';
                     updateTextScales(newZoom);
+                    if (useKonvaRuler) syncKonvaToFabric();
                 }
 
                 // Actualizar referencias para el siguiente frame
@@ -1444,6 +1627,15 @@ if ($filePath !== '') {
             canvas.defaultCursor = 'crosshair';
         } else if(mode === 'cal') { updateCalHint(); } 
         else { canvas.defaultCursor = 'default'; }
+
+        if (useKonvaRuler) {
+            if (mode === 'measure') {
+                initKonvaRuler();
+                setKonvaActive(true);
+            } else {
+                setKonvaActive(false);
+            }
+        }
         
         if(mode === 'smart') {
             const active = canvas.getActiveObject();
@@ -1496,6 +1688,10 @@ if ($filePath !== '') {
     canvas.on('mouse:down', function(opt) {
         const evt = opt.e;
         const now = new Date().getTime();
+
+        if (currentMode === 'measure' && useKonvaRuler) {
+            return;
+        }
         
         // Verificar si el clic fue sobre un control de una lÃ­nea de medida
         if (opt.target && opt.target.isMeasureLine) {
@@ -1612,15 +1808,17 @@ if ($filePath !== '') {
     canvas.on('mouse:move', function(opt) {
         const evt = opt.e;
         const isTouch = evt.type.startsWith('touch');
+        if (currentMode === 'measure' && useKonvaRuler) return;
         if(this.isDragging) {
             let clientX, clientY;
             if(isTouch) { evt.preventDefault(); clientX = evt.touches[0].clientX; clientY = evt.touches[0].clientY; } 
             else { clientX = evt.clientX; clientY = evt.clientY; }
-            const vpt = this.viewportTransform;
-            vpt[4] += clientX - this.lastPosX; vpt[5] += clientY - this.lastPosY;
-            this.requestRenderAll();
-            this.lastPosX = clientX; this.lastPosY = clientY;
-        } else if (lineState === 1 && activeLine) {
+                const vpt = this.viewportTransform;
+                vpt[4] += clientX - this.lastPosX; vpt[5] += clientY - this.lastPosY;
+                this.requestRenderAll();
+                this.lastPosX = clientX; this.lastPosY = clientY;
+                if (useKonvaRuler) syncKonvaToFabric();
+            } else if (lineState === 1 && activeLine) {
             const ptr = canvas.getPointer(evt);
             activeLine.set({ x2: ptr.x, y2: ptr.y });
             // Usar requestAnimationFrame para renderizado suave durante el dibujo
@@ -1635,6 +1833,7 @@ if ($filePath !== '') {
     canvas.on('mouse:up', function(opt) {
         this.setViewportTransform(this.viewportTransform);
         this.isDragging = false;
+        if (currentMode === 'measure' && useKonvaRuler) return;
         
         // Resetear el estado de arrastre de control y restaurar movimiento del objeto
         if (isDraggingControl && opt.target && opt.target.isMeasureLine) {
@@ -1665,6 +1864,11 @@ if ($filePath !== '') {
     });
 
     function finishLineLogic() {
+        if (currentMode === 'measure' && useKonvaRuler) {
+            lineState = 0;
+            activeLine = null;
+            return;
+        }
         lineState = 0;
         const dx = activeLine.x2 - activeLine.x1; const dy = activeLine.y2 - activeLine.y1;
         const distPx = Math.sqrt(dx*dx + dy*dy);
@@ -1806,6 +2010,7 @@ if ($filePath !== '') {
             if (obj.isMeasureLine) { obj.set({ strokeWidth: 4 * scale }); }
         });
         canvas.requestRenderAll();
+        if (useKonvaRuler) syncKonvaToFabric();
     }
 
     function handleSelectionChange() {
@@ -1914,6 +2119,7 @@ if ($filePath !== '') {
         if (zoom > 20) zoom = 20; if (zoom < 0.05) zoom = 0.05;
         canvas.zoomToPoint({ x: opt.e.offsetX, y: opt.e.offsetY }, zoom);
         document.getElementById('zoom-disp').innerText = Math.round(zoom * 100) + '%';
+        if (useKonvaRuler) syncKonvaToFabric();
         updateTextScales(zoom);
         opt.e.preventDefault(); opt.e.stopPropagation();
     });
