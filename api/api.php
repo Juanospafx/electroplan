@@ -200,6 +200,64 @@ switch($action) {
         } catch(Exception $e) { echo json_encode(['status'=>'error', 'msg'=>$e->getMessage()]); }
         break;
 
+    // --- 12.1 MOVER CARPETA (ADMIN ONLY) ---
+    case 'move_folder':
+        if($userRole !== 'admin') { echo json_encode(['status'=>'error', 'msg'=>'Access Denied']); exit; }
+        $folderId = (int)($_POST['folder_id'] ?? 0);
+        $targetProjectId = (int)($_POST['target_project_id'] ?? 0);
+        $targetParentId = (int)($_POST['target_parent_folder_id'] ?? 0);
+
+        if($folderId <= 0 || $targetProjectId <= 0) { echo json_encode(['status'=>'error', 'msg'=>'Invalid data']); exit; }
+
+        try {
+            $stmtFolder = $pdo->prepare("SELECT id, name, project_id FROM folders WHERE id = ? AND deleted_at IS NULL");
+            $stmtFolder->execute([$folderId]);
+            $folder = $stmtFolder->fetch(PDO::FETCH_ASSOC);
+            if(!$folder) { echo json_encode(['status'=>'error', 'msg'=>'Folder not found']); exit; }
+
+            if ($targetParentId > 0) {
+                $stmtParent = $pdo->prepare("SELECT id FROM folders WHERE id = ? AND project_id = ? AND deleted_at IS NULL");
+                $stmtParent->execute([$targetParentId, $targetProjectId]);
+                if(!$stmtParent->fetch()) { echo json_encode(['status'=>'error', 'msg'=>'Target parent not found']); exit; }
+            }
+
+            $pdo->beginTransaction();
+
+            if ($targetParentId > 0) {
+                // Create/locate subfolder in target parent
+                $stmtSub = $pdo->prepare("SELECT id FROM sub_folders WHERE folder_id = ? AND name = ? AND deleted_at IS NULL");
+                $stmtSub->execute([$targetParentId, $folder['name']]);
+                $subId = (int)$stmtSub->fetchColumn();
+                if ($subId <= 0) {
+                    $stmtInsSub = $pdo->prepare("INSERT INTO sub_folders (folder_id, name) VALUES (?, ?)");
+                    $stmtInsSub->execute([$targetParentId, $folder['name']]);
+                    $subId = (int)$pdo->lastInsertId();
+                }
+
+                // Move files into new subfolder
+                $stmtFiles = $pdo->prepare("UPDATE files SET project_id = ?, folder_id = ?, sub_folder_id = ? WHERE folder_id = ?");
+                $stmtFiles->execute([$targetProjectId, $targetParentId, $subId, $folderId]);
+
+                // Move any subfolders to target parent
+                $stmtMoveSub = $pdo->prepare("UPDATE sub_folders SET folder_id = ? WHERE folder_id = ?");
+                $stmtMoveSub->execute([$targetParentId, $folderId]);
+
+                // Soft delete original folder
+                $pdo->prepare("UPDATE folders SET deleted_at = NOW() WHERE id = ?")->execute([$folderId]);
+            } else {
+                // Move folder to another project (top-level)
+                $pdo->prepare("UPDATE folders SET project_id = ? WHERE id = ?")->execute([$targetProjectId, $folderId]);
+                $pdo->prepare("UPDATE files SET project_id = ? WHERE folder_id = ?")->execute([$targetProjectId, $folderId]);
+            }
+
+            $pdo->commit();
+            echo json_encode(['status'=>'success']);
+        } catch(Exception $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            echo json_encode(['status'=>'error', 'msg'=>$e->getMessage()]);
+        }
+        break;
+
     // --- 1.3 ASIGNAR MULTIPLES USUARIOS A PROYECTO (ADMIN ONLY) ---
     case 'assign_project_users':
         if($userRole !== 'admin') { echo json_encode(['status'=>'error', 'msg'=>'Access Denied']); exit; }

@@ -100,16 +100,36 @@ include __DIR__ . '/../views/header.php';
                                 <i class="fas fa-folder me-2 text-warning opacity-75"></i> <?= htmlspecialchars($folder['name']) ?>
                             </a>
                             <?php if(($_SESSION['role'] ?? '') === 'admin' && $folder['name'] !== 'Reports'): ?>
-                                <button class="btn btn-sm btn-outline-danger border-0" onclick="deleteFolder(<?= (int)$folder['id'] ?>)" title="Delete Folder"><i class="fas fa-trash"></i></button>
+                                <div class="d-flex gap-1">
+                                    <button class="btn btn-sm btn-outline-warning border-0" onclick="openMoveFolderModal(<?= (int)$folder['id'] ?>)" title="Move Folder"><i class="fas fa-exchange-alt"></i></button>
+                                    <button class="btn btn-sm btn-outline-danger border-0" onclick="deleteFolder(<?= (int)$folder['id'] ?>)" title="Delete Folder"><i class="fas fa-trash"></i></button>
+                                </div>
                             <?php endif; ?>
                         </div>
                     <?php endforeach; ?>
 
                     <div class="mt-3 mb-2 ps-2 text-muted small fw-bold text-uppercase ls-1">Management</div>
-                    <a href="#" class="nav-link disabled"><i class="fas fa-clock me-2"></i> Clock in Asistencia</a>
-                    <a href="#" class="nav-link disabled"><i class="fas fa-hard-hat me-2"></i> Labor Record</a>
-                    <a href="#" class="nav-link disabled"><i class="fas fa-file-invoice-dollar me-2"></i> Expenses</a>
-                    <a href="#" class="nav-link disabled"><i class="fas fa-shield-alt me-2"></i> Warranty Supplier</a>
+                    <?php
+                        $mgmtMap = [
+                            'Clock In' => 'fa-clock',
+                            'Labor Record' => 'fa-hard-hat',
+                            'Expenses' => 'fa-file-invoice-dollar',
+                            'Warranty Supplier' => 'fa-shield-alt'
+                        ];
+                        $folderByName = [];
+                        foreach($allFolders as $f) {
+                            $folderByName[strtolower($f['name'])] = $f;
+                        }
+                    ?>
+                    <?php foreach($mgmtMap as $fname => $icon): 
+                        $key = strtolower($fname);
+                        if (!isset($folderByName[$key])) continue;
+                        $f = $folderByName[$key];
+                    ?>
+                        <a href="?id=<?= $projectId ?>&view=files&folder_id=<?= $f['id'] ?>" class="nav-link <?= ($currentView=='files' && $currentFolderId==$f['id'])?'active':'' ?>">
+                            <i class="fas <?= $icon ?> me-2"></i> <?= htmlspecialchars($fname) ?>
+                        </a>
+                    <?php endforeach; ?>
                 </nav>
             </div>
         </aside>
@@ -280,6 +300,36 @@ include __DIR__ . '/../views/header.php';
 <?php include __DIR__ . '/../views/modals.php'; ?>
 
 <?php if(($_SESSION['role'] ?? '') === 'admin'): ?>
+<div class="modal fade" id="moveFolderModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content p-3">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold">Move Folder</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="moveFolderForm">
+                <input type="hidden" name="action" value="move_folder">
+                <input type="hidden" name="folder_id" id="move_folder_id" value="">
+                <div class="modal-body">
+                    <label class="text-gray small mb-2">Target Project</label>
+                    <select name="target_project_id" id="move_folder_project_select" class="form-select text-white bg-dark border-secondary" onchange="loadFoldersForFolderMove(this.value)" required>
+                        <option value="">Loading projects...</option>
+                    </select>
+
+                    <label class="text-gray small mb-2 mt-3">Move Into Folder (Optional)</label>
+                    <select name="target_parent_folder_id" id="move_folder_parent_select" class="form-select text-white bg-dark border-secondary">
+                        <option value="">Keep as top-level</option>
+                    </select>
+                    <div class="text-muted small mt-2">Select a parent folder to create a subfolder with the current name.</div>
+                </div>
+                <div class="modal-footer">
+                    <button type="submit" class="btn-main w-100">Move Folder</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <div class="modal fade" id="newFolderModalDash" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content p-3">
@@ -480,6 +530,73 @@ include __DIR__ . '/../views/header.php';
                 .then(d => {
                     if(d.status === 'success') location.reload();
                     else alert('Error moving file: ' + (d.msg || 'Unknown'));
+                })
+                .catch(() => alert('Connection error'));
+        });
+    }
+
+    function openMoveFolderModal(folderId) {
+        const moveFolderId = document.getElementById('move_folder_id');
+        const projSelect = document.getElementById('move_folder_project_select');
+        const parentSelect = document.getElementById('move_folder_parent_select');
+        if (!moveFolderId || !projSelect || !parentSelect) return;
+
+        moveFolderId.value = folderId;
+        projSelect.innerHTML = '<option value="">Loading projects...</option>';
+        parentSelect.innerHTML = '<option value="">Keep as top-level</option>';
+
+        const modalEl = document.getElementById('moveFolderModal');
+        if (modalEl) new bootstrap.Modal(modalEl).show();
+
+        const fd = new FormData();
+        fd.append('action', 'get_projects_list');
+        fetch('../api/api.php', { method: 'POST', body: fd })
+            .then(r => r.json())
+            .then(res => {
+                if(res.status === 'success') {
+                    projSelect.innerHTML = '<option value="">Select Target Project...</option>';
+                    res.data.forEach(p => { projSelect.innerHTML += `<option value="${p.id}">${p.name}</option>`; });
+                } else {
+                    projSelect.innerHTML = '<option value="">Error loading</option>';
+                }
+            })
+            .catch(() => { projSelect.innerHTML = '<option value="">Connection Error</option>'; });
+    }
+
+    function loadFoldersForFolderMove(projId) {
+        const parentSel = document.getElementById('move_folder_parent_select');
+        if (!parentSel) return;
+        parentSel.innerHTML = '<option value="">Loading...</option>';
+        if(!projId) { parentSel.innerHTML = '<option value="">Keep as top-level</option>'; return; }
+
+        const currentFolderId = parseInt(document.getElementById('move_folder_id').value || '0', 10);
+        const fd = new FormData();
+        fd.append('action', 'get_folders_list');
+        fd.append('project_id', projId);
+        fetch('../api/api.php', { method: 'POST', body: fd })
+            .then(r => r.json())
+            .then(res => {
+                parentSel.innerHTML = '<option value="">Keep as top-level</option>';
+                if(res.status === 'success') {
+                    res.data.forEach(f => {
+                        if (parseInt(f.id, 10) === currentFolderId) return;
+                        parentSel.innerHTML += `<option value="${f.id}">${f.name}</option>`;
+                    });
+                }
+            })
+            .catch(() => { parentSel.innerHTML = '<option value="">Connection Error</option>'; });
+    }
+
+    const moveFolderForm = document.getElementById('moveFolderForm');
+    if (moveFolderForm) {
+        moveFolderForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const fd = new FormData(this);
+            fetch('../api/api.php', { method: 'POST', body: fd })
+                .then(r => r.json())
+                .then(d => {
+                    if(d.status === 'success') location.reload();
+                    else alert('Error moving folder: ' + (d.msg || 'Unknown'));
                 })
                 .catch(() => alert('Connection error'));
         });
