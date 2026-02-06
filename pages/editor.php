@@ -598,6 +598,7 @@ if ($filePath !== '') {
     let konvaStage = null;
     let konvaLayer = null;
     let konvaRulers = [];
+    let konvaNotes = [];
     const konvaRulersByPage = {};
     let konvaDrawing = null;
     let konvaIsPanning = false;
@@ -926,12 +927,18 @@ if ($filePath !== '') {
             r.a1.draggable(allowEdit);
             r.a2.draggable(allowEdit);
         });
+        konvaNotes.forEach(n => {
+            n.group.draggable(allowEdit);
+        });
         if (konvaLayer) konvaLayer.batchDraw();
     }
 
     function setKonvaPage(page) {
         konvaRulers.forEach(r => {
             r.group.visible(r.page === page);
+        });
+        konvaNotes.forEach(n => {
+            n.group.visible(n.page === page);
         });
         if (konvaLayer) konvaLayer.batchDraw();
     }
@@ -996,6 +1003,37 @@ if ($filePath !== '') {
         return ruler;
     }
 
+    function createKonvaNote(pos, text = 'Note') {
+        const group = new Konva.Group({ draggable: true });
+        const label = new Konva.Text({
+            x: pos.x,
+            y: pos.y,
+            text,
+            fontSize: 28,
+            fill: '#ef4444'
+        });
+        label.offsetX(label.width() / 2);
+        label.offsetY(label.height() / 2);
+        group.add(label);
+        konvaLayer.add(group);
+
+        const note = { group, label, page: pageNum };
+        konvaNotes.push(note);
+
+        label.on('dblclick dbltap', () => {
+            const next = prompt('Edit note', label.text());
+            if (next !== null) {
+                label.text(next);
+                label.offsetX(label.width() / 2);
+                label.offsetY(label.height() / 2);
+                konvaLayer.batchDraw();
+            }
+        });
+
+        updateKonvaInteractivity();
+        return note;
+    }
+
     function initKonvaRuler() {
         if (!useKonvaRuler || konvaStage) return;
         const w = document.getElementById('canvas-wrapper');
@@ -1026,7 +1064,9 @@ if ($filePath !== '') {
         let panStart = null;
         konvaStage.on('mousedown', (e) => {
             const evt = e.evt;
-            if (evt && (evt.altKey || evt.button === 2)) {
+            const target = e.target;
+            const isEmpty = !target || target === konvaStage;
+            if (evt && ((evt.altKey || evt.button === 2) || (currentMode === 'smart' && isEmpty))) {
                 panStart = { x: evt.clientX, y: evt.clientY };
                 konvaIsPanning = true;
             }
@@ -1988,6 +2028,14 @@ if ($filePath !== '') {
 
     function addText() {
         setMode('smart');
+        if (useKonvaRuler) {
+            initKonvaRuler();
+            setKonvaActive(true);
+            updateKonvaInteractivity();
+            const center = canvas.getVpCenter();
+            createKonvaNote({ x: center.x, y: center.y }, 'Note');
+            return;
+        }
         const center = canvas.getVpCenter();
         const t = new fabric.IText('Note', { left: center.x, top: center.y, fill: '#ef4444', fontSize: 60, isNew: true });
         lockObject(t); canvas.add(t); canvas.setActiveObject(t); t.selectAll(); t.enterEditing();
