@@ -602,6 +602,7 @@ if ($filePath !== '') {
     const konvaRulersByPage = {};
     let konvaTransformer = null;
     let konvaEditingTextarea = null;
+    let konvaSelectedNode = null;
     let konvaDrawing = null;
     let konvaIsPanning = false;
     let pdfDoc = null, pageNum = 1, pdfScale = 2.0;
@@ -948,6 +949,7 @@ if ($filePath !== '') {
         if (konvaTransformer) {
             konvaTransformer.nodes([]);
         }
+        konvaSelectedNode = null;
         if (konvaLayer) konvaLayer.batchDraw();
     }
 
@@ -1005,6 +1007,11 @@ if ($filePath !== '') {
             updateKonvaLabel(ruler);
             konvaLayer.batchDraw();
         });
+        group.on('click tap', () => {
+            if (currentMode !== 'smart') return;
+            if (konvaTransformer) konvaTransformer.nodes([group]);
+            konvaSelectedNode = { type: 'ruler', ref: ruler };
+        });
 
         updateKonvaLabel(ruler);
         updateKonvaInteractivity();
@@ -1031,6 +1038,7 @@ if ($filePath !== '') {
         group.on('click tap', (e) => {
             if (currentMode !== 'smart') return;
             if (konvaTransformer) konvaTransformer.nodes([group]);
+            konvaSelectedNode = { type: 'note', ref: note };
         });
         label.on('dblclick dbltap', () => {
             if (currentMode !== 'smart') return;
@@ -1055,6 +1063,25 @@ if ($filePath !== '') {
             });
             konvaLayer.add(konvaTransformer);
         }
+    }
+
+    function deleteKonvaSelection() {
+        if (!konvaSelectedNode) return false;
+        const { type, ref } = konvaSelectedNode;
+        if (type === 'ruler') {
+            ref.group.destroy();
+            konvaRulers = konvaRulers.filter(r => r !== ref);
+            if (konvaRulersByPage[ref.page]) {
+                konvaRulersByPage[ref.page] = konvaRulersByPage[ref.page].filter(r => r !== ref);
+            }
+        } else if (type === 'note') {
+            ref.group.destroy();
+            konvaNotes = konvaNotes.filter(n => n !== ref);
+        }
+        konvaSelectedNode = null;
+        if (konvaTransformer) konvaTransformer.nodes([]);
+        if (konvaLayer) konvaLayer.batchDraw();
+        return true;
     }
 
     function startInlineNoteEdit(note) {
@@ -1175,6 +1202,9 @@ if ($filePath !== '') {
             if (currentMode === 'smart' && isEmpty && konvaTransformer) {
                 konvaTransformer.nodes([]);
                 konvaLayer.batchDraw();
+            }
+            if (currentMode === 'smart' && isEmpty) {
+                konvaSelectedNode = null;
             }
         });
         konvaStage.on('mousemove', (e) => {
@@ -1384,6 +1414,10 @@ if ($filePath !== '') {
 
     // --- DELETE FUNCTIONALITY ---
     function deleteSelected() {
+        if (useKonvaRuler && deleteKonvaSelection()) {
+            showToast("Selection deleted", "success");
+            return;
+        }
         const activeObjects = canvas.getActiveObjects();
         if(!activeObjects.length) return;
         
