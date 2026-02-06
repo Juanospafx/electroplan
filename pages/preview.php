@@ -442,21 +442,38 @@ if ($filePath !== '') {
             this.targetId = targetId;
             this.map = null;
             this.imageLayer = null;
+            this.pixelProjection = null;
             this.initMap();
         }
 
         initMap() {
+            const targetEl = document.getElementById(this.targetId);
+            if (!targetEl) {
+                console.error('[OL] target not found:', this.targetId);
+                return;
+            }
+
+            // Proyección pixel-space propia (OpenLayers v7 no trae 'identity' por defecto)
+            this.pixelProjection = new ol.proj.Projection({
+                code: 'pixel',
+                units: 'pixels',
+                extent: [0, 0, 1, 1]
+            });
+            ol.proj.addProjection(this.pixelProjection);
+
             // Capa vacía para futuras anotaciones
             const vectorSource = new ol.source.Vector({ wrapX: false });
             const vectorLayer = new ol.layer.Vector({ source: vectorSource });
 
             this.map = new ol.Map({
-                target: this.targetId,
+                target: targetEl,
                 layers: [vectorLayer],
                 view: new ol.View({
-                    projection: 'identity',
-                    center: [0, 0],
-                    zoom: 2
+                    projection: this.pixelProjection,
+                    center: [0.5, 0.5],
+                    zoom: 2,
+                    minZoom: 0.5,
+                    maxZoom: 8
                 }),
                 controls: [], // Limpio
                 interactions: ol.interaction.defaults.defaults({
@@ -477,29 +494,43 @@ if ($filePath !== '') {
         }
 
         loadPageBackground(dataUrl, width, height) {
+            const map = this.map;
+            if (!map) {
+                console.error('[OL] map not initialized');
+                return;
+            }
             if (!width || !height || !Number.isFinite(width) || !Number.isFinite(height)) {
-                console.error('Invalid image dimensions', width, height);
-                return;
-            }
-            if (!this.map) {
-                console.error('Map not initialized');
+                console.error('[OL] invalid image dimensions', width, height);
                 return;
             }
             
-            // Usar la proyección 'identity' existente en lugar de crear una personalizada
-            // Esto evita problemas con getExtent() en proyecciones personalizadas
             const extent = [0, 0, width, height];
-            const identityProjection = ol.proj.get('identity');
-            
-            if (!identityProjection) {
-                console.error('Identity projection not found');
+            if (!Array.isArray(extent) || extent.length !== 4) {
+                console.error('[OL] invalid extent', extent);
+                return;
+            }
+
+            // Actualizar proyección pixel-space con el extent real
+            if (!this.pixelProjection) {
+                this.pixelProjection = new ol.proj.Projection({
+                    code: 'pixel',
+                    units: 'pixels',
+                    extent: extent
+                });
+                ol.proj.addProjection(this.pixelProjection);
+            } else {
+                this.pixelProjection.setExtent(extent);
+            }
+
+            if (!this.pixelProjection) {
+                console.error('[OL] pixel projection not available');
                 return;
             }
 
             try {
                 const imageSource = new ol.source.ImageStatic({
                     url: dataUrl,
-                    projection: identityProjection,
+                    projection: this.pixelProjection,
                     imageExtent: extent
                 });
 
@@ -508,18 +539,17 @@ if ($filePath !== '') {
                 this.imageLayer = new ol.layer.Image({ source: imageSource });
                 this.map.getLayers().insertAt(0, this.imageLayer);
                 imageSource.on('error', (e) => {
-                    console.error('Image source error', e);
+                    console.error('[OL] image source error', e);
                 });
 
                 // Obtener la vista actual en lugar de crear una nueva
-                const currentView = this.map.getView();
+                const currentView = map.getView();
                 const center = ol.extent.getCenter(extent);
                 
-                // Calcular zoom manualmente basado en el tamaño del mapa y el extent
-                // Esto evita el problema con getExtent() en fit()
                 const updateView = () => {
                     try {
-                        const mapSize = this.map.getSize();
+                        const mapSize = map.getSize();
+                        console.debug('[OL] mapSize', mapSize, 'extent', extent, 'projection', this.pixelProjection);
                         if (mapSize && mapSize[0] > 0 && mapSize[1] > 0) {
                             // Calcular el zoom necesario para mostrar el extent completo con padding
                             const padding = 40; // 20px en cada lado
@@ -534,7 +564,6 @@ if ($filePath !== '') {
                             const scale = Math.min(scaleX, scaleY);
                             
                             // Calcular zoom basado en la escala
-                            // En OpenLayers con proyección identity, zoom funciona directamente con la escala
                             const calculatedZoom = Math.log2(scale);
                             
                             // Limitar el zoom dentro de los límites permitidos
@@ -542,25 +571,28 @@ if ($filePath !== '') {
                             
                             currentView.setCenter(center);
                             currentView.setZoom(finalZoom);
+                            currentView.setProjection(this.pixelProjection);
                         } else {
                             // Si el mapa no tiene tamaño aún, usar valores por defecto
                             currentView.setCenter(center);
                             currentView.setZoom(2);
+                            currentView.setProjection(this.pixelProjection);
                         }
                     } catch (e) {
-                        console.error('Zoom calculation failed', e);
+                        console.error('[OL] zoom calculation failed', e);
                         // Fallback: usar valores por defecto
                         try {
                             currentView.setCenter(center);
                             currentView.setZoom(2);
+                            currentView.setProjection(this.pixelProjection);
                         } catch (fallbackError) {
-                            console.error('Fallback center/zoom failed', fallbackError);
+                            console.error('[OL] fallback center/zoom failed', fallbackError);
                         }
                     }
                 };
                 
                 // Actualizar el tamaño del mapa primero
-                this.map.updateSize();
+                map.updateSize();
                 
                 // Usar requestAnimationFrame para asegurar que el mapa esté completamente renderizado
                 requestAnimationFrame(() => {
@@ -568,17 +600,18 @@ if ($filePath !== '') {
                 });
                 
             } catch (mainError) {
-                console.error('Error in loadPageBackground:', mainError);
+                console.error('[OL] Error in loadPageBackground:', mainError);
                 // Intentar cargar la imagen como último recurso
                 try {
                     const center = ol.extent.getCenter(extent);
-                    const currentView = this.map.getView();
+                    const currentView = map.getView();
                     if (currentView) {
                         currentView.setCenter(center);
                         currentView.setZoom(2);
+                        currentView.setProjection(this.pixelProjection);
                     }
                 } catch (finalError) {
-                    console.error('Final fallback failed:', finalError);
+                    console.error('[OL] final fallback failed:', finalError);
                 }
             }
         }

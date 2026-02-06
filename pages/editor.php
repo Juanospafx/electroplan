@@ -586,7 +586,9 @@ if ($filePath !== '') {
         preserveObjectStacking: true,
         fireRightClick: true,  
         stopContextMenu: true,
-        allowTouchScrolling: false 
+        allowTouchScrolling: false,
+        renderOnAddRemove: true, // Mantener renderizado automático
+        stateful: false // Optimización de rendimiento
     });
     let pdfDoc = null, pageNum = 1, pdfScale = 2.0;
     const LOW_RES_SCALE = 1.0;
@@ -846,6 +848,11 @@ if ($filePath !== '') {
     let lastTapTime = 0;
     let lastTapTarget = null;
     const DOUBLE_TAP_DELAY = 400;
+    
+    // Estado para control de modificación de vértices de regla
+    let controlEditMode = false; // Modo de edición activado con doble clic
+    let activeControlPoint = null; // Punto de control activo ('p1' o 'p2')
+    let renderAnimationFrame = null; // Para renderizado suave
 
     // --- CUSTOM CONTROLS FOR LINES (POSITION HANDLER FIXED) ---
     // Variable para rastrear si estamos manipulando un control
@@ -865,8 +872,12 @@ if ($filePath !== '') {
             return function(e, transform, x, y) {
                 const target = transform.target;
                 
+                // Solo permitir modificación si el modo de edición está activado (doble clic)
+                if (!controlEditMode || activeControlPoint !== pointName) {
+                    return false;
+                }
+                
                 // Si el objeto está en modo "moving" (movimiento libre), no permitir modificar controles
-                // Esto evita conflictos cuando se mueve el objeto completo
                 if (target.isMoving && !isDraggingControl) {
                     return false;
                 }
@@ -891,8 +902,17 @@ if ($filePath !== '') {
                 // Forzar actualización de coordenadas antes de actualizar la etiqueta
                 target.setCoords();
                 
-                // Actualizar la etiqueta de medición inmediatamente
-                updateMeasureLabel(target);
+                // Usar requestAnimationFrame para renderizado suave sin trazos impresos
+                if (renderAnimationFrame) {
+                    cancelAnimationFrame(renderAnimationFrame);
+                }
+                renderAnimationFrame = requestAnimationFrame(() => {
+                    // Actualizar la etiqueta de medición inmediatamente
+                    updateMeasureLabel(target);
+                    // Renderizado suave usando requestRenderAll en lugar de renderAll
+                    canvas.requestRenderAll();
+                    renderAnimationFrame = null;
+                });
                 
                 return true;
             };
@@ -1263,7 +1283,7 @@ if ($filePath !== '') {
                     }
                 });
                   updateTextScales(canvas.getZoom()); 
-                  canvas.renderAll(); 
+                  canvas.requestRenderAll(); 
                   refreshMeasureLabels();
                   historyProcessing = false; 
                   saveHistory(); 
@@ -1323,7 +1343,7 @@ if ($filePath !== '') {
                 }
             }
         });
-        canvas.renderAll();
+        canvas.requestRenderAll();
     }
 
     // --- EVENTS ---
@@ -1368,8 +1388,7 @@ if ($filePath !== '') {
         line.label.set({ left: midX, top: midY - 15 });
         line.setCoords(); 
         line.label.setCoords();
-        // Forzar renderizado para ver cambios en tiempo real
-        canvas.requestRenderAll();
+        // NO llamar requestRenderAll aquí - se maneja en los eventos con requestAnimationFrame
     }
 
     canvas.on('object:moving', function(e) {
@@ -1380,6 +1399,12 @@ if ($filePath !== '') {
             const center = obj.getCenterPoint();
             obj.label.set({ left: center.x, top: center.y - 15 });
             obj.label.setCoords();
+            // Renderizado suave durante el movimiento
+            if (renderAnimationFrame) cancelAnimationFrame(renderAnimationFrame);
+            renderAnimationFrame = requestAnimationFrame(() => {
+                canvas.requestRenderAll();
+                renderAnimationFrame = null;
+            });
         }
     });
 
@@ -1471,43 +1496,69 @@ if ($filePath !== '') {
         const now = new Date().getTime();
         
         // Verificar si el clic fue sobre un control de una línea de medida
-        // Solo activar controles si el clic fue directamente sobre ellos
         if (opt.target && opt.target.isMeasureLine) {
-            // Verificar si hay un control activo
             const activeControl = opt.control;
+            
+            // Verificar si es doble clic en un control (vértice)
             if (activeControl && (activeControl === 'p1' || activeControl === 'p2')) {
-                // El clic fue directamente sobre un control - activar modo de arrastre de control
-                isDraggingControl = true;
-                controlDragStart = { 
-                    x: evt.clientX || (evt.touches && evt.touches[0].clientX), 
-                    y: evt.clientY || (evt.touches && evt.touches[0].clientY) 
-                };
-                // Prevenir que el objeto se mueva cuando arrastramos un control
-                opt.target.set({ lockMovementX: true, lockMovementY: true });
-                // Asegurar que el objeto no esté en modo "moving"
-                opt.target.isMoving = false;
+                const isDoubleClick = (lastTapTarget === opt.target && 
+                                      lastTapTarget.control === activeControl && 
+                                      (now - lastTapTime < DOUBLE_TAP_DELAY));
+                
+                if (isDoubleClick) {
+                    // Doble clic en vértice - activar modo de edición
+                    controlEditMode = true;
+                    activeControlPoint = activeControl;
+                    isDraggingControl = true;
+                    controlDragStart = { 
+                        x: evt.clientX || (evt.touches && evt.touches[0].clientX), 
+                        y: evt.clientY || (evt.touches && evt.touches[0].clientY) 
+                    };
+                    // Prevenir que el objeto se mueva cuando arrastramos un control
+                    opt.target.set({ lockMovementX: true, lockMovementY: true });
+                    opt.target.isMoving = false;
+                    showToast("Edit mode: Drag vertex to resize", "success");
+                } else {
+                    // Primer clic en control - solo seleccionar, no activar edición
+                    controlEditMode = false;
+                    activeControlPoint = null;
+                    isDraggingControl = false;
+                }
             } else {
                 // El clic fue sobre el cuerpo de la línea, no sobre un control
-                // Permitir mover la línea sin activar los controles
+                controlEditMode = false;
+                activeControlPoint = null;
                 isDraggingControl = false;
                 controlDragStart = null;
                 opt.target.set({ lockMovementX: false, lockMovementY: false });
             }
         } else {
             // No es una línea de medida, resetear estado
+            controlEditMode = false;
+            activeControlPoint = null;
             isDraggingControl = false;
             controlDragStart = null;
         }
         
         if (opt.target && currentMode === 'smart') {
             if (lastTapTarget === opt.target && (now - lastTapTime < DOUBLE_TAP_DELAY)) {
-                unlockObject(opt.target);
-                showToast("Movement Unlocked", "warning"); canvas.renderAll();
-                opt.target.isMoving = true;
+                // Si no es un control de regla, permitir desbloqueo normal
+                if (!opt.target.isMeasureLine || !opt.control) {
+                    unlockObject(opt.target);
+                    showToast("Movement Unlocked", "warning"); 
+                    canvas.requestRenderAll();
+                    opt.target.isMoving = true;
+                }
             } else {
-                if(opt.target.isMeasureLine) { lockObject(opt.target); canvas.renderAll(); } else { lockObject(opt.target); }
+                if(opt.target.isMeasureLine) { 
+                    lockObject(opt.target); 
+                    canvas.requestRenderAll(); 
+                } else { 
+                    lockObject(opt.target); 
+                }
             }
-            lastTapTarget = opt.target; lastTapTime = now;
+            lastTapTarget = opt.target; 
+            lastTapTime = now;
         }
         const isTouch = evt.type.startsWith('touch');
         let clientX, clientY;
@@ -1556,7 +1607,12 @@ if ($filePath !== '') {
         } else if (lineState === 1 && activeLine) {
             const ptr = canvas.getPointer(evt);
             activeLine.set({ x2: ptr.x, y2: ptr.y });
-            canvas.renderAll();
+            // Usar requestAnimationFrame para renderizado suave durante el dibujo
+            if (renderAnimationFrame) cancelAnimationFrame(renderAnimationFrame);
+            renderAnimationFrame = requestAnimationFrame(() => {
+                canvas.requestRenderAll();
+                renderAnimationFrame = null;
+            });
         }
     });
 
@@ -1568,10 +1624,19 @@ if ($filePath !== '') {
         if (isDraggingControl && opt.target && opt.target.isMeasureLine) {
             // Restaurar el movimiento del objeto
             opt.target.set({ lockMovementX: false, lockMovementY: false });
+            // Desactivar modo de edición
+            controlEditMode = false;
+            activeControlPoint = null;
         }
         
         isDraggingControl = false;
         controlDragStart = null;
+        
+        // Cancelar cualquier renderizado pendiente
+        if (renderAnimationFrame) {
+            cancelAnimationFrame(renderAnimationFrame);
+            renderAnimationFrame = null;
+        }
         
         if (currentMode === 'smart') this.selection = true;
         if(this.isDrawingModeWasOn) { canvas.isDrawingMode = true; this.isDrawingModeWasOn = false; }
@@ -1614,7 +1679,7 @@ if ($filePath !== '') {
         document.getElementById('cal-val').value = '';
         resetScalePresetSelection();
         updateCalHint();
-        lineState = 0; activeLine = null; canvas.renderAll();
+        lineState = 0; activeLine = null; canvas.requestRenderAll();
     }
     
     function finishCal(save) {
@@ -1715,7 +1780,7 @@ if ($filePath !== '') {
 
     function updateTextProp(prop, val) {
         const active = canvas.getActiveObject();
-        if(active && (active.type === 'i-text' || active.type === 'text')) { active.set(prop, val); canvas.renderAll(); }
+        if(active && (active.type === 'i-text' || active.type === 'text')) { active.set(prop, val); canvas.requestRenderAll(); }
     }
 
     function updateTextScales(zoom) {
@@ -1755,11 +1820,11 @@ if ($filePath !== '') {
             // Asegurar que las transformaciones no deseadas estén bloqueadas
             obj.set({ lockRotation: true, lockScalingX: true, lockScalingY: true });
             
-            // Si estamos arrastrando un control, bloquear el movimiento del objeto
-            if (isDraggingControl) {
+            // Si estamos en modo de edición (doble clic en vértice), bloquear movimiento del objeto
+            if (isDraggingControl && controlEditMode) {
                 obj.set({ lockMovementX: true, lockMovementY: true });
             } else {
-                // Si no es un control, permitir movimiento del objeto
+                // Si no es modo de edición, permitir movimiento del objeto
                 obj.set({ lockMovementX: false, lockMovementY: false });
             }
         }
@@ -1768,10 +1833,20 @@ if ($filePath !== '') {
     // Detectar cuando se está modificando (durante el arrastre)
     canvas.on('object:modifying', function(e) {
         const obj = e.target;
-        if (obj && obj.isMeasureLine && isDraggingControl) {
-            // Actualizar la etiqueta de medición en tiempo real mientras se arrastra un control
-            // Solo si realmente estamos arrastrando un control, no cuando se mueve el objeto
-            updateMeasureLabel(obj);
+        if (obj && obj.isMeasureLine && isDraggingControl && controlEditMode) {
+            // Cancelar renderizado anterior si existe
+            if (renderAnimationFrame) {
+                cancelAnimationFrame(renderAnimationFrame);
+            }
+            
+            // Usar requestAnimationFrame para renderizado suave sin trazos impresos
+            renderAnimationFrame = requestAnimationFrame(() => {
+                // Actualizar la etiqueta de medición en tiempo real mientras se arrastra un control
+                updateMeasureLabel(obj);
+                // Usar requestRenderAll para renderizado suave
+                canvas.requestRenderAll();
+                renderAnimationFrame = null;
+            });
         }
     });
     
@@ -1779,14 +1854,29 @@ if ($filePath !== '') {
     canvas.on('object:modified', function(e) {
         const obj = e.target;
         if (obj && obj.isMeasureLine) {
-            // Actualizar la etiqueta final
-            updateMeasureLabel(obj);
+            // Cancelar cualquier renderizado pendiente
+            if (renderAnimationFrame) {
+                cancelAnimationFrame(renderAnimationFrame);
+                renderAnimationFrame = null;
+            }
+            
+            // Actualizar la etiqueta final con renderizado suave
+            requestAnimationFrame(() => {
+                updateMeasureLabel(obj);
+                canvas.requestRenderAll();
+            });
+            
             // Restaurar el movimiento del objeto después de modificar
             obj.set({ lockMovementX: false, lockMovementY: false });
+            
             // Guardar en historial si fue una modificación de control
-            if (isDraggingControl) {
+            if (isDraggingControl && controlEditMode) {
                 saveHistory();
             }
+            
+            // Resetear estado de edición
+            controlEditMode = false;
+            activeControlPoint = null;
             isDraggingControl = false;
             controlDragStart = null;
         }
