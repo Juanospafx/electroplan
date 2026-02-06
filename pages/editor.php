@@ -848,6 +848,10 @@ if ($filePath !== '') {
     const DOUBLE_TAP_DELAY = 400;
 
     // --- CUSTOM CONTROLS FOR LINES (POSITION HANDLER FIXED) ---
+    // Variable para rastrear si estamos manipulando un control
+    let isDraggingControl = false;
+    let controlDragStart = null;
+    
     function createLineControls(line) {
         function linePositionHandler(pointName) {
             return function(dim, finalMatrix, fabricObject) {
@@ -856,9 +860,17 @@ if ($filePath !== '') {
                 return fabric.util.transformPoint(pt, finalMatrix);
             };
         }
+        
         function lineActionHandler(pointName) {
             return function(e, transform, x, y) {
                 const target = transform.target;
+                
+                // Verificar que realmente estamos manipulando un control
+                // Si el objeto se está moviendo (no solo el control), cancelar
+                if (target.isMoving || (!isDraggingControl && !controlDragStart)) {
+                    return false;
+                }
+                
                 let localPoint = null;
                 if (fabric.controlsUtils && typeof fabric.controlsUtils.getLocalPoint === 'function') {
                     localPoint = fabric.controlsUtils.getLocalPoint(transform, target.originX || 'center', target.originY || 'center', x, y);
@@ -872,9 +884,45 @@ if ($filePath !== '') {
                 return true;
             };
         }
+        
+        // Crear controles con área de detección más precisa
+        const controlSize = 20; // Tamaño del área de detección del control (más grande para facilitar el clic)
+        
+        // Función para verificar si el clic fue sobre un control
+        function isControlClick(opt) {
+            if (!opt.target || !opt.target.isMeasureLine) return false;
+            if (!opt.control) return false;
+            return opt.control === 'p1' || opt.control === 'p2';
+        }
+        
         line.controls = {
-            p1: new fabric.Control({ positionHandler: linePositionHandler('p1'), actionHandler: lineActionHandler('p1'), cursorStyle: 'crosshair', render: renderCircleControl }),
-            p2: new fabric.Control({ positionHandler: linePositionHandler('p2'), actionHandler: lineActionHandler('p2'), cursorStyle: 'crosshair', render: renderCircleControl })
+            p1: new fabric.Control({ 
+                positionHandler: linePositionHandler('p1'), 
+                actionHandler: lineActionHandler('p1'), 
+                cursorStyle: 'crosshair', 
+                render: renderCircleControl,
+                sizeX: controlSize,
+                sizeY: controlSize,
+                // Asegurar que el control solo se active cuando se hace clic directamente sobre él
+                mouseUpHandler: function(e, transformData, x, y) {
+                    isDraggingControl = false;
+                    controlDragStart = null;
+                    return true;
+                }
+            }),
+            p2: new fabric.Control({ 
+                positionHandler: linePositionHandler('p2'), 
+                actionHandler: lineActionHandler('p2'), 
+                cursorStyle: 'crosshair', 
+                render: renderCircleControl,
+                sizeX: controlSize,
+                sizeY: controlSize,
+                mouseUpHandler: function(e, transformData, x, y) {
+                    isDraggingControl = false;
+                    controlDragStart = null;
+                    return true;
+                }
+            })
         };
     }
 
@@ -894,7 +942,11 @@ if ($filePath !== '') {
             lockRotation: true, lockScalingX: true, lockScalingY: true,
             borderColor: '#22c55e', cornerColor: 'transparent', hasBorders: false, hasControls: true
         });
-        if (obj.isMeasureLine) createLineControls(obj);
+        if (obj.isMeasureLine) {
+            createLineControls(obj);
+            // Asegurar que el objeto puede moverse normalmente cuando no se está manipulando un control
+            obj.set({ lockMovementX: false, lockMovementY: false });
+        }
     }
 
     function unlockObject(obj) {
@@ -1394,6 +1446,34 @@ if ($filePath !== '') {
     canvas.on('mouse:down', function(opt) {
         const evt = opt.e;
         const now = new Date().getTime();
+        
+        // Verificar si el clic fue sobre un control de una línea de medida
+        // Solo activar controles si el clic fue directamente sobre ellos
+        isDraggingControl = false;
+        if (opt.target && opt.target.isMeasureLine) {
+            // Verificar si hay un control activo
+            const activeControl = opt.control;
+            if (activeControl && (activeControl === 'p1' || activeControl === 'p2')) {
+                // El clic fue directamente sobre un control
+                isDraggingControl = true;
+                controlDragStart = { 
+                    x: evt.clientX || (evt.touches && evt.touches[0].clientX), 
+                    y: evt.clientY || (evt.touches && evt.touches[0].clientY) 
+                };
+                // Prevenir que el objeto se mueva cuando arrastramos un control
+                if (opt.target) {
+                    opt.target.set({ lockMovementX: true, lockMovementY: true });
+                }
+            } else {
+                // El clic fue sobre el cuerpo de la línea, no sobre un control
+                // Permitir mover la línea sin activar los controles
+                isDraggingControl = false;
+                if (opt.target) {
+                    opt.target.set({ lockMovementX: false, lockMovementY: false });
+                }
+            }
+        }
+        
         if (opt.target && currentMode === 'smart') {
             if (lastTapTarget === opt.target && (now - lastTapTime < DOUBLE_TAP_DELAY)) {
                 unlockObject(opt.target);
@@ -1458,6 +1538,16 @@ if ($filePath !== '') {
     canvas.on('mouse:up', function(opt) {
         this.setViewportTransform(this.viewportTransform);
         this.isDragging = false;
+        
+        // Resetear el estado de arrastre de control y restaurar movimiento del objeto
+        if (isDraggingControl && opt.target && opt.target.isMeasureLine) {
+            // Restaurar el movimiento del objeto
+            opt.target.set({ lockMovementX: false, lockMovementY: false });
+        }
+        
+        isDraggingControl = false;
+        controlDragStart = null;
+        
         if (currentMode === 'smart') this.selection = true;
         if(this.isDrawingModeWasOn) { canvas.isDrawingMode = true; this.isDrawingModeWasOn = false; }
         if (lineState === 1 && activeLine) {
@@ -1631,7 +1721,31 @@ if ($filePath !== '') {
 
     canvas.on('selection:created', handleSelectionChange);
     canvas.on('selection:updated', handleSelectionChange);
-    canvas.on('selection:cleared', handleSelectionChange); 
+    canvas.on('selection:cleared', handleSelectionChange);
+    
+    // Interceptar transformaciones para verificar si estamos manipulando un control
+    canvas.on('before:transform', function(e) {
+        const obj = e.target;
+        if (obj && obj.isMeasureLine) {
+            // Si no estamos arrastrando un control específicamente, prevenir la transformación
+            // y permitir solo el movimiento del objeto
+            if (!isDraggingControl) {
+                // Permitir movimiento pero prevenir otras transformaciones
+                obj.set({ lockRotation: true, lockScalingX: true, lockScalingY: true });
+            }
+        }
+    });
+    
+    // Detectar cuando se completa una transformación para restaurar el estado
+    canvas.on('object:modified', function(e) {
+        const obj = e.target;
+        if (obj && obj.isMeasureLine) {
+            // Restaurar el movimiento del objeto después de modificar un control
+            obj.set({ lockMovementX: false, lockMovementY: false });
+            isDraggingControl = false;
+            controlDragStart = null;
+        }
+    }); 
 
     window.addEventListener('keydown', e => {
         if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); undo(); }
