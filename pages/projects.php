@@ -208,7 +208,7 @@ include __DIR__ . '/../views/header.php';
                     <div class="proj-meta mb-2">Assigned: <?= htmlspecialchars($p['assigned_name'] ?: 'Unassigned') ?></div>
                     <div class="proj-meta mb-3">Created: <?= date('M d, Y', strtotime($p['created_at'])) ?> ?? <?= $p['file_count'] ?> Files</div>
                     <div class="d-flex gap-2">
-                        <a href="index.php?project_id=<?= $p['id'] ?>" class="btn-action" title="Open"><i class="fas fa-external-link-alt"></i></a>
+                        <a href="project_dashboard.php?id=<?= $p['id'] ?>" class="btn-action" title="Open"><i class="fas fa-external-link-alt"></i></a>
                         <?php if($isAdmin): ?>
                             <a class="btn-action" href="project_create.php?id=<?= (int)$p['id'] ?>" title="Edit"><i class="fas fa-pen"></i></a>
                             <button class="btn-action" onclick="openAssignModal(<?= $p['id'] ?>, '<?= addslashes($p['name']) ?>')" title="Assign User"><i class="fas fa-user-plus"></i></button>
