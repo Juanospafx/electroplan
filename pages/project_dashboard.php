@@ -76,6 +76,7 @@ include __DIR__ . '/../views/header.php';
             <?php if($_SESSION['role'] === 'admin'): ?>
                 <a href="project_create.php?id=<?= (int)$projectId ?>" class="btn btn-outline-secondary btn-sm rounded-pill"><i class="fas fa-edit me-2"></i>Edit Info</a>
                 <button class="btn btn-outline-info btn-sm rounded-pill" onclick="openAssignUsersModal()"><i class="fas fa-user-plus me-2"></i>Assign Users</button>
+                <button class="btn btn-outline-light btn-sm rounded-pill" onclick="openNewFolderModal()"><i class="fas fa-folder-plus me-2"></i>Add Folder</button>
             <?php endif; ?>
             <button class="btn btn-primary rounded-pill btn-sm px-4" onclick="openUploadModal()"><i class="fas fa-cloud-upload-alt me-2"></i> Upload File</button>
         </div>
@@ -265,6 +266,26 @@ include __DIR__ . '/../views/header.php';
 <?php include __DIR__ . '/../views/modals.php'; ?>
 
 <?php if(($_SESSION['role'] ?? '') === 'admin'): ?>
+<div class="modal fade" id="newFolderModalDash" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content p-3">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold">Add Folder</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="newFolderFormDash">
+                <div class="modal-body">
+                    <label class="text-gray small mb-2">Folder Name</label>
+                    <input type="text" name="name" class="form-control" required>
+                </div>
+                <div class="modal-footer">
+                    <button type="submit" class="btn-main w-100">Create</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <div class="modal fade" id="assignUsersModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content p-3">
@@ -350,6 +371,28 @@ include __DIR__ . '/../views/header.php';
                 .then(d => {
                     if (d.status === 'success') location.reload();
                     else alert('Error assigning users: ' + (d.msg || 'Unknown'));
+                })
+                .catch(() => alert('Connection error'));
+        });
+    }
+
+    function openNewFolderModal() {
+        const modalEl = document.getElementById('newFolderModalDash');
+        if (!modalEl) return;
+        new bootstrap.Modal(modalEl).show();
+    }
+    const newFolderFormDash = document.getElementById('newFolderFormDash');
+    if (newFolderFormDash) {
+        newFolderFormDash.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const fd = new FormData(this);
+            fd.append('action', 'create_folder');
+            fd.append('project_id', pId);
+            fetch('../api/api.php', { method:'POST', body: fd })
+                .then(r => r.json())
+                .then(d => {
+                    if (d.status === 'success') location.reload();
+                    else alert('Error creating folder: ' + (d.msg || 'Unknown'));
                 })
                 .catch(() => alert('Connection error'));
         });
