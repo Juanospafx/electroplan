@@ -81,28 +81,47 @@ try {
     $selectedIds = array_values(array_unique($selectedIds));
     $assignedUserId = !empty($adminSelectedIds) ? (int)$adminSelectedIds[0] : $creatorId;
 
-    $sql = "INSERT INTO projects (
-        name, description, address, notes,
-        contact_name, contact_phone, 
-        company_name, company_phone, company_address,
-        date_bid_sent, date_bid_awarded, date_started, date_finished, date_warranty_end,
-        created_by, assigned_user_id, status, created_at
-    ) VALUES (
-        ?, ?, ?, ?,
-        ?, ?, 
-        ?, ?, ?,
-        ?, ?, ?, ?, ?,
-        ?, ?, 'Active', NOW()
-    )";
+    // Insert dinámico según columnas existentes
+    $cols = $pdo->query("DESCRIBE projects")->fetchAll(PDO::FETCH_COLUMN);
+    $insertCols = [];
+    $placeholders = [];
+    $params = [];
 
+    $fieldMap = [
+        'name' => $name,
+        'description' => $notes,
+        'address' => $address,
+        'notes' => $notes,
+        'contact_name' => $contactName,
+        'contact_phone' => $contactPhone,
+        'company_name' => $companyName,
+        'company_phone' => $companyPhone,
+        'company_address' => $companyAddress,
+        'date_bid_sent' => $dates['date_bid_sent'],
+        'date_bid_awarded' => $dates['date_bid_awarded'],
+        'date_started' => $dates['date_started'],
+        'date_finished' => $dates['date_finished'],
+        'date_warranty_end' => $dates['date_warranty_end'],
+        'created_by' => $creatorId,
+        'assigned_user_id' => $assignedUserId,
+        'status' => 'Active'
+    ];
+
+    foreach ($fieldMap as $col => $val) {
+        if (in_array($col, $cols, true)) {
+            $insertCols[] = $col;
+            $placeholders[] = '?';
+            $params[] = $val;
+        }
+    }
+    if (in_array('created_at', $cols, true)) {
+        $insertCols[] = 'created_at';
+        $placeholders[] = 'NOW()';
+    }
+
+    $sql = "INSERT INTO projects (" . implode(', ', $insertCols) . ") VALUES (" . implode(', ', $placeholders) . ")";
     $stmt = $pdo->prepare($sql);
-    $stmt->execute([
-        $name, $notes, $address, $notes, // Usamos notes como descripción también
-        $contactName, $contactPhone,
-        $companyName, $companyPhone, $companyAddress,
-        $dates['date_bid_sent'], $dates['date_bid_awarded'], $dates['date_started'], $dates['date_finished'], $dates['date_warranty_end'],
-        $creatorId, $assignedUserId
-    ]);
+    $stmt->execute($params);
 
     $projectId = $pdo->lastInsertId();
 
