@@ -6,13 +6,24 @@ require_once __DIR__ . '/../core/time.php';
 
 $userName = $_SESSION['username'];
 
-$stmt = $pdo->query("
+$q = trim($_GET['q'] ?? '');
+$where = "f.deleted_at IS NULL";
+$params = [];
+if ($q !== '') {
+    $where .= " AND (f.filename LIKE ? OR p.name LIKE ?)";
+    $like = '%' . $q . '%';
+    $params[] = $like;
+    $params[] = $like;
+}
+
+$stmt = $pdo->prepare("
     SELECT f.*, p.name AS project_name
     FROM files f
     LEFT JOIN projects p ON f.project_id = p.id
-    WHERE f.deleted_at IS NULL
+    WHERE $where
     ORDER BY f.uploaded_at DESC
 ");
+$stmt->execute($params);
 $files = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 $pageTitle = "Files | Brightronix";
@@ -66,6 +77,10 @@ include __DIR__ . '/../views/header.php';
             <h2 class="fw-bold mb-1">Uploaded Files</h2>
             <p class="text-gray mb-0">All files currently stored in the system.</p>
         </div>
+        <form class="d-flex gap-2" method="get" action="archivos.php">
+            <input type="text" name="q" class="form-control form-control-sm" style="max-width:240px" placeholder="Search file or project..." value="<?= htmlspecialchars($q) ?>">
+            <button class="btn btn-outline-light btn-sm rounded-pill px-3" type="submit"><i class="fas fa-search"></i></button>
+        </form>
     </div>
 
     <div class="table-responsive">
