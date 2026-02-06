@@ -865,12 +865,13 @@ if ($filePath !== '') {
             return function(e, transform, x, y) {
                 const target = transform.target;
                 
-                // Verificar que realmente estamos manipulando un control
-                // Si el objeto se está moviendo (no solo el control), cancelar
-                if (target.isMoving || (!isDraggingControl && !controlDragStart)) {
+                // Si el objeto está en modo "moving" (movimiento libre), no permitir modificar controles
+                // Esto evita conflictos cuando se mueve el objeto completo
+                if (target.isMoving && !isDraggingControl) {
                     return false;
                 }
                 
+                // Estamos manipulando un control - permitir la acción
                 let localPoint = null;
                 if (fabric.controlsUtils && typeof fabric.controlsUtils.getLocalPoint === 'function') {
                     localPoint = fabric.controlsUtils.getLocalPoint(transform, target.originX || 'center', target.originY || 'center', x, y);
@@ -879,8 +880,20 @@ if ($filePath !== '') {
                     localPoint = target.toLocalPoint(pt, target.originX || 'center', target.originY || 'center');
                 }
                 if (!localPoint) return false;
-                if (pointName === 'p1') { target.set({ x1: localPoint.x, y1: localPoint.y }); } else { target.set({ x2: localPoint.x, y2: localPoint.y }); }
+                
+                // Actualizar las coordenadas del punto correspondiente
+                if (pointName === 'p1') { 
+                    target.set({ x1: localPoint.x, y1: localPoint.y }); 
+                } else { 
+                    target.set({ x2: localPoint.x, y2: localPoint.y }); 
+                }
+                
+                // Forzar actualización de coordenadas antes de actualizar la etiqueta
+                target.setCoords();
+                
+                // Actualizar la etiqueta de medición inmediatamente
                 updateMeasureLabel(target);
+                
                 return true;
             };
         }
@@ -1343,20 +1356,30 @@ if ($filePath !== '') {
         const p2 = fabric.util.transformPoint(new fabric.Point(points.x2, points.y2), matrix);
         const distPx = Math.hypot(p2.x - p1.x, p2.y - p1.y);
         let textVal = "";
-        if (pixelsPerFoot > 0) { const feet = distPx / pixelsPerFoot; textVal = feet.toFixed(2) + " ft"; } 
-        else { textVal = Math.round(distPx) + " px"; }
+        if (pixelsPerFoot > 0) { 
+            const feet = distPx / pixelsPerFoot; 
+            textVal = feet.toFixed(2) + " ft"; 
+        } else { 
+            textVal = Math.round(distPx) + " px"; 
+        }
         line.label.set({ text: textVal });
         const midX = (p1.x + p2.x) / 2;
         const midY = (p1.y + p2.y) / 2;
         line.label.set({ left: midX, top: midY - 15 });
-        line.setCoords(); line.label.setCoords();
+        line.setCoords(); 
+        line.label.setCoords();
+        // Forzar renderizado para ver cambios en tiempo real
+        canvas.requestRenderAll();
     }
 
     canvas.on('object:moving', function(e) {
         const obj = e.target;
         if (obj.isMeasureLine && obj.label) {
+            // Cuando se mueve el objeto completo, solo actualizar posición de la etiqueta
+            // No actualizar el valor porque la distancia no cambia
             const center = obj.getCenterPoint();
             obj.label.set({ left: center.x, top: center.y - 15 });
+            obj.label.setCoords();
         }
     });
 
@@ -1449,29 +1472,31 @@ if ($filePath !== '') {
         
         // Verificar si el clic fue sobre un control de una línea de medida
         // Solo activar controles si el clic fue directamente sobre ellos
-        isDraggingControl = false;
         if (opt.target && opt.target.isMeasureLine) {
             // Verificar si hay un control activo
             const activeControl = opt.control;
             if (activeControl && (activeControl === 'p1' || activeControl === 'p2')) {
-                // El clic fue directamente sobre un control
+                // El clic fue directamente sobre un control - activar modo de arrastre de control
                 isDraggingControl = true;
                 controlDragStart = { 
                     x: evt.clientX || (evt.touches && evt.touches[0].clientX), 
                     y: evt.clientY || (evt.touches && evt.touches[0].clientY) 
                 };
                 // Prevenir que el objeto se mueva cuando arrastramos un control
-                if (opt.target) {
-                    opt.target.set({ lockMovementX: true, lockMovementY: true });
-                }
+                opt.target.set({ lockMovementX: true, lockMovementY: true });
+                // Asegurar que el objeto no esté en modo "moving"
+                opt.target.isMoving = false;
             } else {
                 // El clic fue sobre el cuerpo de la línea, no sobre un control
                 // Permitir mover la línea sin activar los controles
                 isDraggingControl = false;
-                if (opt.target) {
-                    opt.target.set({ lockMovementX: false, lockMovementY: false });
-                }
+                controlDragStart = null;
+                opt.target.set({ lockMovementX: false, lockMovementY: false });
             }
+        } else {
+            // No es una línea de medida, resetear estado
+            isDraggingControl = false;
+            controlDragStart = null;
         }
         
         if (opt.target && currentMode === 'smart') {
@@ -1727,12 +1752,26 @@ if ($filePath !== '') {
     canvas.on('before:transform', function(e) {
         const obj = e.target;
         if (obj && obj.isMeasureLine) {
-            // Si no estamos arrastrando un control específicamente, prevenir la transformación
-            // y permitir solo el movimiento del objeto
-            if (!isDraggingControl) {
-                // Permitir movimiento pero prevenir otras transformaciones
-                obj.set({ lockRotation: true, lockScalingX: true, lockScalingY: true });
+            // Asegurar que las transformaciones no deseadas estén bloqueadas
+            obj.set({ lockRotation: true, lockScalingX: true, lockScalingY: true });
+            
+            // Si estamos arrastrando un control, bloquear el movimiento del objeto
+            if (isDraggingControl) {
+                obj.set({ lockMovementX: true, lockMovementY: true });
+            } else {
+                // Si no es un control, permitir movimiento del objeto
+                obj.set({ lockMovementX: false, lockMovementY: false });
             }
+        }
+    });
+    
+    // Detectar cuando se está modificando (durante el arrastre)
+    canvas.on('object:modifying', function(e) {
+        const obj = e.target;
+        if (obj && obj.isMeasureLine && isDraggingControl) {
+            // Actualizar la etiqueta de medición en tiempo real mientras se arrastra un control
+            // Solo si realmente estamos arrastrando un control, no cuando se mueve el objeto
+            updateMeasureLabel(obj);
         }
     });
     
@@ -1740,8 +1779,14 @@ if ($filePath !== '') {
     canvas.on('object:modified', function(e) {
         const obj = e.target;
         if (obj && obj.isMeasureLine) {
-            // Restaurar el movimiento del objeto después de modificar un control
+            // Actualizar la etiqueta final
+            updateMeasureLabel(obj);
+            // Restaurar el movimiento del objeto después de modificar
             obj.set({ lockMovementX: false, lockMovementY: false });
+            // Guardar en historial si fue una modificación de control
+            if (isDraggingControl) {
+                saveHistory();
+            }
             isDraggingControl = false;
             controlDragStart = null;
         }
