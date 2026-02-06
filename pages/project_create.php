@@ -9,11 +9,33 @@ if ($_SESSION['role'] !== 'admin') {
     exit;
 }
 
+$editId = (int)($_GET['id'] ?? 0);
+$isEdit = $editId > 0;
+
+$project = [];
+if ($isEdit) {
+    $stmtProj = $pdo->prepare("SELECT * FROM projects WHERE id = ? AND deleted_at IS NULL");
+    $stmtProj->execute([$editId]);
+    $project = $stmtProj->fetch(PDO::FETCH_ASSOC) ?: [];
+    if (empty($project)) { header("Location: index.php"); exit; }
+}
+
 $createUsers = [];
 $stmtUsers = $pdo->query("SELECT id, username, role FROM users ORDER BY username ASC");
 $createUsers = $stmtUsers->fetchAll(PDO::FETCH_ASSOC);
 
-$pageTitle = "Create New Project";
+$projectDesc = $project['description'] ?? '';
+if ($projectDesc === '' && !empty($project['notes'])) $projectDesc = $project['notes'];
+$projectNotes = $project['notes'] ?? '';
+if ($projectNotes === '' && !empty($project['description'])) $projectNotes = $project['description'];
+$projectAddress = $project['address'] ?? ($project['job_address'] ?? '');
+$projectContactName = $project['contact_name'] ?? ($project['site_contact_name'] ?? '');
+$projectContactPhone = $project['contact_phone'] ?? ($project['site_contact_phone'] ?? '');
+$projectCompanyName = $project['company_name'] ?? ($project['gc_company'] ?? '');
+$projectCompanyPhone = $project['company_phone'] ?? ($project['office_phone'] ?? '');
+$projectCompanyAddress = $project['company_address'] ?? ($project['hq_address'] ?? '');
+
+$pageTitle = $isEdit ? "Edit Project" : "Create New Project";
 include __DIR__ . '/../views/header.php'; 
 ?>
 
@@ -114,11 +136,15 @@ include __DIR__ . '/../views/header.php';
 <div class="main-content p-3">
     
     <div class="d-flex justify-content-between align-items-center mb-3">
-        <h5 class="fw-bold text-white mb-0">Create Project</h5>
-        <a href="index.php" class="text-gray text-decoration-none small hover-white"><i class="fas fa-times me-1"></i> Cancel</a>
+        <h5 class="fw-bold text-white mb-0"><?= $isEdit ? 'Edit Project' : 'Create Project' ?></h5>
+        <a href="<?= $isEdit ? 'project_dashboard.php?id=' . (int)$editId : 'index.php' ?>" class="text-gray text-decoration-none small hover-white"><i class="fas fa-times me-1"></i> Cancel</a>
     </div>
 
     <form id="createProjectForm">
+        <input type="hidden" name="is_edit" value="<?= $isEdit ? '1' : '0' ?>">
+        <?php if($isEdit): ?>
+            <input type="hidden" name="project_id" value="<?= (int)$editId ?>">
+        <?php endif; ?>
         <div class="row g-3">
             
             <div class="col-lg-8">
@@ -131,15 +157,15 @@ include __DIR__ . '/../views/header.php';
                     <div class="row g-2">
                         <div class="col-md-8">
                             <label class="form-label">Project Name *</label>
-                            <input type="text" name="project_name" class="form-control" required placeholder="Project Title">
+                            <input type="text" name="project_name" class="form-control" required placeholder="Project Title" value="<?= htmlspecialchars($project['name'] ?? '') ?>">
                         </div>
                         <div class="col-md-4">
                             <label class="form-label">Job Address</label>
-                            <input type="text" name="address" class="form-control" placeholder="City, State">
+                            <input type="text" name="address" class="form-control" placeholder="City, State" value="<?= htmlspecialchars($projectAddress) ?>">
                         </div>
                         <div class="col-12">
                             <label class="form-label">Description</label>
-                            <textarea name="notes" class="form-control" rows="2" placeholder="Brief scope..."></textarea>
+                            <textarea name="notes" class="form-control" rows="2" placeholder="Brief scope..."><?= htmlspecialchars($projectNotes) ?></textarea>
                         </div>
                     </div>
                 </div>
@@ -152,26 +178,26 @@ include __DIR__ . '/../views/header.php';
                     <div class="row g-2">
                         <div class="col-md-6">
                             <label class="form-label text-white opacity-75">Site Contact Name</label>
-                            <input type="text" name="contact_name" class="form-control" placeholder="Name">
+                            <input type="text" name="contact_name" class="form-control" placeholder="Name" value="<?= htmlspecialchars($projectContactName) ?>">
                         </div>
                         <div class="col-md-6">
                             <label class="form-label text-white opacity-75">Site Contact Phone</label>
-                            <input type="text" name="contact_phone" class="form-control" placeholder="Phone">
+                            <input type="text" name="contact_phone" class="form-control" placeholder="Phone" value="<?= htmlspecialchars($projectContactPhone) ?>">
                         </div>
                         
                         <div class="col-12"><div style="border-top:1px dashed rgba(255,255,255,0.05); margin: 5px 0;"></div></div>
 
                         <div class="col-md-4">
                             <label class="form-label text-warning opacity-75">Company (GC)</label>
-                            <input type="text" name="company_name" class="form-control" placeholder="Company">
+                            <input type="text" name="company_name" class="form-control" placeholder="Company" value="<?= htmlspecialchars($projectCompanyName) ?>">
                         </div>
                         <div class="col-md-4">
                             <label class="form-label text-warning opacity-75">Office Phone</label>
-                            <input type="text" name="company_phone" class="form-control" placeholder="Phone">
+                            <input type="text" name="company_phone" class="form-control" placeholder="Phone" value="<?= htmlspecialchars($projectCompanyPhone) ?>">
                         </div>
                         <div class="col-md-4">
                             <label class="form-label text-warning opacity-75">HQ Address</label>
-                            <input type="text" name="company_address" class="form-control" placeholder="Address">
+                            <input type="text" name="company_address" class="form-control" placeholder="Address" value="<?= htmlspecialchars($projectCompanyAddress) ?>">
                         </div>
                     </div>
                 </div>
@@ -203,23 +229,23 @@ include __DIR__ . '/../views/header.php';
                     <div class="row g-2">
                         <div class="col-4 col-md-2">
                             <label class="form-label">Bid Sent</label>
-                            <input type="date" name="date_bid_send" class="form-control">
+                            <input type="date" name="date_bid_send" class="form-control" value="<?= htmlspecialchars($project['date_bid_sent'] ?? '') ?>">
                         </div>
                         <div class="col-4 col-md-2">
                             <label class="form-label">Awarded</label>
-                            <input type="date" name="date_bid_awarded" class="form-control">
+                            <input type="date" name="date_bid_awarded" class="form-control" value="<?= htmlspecialchars($project['date_bid_awarded'] ?? '') ?>">
                         </div>
                         <div class="col-4 col-md-2">
                             <label class="form-label">Start</label>
-                            <input type="date" name="date_started" class="form-control">
+                            <input type="date" name="date_started" class="form-control" value="<?= htmlspecialchars($project['date_started'] ?? '') ?>">
                         </div>
                         <div class="col-6 col-md-3">
                             <label class="form-label">Target Finish</label>
-                            <input type="date" name="date_finished" class="form-control">
+                            <input type="date" name="date_finished" class="form-control" value="<?= htmlspecialchars($project['date_finished'] ?? '') ?>">
                         </div>
                         <div class="col-6 col-md-3">
                             <label class="form-label">Warranty End</label>
-                            <input type="date" name="date_warranty_end" class="form-control">
+                            <input type="date" name="date_warranty_end" class="form-control" value="<?= htmlspecialchars($project['date_warranty_end'] ?? '') ?>">
                         </div>
                     </div>
                 </div>
@@ -296,7 +322,7 @@ include __DIR__ . '/../views/header.php';
 
                     <div class="mt-3">
                         <button type="submit" class="btn btn-create-submit w-100 py-2">
-                            <i class="fas fa-rocket me-2"></i> Create Project
+                            <i class="fas <?= $isEdit ? 'fa-save' : 'fa-rocket' ?> me-2"></i> <?= $isEdit ? 'Save Changes' : 'Create Project' ?>
                         </button>
                     </div>
                 </div>
@@ -323,6 +349,28 @@ document.getElementById('createProjectForm').addEventListener('submit', function
     btn.disabled = true;
 
     const fd = new FormData(this);
+    const isEdit = this.querySelector('input[name="is_edit"]')?.value === '1';
+    if (isEdit) {
+        fd.append('action', 'update_project_info');
+        fetch('../api/api.php', { method: 'POST', body: fd })
+            .then(r => r.json())
+            .then(res => {
+                if(res.status === 'success') {
+                    window.location.href = 'project_dashboard.php?id=' + fd.get('project_id');
+                } else {
+                    alert('Error: ' + res.msg);
+                    btn.innerHTML = original;
+                    btn.disabled = false;
+                }
+            })
+            .catch(() => {
+                alert('Connection Error');
+                btn.innerHTML = original;
+                btn.disabled = false;
+            });
+        return;
+    }
+
     fetch('../api/create_project.php', { method: 'POST', body: fd })
         .then(r => r.json())
         .then(res => {
@@ -334,7 +382,7 @@ document.getElementById('createProjectForm').addEventListener('submit', function
                 btn.disabled = false;
             }
         })
-        .catch(err => {
+        .catch(() => {
             alert('Connection Error');
             btn.innerHTML = original;
             btn.disabled = false;
