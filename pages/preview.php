@@ -31,19 +31,30 @@ $annotations = (empty($latestJson) || $latestJson === 'null') ? '{}' : $latestJs
 // 4. Determinar extension
 $fileExt = strtolower(pathinfo($file['filename'], PATHINFO_EXTENSION));
 if ($fileExt === '' && !empty($file['file_type'])) {
-    $fileExt = strtolower($file['file_type']);
-}
-// 5. Ajustar ruta publica si el archivo quedo en api/uploads por refactor previo
-$filePath = $file['filepath'];
-if (strpos($filePath, 'uploads/') === 0) {
-    $expected = __DIR__ . '/../' . $filePath;
-    $legacy = __DIR__ . '/../api/' . $filePath;
-    if (!file_exists($expected) && file_exists($legacy)) {
-        $filePath = 'api/' . $filePath;
+    $ft = strtolower($file['file_type']);
+    if (strpos($ft, '/') !== false) {
+        $fileExt = substr($ft, strrpos($ft, '/') + 1);
+    } else {
+        $fileExt = $ft;
     }
 }
-if (strpos($filePath, 'uploads/') === 0 || strpos($filePath, 'api/uploads/') === 0) {
-    $filePath = '../' . $filePath;
+// 5. Normalizar ruta publica
+$filePath = str_replace('\\', '/', (string)($file['filepath'] ?? ''));
+if ($filePath !== '') {
+    // Si es ruta absoluta, recortar desde uploads/
+    if (preg_match('~(api/)?uploads/[^\\s]+$~', $filePath, $m)) {
+        $filePath = $m[0];
+    }
+    if (strpos($filePath, 'uploads/') === 0) {
+        $expected = __DIR__ . '/../' . $filePath;
+        $legacy = __DIR__ . '/../api/' . $filePath;
+        if (!file_exists($expected) && file_exists($legacy)) {
+            $filePath = 'api/' . $filePath;
+        }
+    }
+    if (strpos($filePath, 'uploads/') === 0 || strpos($filePath, 'api/uploads/') === 0) {
+        $filePath = '../' . $filePath;
+    }
 }
 ?>
 <!DOCTYPE html>

@@ -32,16 +32,29 @@ $lastReport = $stmtRep->fetchColumn();
 $annotations = ($lastReport && $lastReport !== 'null') ? $lastReport : '{}';
 
 $fileExt = strtolower(pathinfo($file['filename'], PATHINFO_EXTENSION));
-$filePath = $file['filepath'];
-if (strpos($filePath, 'uploads/') === 0) {
-    $expected = __DIR__ . '/../' . $filePath;
-    $legacy = __DIR__ . '/../api/' . $filePath;
-    if (!file_exists($expected) && file_exists($legacy)) {
-        $filePath = 'api/' . $filePath;
+if ($fileExt === '' && !empty($file['file_type'])) {
+    $ft = strtolower($file['file_type']);
+    if (strpos($ft, '/') !== false) {
+        $fileExt = substr($ft, strrpos($ft, '/') + 1);
+    } else {
+        $fileExt = $ft;
     }
 }
-if (strpos($filePath, 'uploads/') === 0 || strpos($filePath, 'api/uploads/') === 0) {
-    $filePath = '../' . $filePath;
+$filePath = str_replace('\\', '/', (string)($file['filepath'] ?? ''));
+if ($filePath !== '') {
+    if (preg_match('~(api/)?uploads/[^\\s]+$~', $filePath, $m)) {
+        $filePath = $m[0];
+    }
+    if (strpos($filePath, 'uploads/') === 0) {
+        $expected = __DIR__ . '/../' . $filePath;
+        $legacy = __DIR__ . '/../api/' . $filePath;
+        if (!file_exists($expected) && file_exists($legacy)) {
+            $filePath = 'api/' . $filePath;
+        }
+    }
+    if (strpos($filePath, 'uploads/') === 0 || strpos($filePath, 'api/uploads/') === 0) {
+        $filePath = '../' . $filePath;
+    }
 }
 ?>
 <!DOCTYPE html>
