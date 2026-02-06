@@ -202,6 +202,7 @@ include __DIR__ . '/../views/header.php';
                     </div>
                 </div>
 
+                <?php if(!$isEdit): ?>
                 <div class="box-card-compact">
                     <div class="section-header">
                         <i class="fas fa-user-plus section-icon text-success"></i>
@@ -221,6 +222,7 @@ include __DIR__ . '/../views/header.php';
                     </div>
                     <small class="text-muted d-block mt-2" style="font-size:0.7rem;">At least one admin must be assigned when selecting users.</small>
                 </div>
+                <?php endif; ?>
 
                 <div class="box-card-compact mb-0"> <div class="section-header">
                         <i class="fas fa-calendar-alt section-icon text-warning"></i>
