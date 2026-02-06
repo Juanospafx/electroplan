@@ -176,4 +176,8 @@ include __DIR__ . '/../views/header.php';
     </div>
 </main>
 
+<<<<<<< HEAD
 <?php include __DIR__ . '/../views/footer.php'; ?>
+=======
+<?php include __DIR__ . '/../views/footer.php'; ?>
+>>>>>>> Isaac_probe

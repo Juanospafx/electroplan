@@ -23,13 +23,22 @@ switch($action) {
     case 'create_project':
         if($userRole !== 'admin') { echo json_encode(['status'=>'error', 'msg'=>'Access Denied']); exit; }
         
-        $name = $_POST['name'];
-        $desc = $_POST['description'] ?? '';
+        $name = trim($_POST['name'] ?? '');
+        $desc = trim($_POST['description'] ?? '');
         $status = $_POST['status'] ?? 'Active';
         $userIds = $_POST['user_ids'] ?? [];
 
         try {
+<<<<<<< HEAD
             $selectedIds = [];
+=======
+            if ($name === '') {
+                echo json_encode(['status'=>'error', 'msg'=>'Project name required']); exit;
+            }
+
+            $selectedIds = [];
+            $adminSelectedIds = [];
+>>>>>>> Isaac_probe
             if (is_array($userIds)) {
                 foreach ($userIds as $uid) {
                     $uid = (int)$uid;
@@ -37,6 +46,7 @@ switch($action) {
                 }
                 $selectedIds = array_values(array_unique($selectedIds));
             }
+<<<<<<< HEAD
 
             $assignedUserId = (int)$userId; // creator (admin)
             $selectedIds[] = $assignedUserId;
@@ -45,11 +55,18 @@ switch($action) {
             if (!empty($selectedIds)) {
                 $in = implode(',', array_fill(0, count($selectedIds), '?'));
                 $stmtUsers = $pdo->prepare("SELECT id FROM users WHERE id IN ($in)");
+=======
+            $hasUserSelection = !empty($selectedIds);
+            if (!empty($selectedIds)) {
+                $in = implode(',', array_fill(0, count($selectedIds), '?'));
+                $stmtUsers = $pdo->prepare("SELECT id, role FROM users WHERE id IN ($in)");
+>>>>>>> Isaac_probe
                 $stmtUsers->execute($selectedIds);
                 $rows = $stmtUsers->fetchAll(PDO::FETCH_ASSOC);
                 if (count($rows) !== count($selectedIds)) {
                     echo json_encode(['status'=>'error', 'msg'=>'Invalid users']); exit;
                 }
+<<<<<<< HEAD
             }
 
             $stmt = $pdo->prepare("INSERT INTO projects (name, description, status, created_by, assigned_user_id) VALUES (?, ?, ?, ?, ?)");
@@ -62,6 +79,38 @@ switch($action) {
             }
             echo json_encode(['status'=>'success']);
         } catch(Exception $e) { echo json_encode(['status'=>'error', 'msg'=>$e->getMessage()]); }
+=======
+                foreach ($rows as $row) {
+                    if ($row['role'] === 'admin') $adminSelectedIds[] = (int)$row['id'];
+                }
+                if ($hasUserSelection && empty($adminSelectedIds)) {
+                    echo json_encode(['status'=>'error', 'msg'=>'At least one admin must be assigned']); exit;
+                }
+            }
+
+            $creatorId = (int)$userId;
+            $selectedIds[] = $creatorId;
+            $selectedIds = array_values(array_unique($selectedIds));
+            $assignedUserId = !empty($adminSelectedIds) ? (int)$adminSelectedIds[0] : $creatorId;
+
+            $pdo->beginTransaction();
+            $stmt = $pdo->prepare("INSERT INTO projects (name, description, status, created_by, assigned_user_id) VALUES (?, ?, ?, ?, ?)");
+            $stmt->execute([$name, $desc, $status, $creatorId, $assignedUserId]);
+            $projectId = (int)$pdo->lastInsertId();
+
+            if (!empty($selectedIds)) {
+                $stmtDir = $pdo->prepare("INSERT IGNORE INTO directory (project_id, user_id) VALUES (?, ?)");
+                foreach ($selectedIds as $uid) {
+                    $stmtDir->execute([$projectId, $uid]);
+                }
+            }
+            $pdo->commit();
+            echo json_encode(['status'=>'success', 'id'=>$projectId]);
+        } catch(Exception $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            echo json_encode(['status'=>'error', 'msg'=>$e->getMessage()]);
+        }
+>>>>>>> Isaac_probe
         break;
 
     // --- 1.1 ACTUALIZAR PROYECTO (ADMIN ONLY) ---
@@ -85,6 +134,7 @@ switch($action) {
         if($userRole !== 'admin') { echo json_encode(['status'=>'error', 'msg'=>'Access Denied']); exit; }
 
         $projectId = (int)($_POST['project_id'] ?? 0);
+<<<<<<< HEAD
         $userId = (int)($_POST['user_id'] ?? 0);
 
         if($projectId <= 0 || $userId <= 0) { echo json_encode(['status'=>'error', 'msg'=>'Invalid data']); exit; }
@@ -95,6 +145,18 @@ switch($action) {
 
             $stmtDir = $pdo->prepare("INSERT IGNORE INTO directory (project_id, user_id) VALUES (?, ?)");
             $stmtDir->execute([$projectId, $userId]);
+=======
+        $targetUserId = (int)($_POST['user_id'] ?? 0);
+
+        if($projectId <= 0 || $targetUserId <= 0) { echo json_encode(['status'=>'error', 'msg'=>'Invalid data']); exit; }
+
+        try {
+            $stmt = $pdo->prepare("UPDATE projects SET assigned_user_id = ? WHERE id = ?");
+            $stmt->execute([$targetUserId, $projectId]);
+
+            $stmtDir = $pdo->prepare("INSERT IGNORE INTO directory (project_id, user_id) VALUES (?, ?)");
+            $stmtDir->execute([$projectId, $targetUserId]);
+>>>>>>> Isaac_probe
 
             echo json_encode(['status'=>'success']);
         } catch(Exception $e) { echo json_encode(['status'=>'error', 'msg'=>$e->getMessage()]); }
@@ -146,7 +208,14 @@ switch($action) {
             $pdo->commit();
 
             echo json_encode(['status'=>'success']);
+<<<<<<< HEAD
         } catch(Exception $e) { echo json_encode(['status'=>'error', 'msg'=>$e->getMessage()]); }
+=======
+        } catch(Exception $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            echo json_encode(['status'=>'error', 'msg'=>$e->getMessage()]);
+        }
+>>>>>>> Isaac_probe
         break;
 
     // --- 2. CREAR CARPETA (ADMIN ONLY) ---

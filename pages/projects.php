@@ -1,5 +1,5 @@
 <?php
-// projects.php - Gestión de Proyectos V2.4 (Con Breadcrumbs y Toggle)
+// pages/projects.php - Gestión de Proyectos V2.5 (Enlazado con Nueva Creación y Layout Mejorado)
 require_once __DIR__ . '/../core/auth/session.php';
 require_once __DIR__ . '/../core/db/connection.php';
 require_once __DIR__ . '/../core/time.php';
@@ -18,7 +18,11 @@ $stmt = $pdo->query("
     SELECT p.*, u.username as creator_name, au.username as assigned_name,
     (SELECT COUNT(*) FROM files f WHERE f.project_id = p.id AND f.deleted_at IS NULL) as file_count
     FROM projects p 
+<<<<<<< HEAD
     LEFT JOIN users u ON p.created_by = u.id
+=======
+    LEFT JOIN users u ON p.created_by = u.id 
+>>>>>>> Isaac_probe
     LEFT JOIN users au ON p.assigned_user_id = au.id
     WHERE p.deleted_at IS NULL
     ORDER BY p.created_at DESC
@@ -31,7 +35,10 @@ if ($isAdmin) {
     $users = $stmtUsers->fetchAll(PDO::FETCH_ASSOC);
 }
 
+<<<<<<< HEAD
 // Configuración del Header
+=======
+>>>>>>> Isaac_probe
 $pageTitle = "Projects | Brightronix";
 include __DIR__ . '/../views/header.php';
 ?>
@@ -39,7 +46,7 @@ include __DIR__ . '/../views/header.php';
     <style>
         .table-responsive { border-radius: var(--radius-box); overflow: hidden; border: 1px solid rgba(255,255,255,0.05); }
         .table-rounded { width: 100%; border-collapse: separate; border-spacing: 0; background: var(--bg-card); }
-        .table-rounded th { background: rgba(0,0,0,0.2); color: var(--text-gray); font-weight: 600; text-transform: uppercase; font-size: 0.75rem; padding: 18px 25px; border-bottom: 1px solid rgba(255,255,255,0.05); }
+        .table-rounded th { background: rgba(0,0,0,0.2); color: var(--text-gray); font-weight: 600; text-transform: uppercase; font-size: 0.75rem; padding: 18px 25px; border-bottom: 1px solid rgba(255,255,255,0.05); white-space: nowrap; }
         .table-rounded td { padding: 20px 25px; color: white; vertical-align: middle; border-bottom: 1px solid rgba(255,255,255,0.02); }
         .table-rounded tr:last-child td { border-bottom: none; }
         .table-rounded tr:hover td { background: rgba(255,255,255,0.02); }
@@ -49,6 +56,7 @@ include __DIR__ . '/../views/header.php';
         .btn-action.delete:hover { background: #ef4444; color: white; border-color: #ef4444; }
 
         .status-badge { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; padding: 5px 10px; border-radius: 8px; letter-spacing: 0.5px; }
+<<<<<<< HEAD
 
         /* Responsive cards */
         .proj-cards { display: none; }
@@ -60,6 +68,9 @@ include __DIR__ . '/../views/header.php';
             .table-responsive { display: none; }
             .proj-cards { display: block; }
         }
+=======
+        .info-pill { background: rgba(255,255,255,0.05); padding: 4px 10px; border-radius: 5px; font-size: 0.75rem; color: var(--text-gray); display: inline-flex; align-items: center; gap: 6px; }
+>>>>>>> Isaac_probe
     </style>
 
     <main class="main-content">
@@ -89,9 +100,9 @@ include __DIR__ . '/../views/header.php';
             </div>
             
             <?php if($isAdmin): ?>
-            <button class="btn-main" onclick="openCreateModal()">
+            <a href="project_create.php" class="btn-main text-decoration-none">
                 <i class="fas fa-plus me-2"></i> New Project
-            </button>
+            </a>
             <?php endif; ?>
         </div>
 
@@ -99,12 +110,21 @@ include __DIR__ . '/../views/header.php';
             <table class="table-rounded">
                 <thead>
                     <tr>
+<<<<<<< HEAD
                         <th width="30%">Project Name</th>
                         <th width="15%">Status</th>
                         <th width="25%">Description</th>
                         <th>Assigned</th>
                         <th>Created</th>
                         <th>Files</th>
+=======
+                        <th width="35%">Project Details</th>
+                        <th width="20%">Company / Client</th>
+                        <th width="15%">Timeline</th>
+                        <th width="12%">Assigned</th>
+                        <th width="10%">Status</th>
+                        <th width="10%">Files</th>
+>>>>>>> Isaac_probe
                         <th class="text-end">Actions</th>
                     </tr>
                 </thead>
@@ -114,15 +134,37 @@ include __DIR__ . '/../views/header.php';
                     ?>
                     <tr>
                         <td>
-                            <div class="d-flex align-items-center gap-3">
-                                <div class="bg-primary bg-opacity-10 p-2 rounded text-primary">
+                            <div class="d-flex align-items-start gap-3">
+                                <div class="bg-primary bg-opacity-10 p-2 rounded text-primary mt-1">
                                     <i class="fas fa-folder"></i>
                                 </div>
                                 <div>
-                                    <div class="fw-bold"><?= htmlspecialchars($p['name']) ?></div>
-                                    <div class="small text-gray" style="font-size:0.75rem">ID: #<?= $p['id'] ?></div>
+                                    <div class="fw-bold mb-1"><?= htmlspecialchars($p['name']) ?></div>
+                                    <?php if(!empty($p['address'])): ?>
+                                        <div class="small text-gray mb-1"><i class="fas fa-map-marker-alt me-1 text-accent"></i> <?= htmlspecialchars($p['address']) ?></div>
+                                    <?php endif; ?>
+                                    <div class="small text-gray text-truncate" style="max-width: 250px; opacity:0.7"><?= htmlspecialchars($p['description'] ?: '') ?></div>
                                 </div>
                             </div>
+                        </td>
+                        <td>
+                            <?php if(!empty($p['company_name'])): ?>
+                                <div class="fw-bold small"><?= htmlspecialchars($p['company_name']) ?></div>
+                                <div class="small text-gray"><?= htmlspecialchars($p['contact_name'] ?: '') ?></div>
+                            <?php else: ?>
+                                <span class="text-muted small">Not specified</span>
+                            <?php endif; ?>
+                        </td>
+                        <td>
+                            <?php if(!empty($p['date_started'])): ?>
+                                <div class="info-pill mb-1"><i class="fas fa-play text-success" style="font-size:0.6rem"></i> <?= date('M d, Y', strtotime($p['date_started'])) ?></div>
+                            <?php endif; ?>
+                            <?php if(!empty($p['date_finished'])): ?>
+                                <div class="info-pill"><i class="fas fa-flag-checkered text-danger" style="font-size:0.6rem"></i> <?= date('M d, Y', strtotime($p['date_finished'])) ?></div>
+                            <?php endif; ?>
+                        </td>
+                        <td class="small text-gray">
+                            <?= htmlspecialchars($p['assigned_name'] ?: 'Unassigned') ?>
                         </td>
                         <td>
                             <span class="status-badge bg-<?= $stColor ?> bg-opacity-25 text-<?= $stColor ?>">
@@ -130,6 +172,7 @@ include __DIR__ . '/../views/header.php';
                             </span>
                         </td>
                         <td>
+<<<<<<< HEAD
                             <span class="text-gray"><?= htmlspecialchars($p['description'] ?: 'No description') ?></span>
                         </td>
                         <td class="small text-gray">
@@ -139,15 +182,21 @@ include __DIR__ . '/../views/header.php';
                             <?= date('M d, Y', strtotime($p['created_at'])) ?>
                         </td>
                         <td>
+=======
+>>>>>>> Isaac_probe
                             <span class="badge bg-dark border border-secondary fw-normal">
                                 <?= $p['file_count'] ?> Files
                             </span>
                         </td>
                         <td class="text-end">
-                            <a href="index.php?project_id=<?= $p['id'] ?>" class="btn-action me-1" title="Open"><i class="fas fa-external-link-alt"></i></a>
+                            <a href="project_dashboard.php?id=<?= $p['id'] ?>" class="btn-action me-1" title="Open Dashboard"><i class="fas fa-columns"></i></a>
                             
                             <?php if($isAdmin): ?>
+<<<<<<< HEAD
                                 <button class="btn-action me-1" onclick="editProject(<?= $p['id'] ?>, '<?= addslashes($p['name']) ?>', '<?= addslashes($p['description']) ?>', '<?= $p['status'] ?? 'Active' ?>')" title="Edit"><i class="fas fa-pen"></i></button>
+=======
+                                <button class="btn-action me-1" onclick="editProject(<?= $p['id'] ?>, '<?= addslashes($p['name']) ?>', '<?= addslashes($p['description']) ?>', '<?= $p['status'] ?? 'Active' ?>')" title="Quick Edit"><i class="fas fa-pen"></i></button>
+>>>>>>> Isaac_probe
                                 <button class="btn-action me-1" onclick="openAssignModal(<?= $p['id'] ?>, '<?= addslashes($p['name']) ?>')" title="Assign User"><i class="fas fa-user-plus"></i></button>
                                 <button class="btn-action delete" onclick="deleteProject(<?= $p['id'] ?>)" title="Move to Trash"><i class="fas fa-trash"></i></button>
                             <?php endif; ?>
@@ -210,7 +259,7 @@ include __DIR__ . '/../views/header.php';
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content p-3">
             <div class="modal-header">
-                <h5 class="modal-title fw-bold">Edit Project</h5>
+                <h5 class="modal-title fw-bold">Edit Project Status</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <form id="editForm">
@@ -220,7 +269,7 @@ include __DIR__ . '/../views/header.php';
                     <label class="text-gray small mb-2">Project Name</label>
                     <input type="text" name="name" id="edit_name" class="form-control mb-3" required>
                     
-                    <label class="big-body text-gray small mb-2">Status</label>
+                    <label class="text-gray small mb-2">Status</label>
                     <select name="status" id="edit_status" class="form-control mb-3">
                         <option value="Planning">Planning</option>
                         <option value="Active">Active</option>
@@ -230,6 +279,10 @@ include __DIR__ . '/../views/header.php';
 
                     <label class="text-gray small mb-2">Description</label>
                     <textarea name="description" id="edit_desc" class="form-control" rows="3"></textarea>
+                    
+                    <div class="alert alert-info mt-3 small">
+                        <i class="fas fa-info-circle me-1"></i> To edit dates and contacts, please use the "Edit Info" button inside the Project Dashboard.
+                    </div>
                 </div>
                 <div class="modal-footer">
                     <button type="submit" class="btn-main w-100">Save Changes</button>
@@ -238,27 +291,24 @@ include __DIR__ . '/../views/header.php';
         </div>
     </div>
 </div>
+<?php endif; ?>
 
-<div class="modal fade" id="createProjectModal" tabindex="-1">
+<?php if($isAdmin): ?>
+<div class="modal fade" id="assignUserModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content p-3">
             <div class="modal-header">
-                <h5 class="modal-title fw-bold">Create New Project</h5>
+                <h5 class="modal-title fw-bold">Assign User to Project</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <form id="createForm">
-                <input type="hidden" name="action" value="create_project">
+            <form id="assignForm">
+                <input type="hidden" name="action" value="assign_project_user">
+                <input type="hidden" name="project_id" id="assign_project_id">
                 <div class="modal-body">
-                    <label class="text-gray small mb-2">Project Name</label>
-                    <input type="text" name="name" class="form-control mb-3" required>
-                    
-                    <label class="text-gray small mb-2">Status</label>
-                    <select name="status" class="form-control mb-3">
-                        <option value="Planning">Planning</option>
-                        <option value="Active" selected>Active</option>
-                        <option value="On Hold">On Hold</option>
-                    </select>
+                    <label class="text-gray small mb-2">Project</label>
+                    <input type="text" id="assign_project_name" class="form-control mb-3" disabled>
 
+<<<<<<< HEAD
                     <label class="text-gray small mb-2">Description</label>
                     <textarea name="description" class="form-control" rows="3"></textarea>
 
@@ -274,16 +324,27 @@ include __DIR__ . '/../views/header.php';
                             <div class="text-gray small">No users available.</div>
                         <?php endif; ?>
                     </div>
+=======
+                    <label class="text-gray small mb-2">User</label>
+                    <select name="user_id" id="assign_user_id" class="form-control" required>
+                        <option value="">Select a user...</option>
+                        <?php foreach($users as $u): ?>
+                            <option value="<?= (int)$u['id'] ?>">
+                                <?= htmlspecialchars($u['username']) ?> (<?= htmlspecialchars($u['role']) ?>)
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+>>>>>>> Isaac_probe
                 </div>
                 <div class="modal-footer">
-                    <button type="submit" class="btn-main w-100">Create Project</button>
+                    <button type="submit" class="btn-main w-100">Assign</button>
                 </div>
             </form>
         </div>
     </div>
 </div>
-<?php endif; ?>
 
+<<<<<<< HEAD
 <?php if($isAdmin): ?>
 <div class="modal fade" id="assignUserModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
@@ -336,14 +397,16 @@ include __DIR__ . '/../views/header.php';
     });
 
     // 2. Editar
+=======
+<script>
+    // 1. Editar
+>>>>>>> Isaac_probe
     function editProject(id, name, desc, status) {
         document.getElementById('edit_id').value = id;
         document.getElementById('edit_name').value = name;
         document.getElementById('edit_desc').value = desc;
-        // Set Status
         const stSelect = document.getElementById('edit_status');
         if(stSelect) stSelect.value = status;
-        
         new bootstrap.Modal(document.getElementById('editProjectModal')).show();
     }
     document.getElementById('editForm').addEventListener('submit', function(e) {
@@ -356,7 +419,7 @@ include __DIR__ . '/../views/header.php';
         });
     });
 
-    // 3. Eliminar (SOFT DELETE)
+    // 2. Eliminar (SOFT DELETE)
     function deleteProject(id) {
         if(confirm("Move project to Recycle Bin?")) {
             const fd = new FormData();
@@ -369,7 +432,11 @@ include __DIR__ . '/../views/header.php';
         }
     }
 
+<<<<<<< HEAD
     // 4. Asignar Usuario
+=======
+    // 3. Asignar Usuario
+>>>>>>> Isaac_probe
     function openAssignModal(projectId, projectName) {
         document.getElementById('assign_project_id').value = projectId;
         document.getElementById('assign_project_name').value = projectName;
