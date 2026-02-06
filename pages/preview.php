@@ -503,6 +503,9 @@ if ($filePath !== '') {
             
             this.imageLayer = new ol.layer.Image({ source: imageSource });
             this.map.getLayers().insertAt(0, this.imageLayer);
+            imageSource.on('error', (e) => {
+                console.error('Image source error', e);
+            });
 
             // Ajustar vista
             const newView = new ol.View({
@@ -514,7 +517,9 @@ if ($filePath !== '') {
             });
             this.map.setView(newView);
             try {
-                newView.fit(extent, { padding: [20, 20, 20, 20] });
+                if (newView.getProjection() && Array.isArray(extent) && extent.length === 4) {
+                    newView.fit(extent, { padding: [20, 20, 20, 20] });
+                }
             } catch (e) {
                 console.error('fit failed', e);
             }
