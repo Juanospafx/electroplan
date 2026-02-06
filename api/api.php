@@ -357,6 +357,24 @@ switch($action) {
         $projectId = $_POST['project_id'];
         $folderId = !empty($_POST['folder_id']) ? $_POST['folder_id'] : NULL;
         $subFolderId = !empty($_POST['sub_folder_id']) ? $_POST['sub_folder_id'] : NULL;
+
+        if ($subFolderId && !$folderId) {
+            echo json_encode(['status'=>'error', 'msg'=>'Select a folder before choosing a subfolder.']);
+            exit;
+        }
+
+        // Default folder: Drawings (create if missing)
+        if (!$folderId) {
+            $defaultFolderName = 'Drawings';
+            $stmtDef = $pdo->prepare("SELECT id FROM folders WHERE project_id = ? AND name = ? AND deleted_at IS NULL LIMIT 1");
+            $stmtDef->execute([$projectId, $defaultFolderName]);
+            $folderId = $stmtDef->fetchColumn();
+            if (!$folderId) {
+                $stmtCreate = $pdo->prepare("INSERT INTO folders (project_id, name) VALUES (?, ?)");
+                $stmtCreate->execute([$projectId, $defaultFolderName]);
+                $folderId = (int)$pdo->lastInsertId();
+            }
+        }
         
         $sqlCheck = "SELECT id, version_group_id, version_number FROM files 
                      WHERE project_id = ? AND filename = ? AND deleted_at IS NULL ";
