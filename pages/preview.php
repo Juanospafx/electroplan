@@ -540,6 +540,72 @@ if ($filePath !== '') {
         viewer.container.style.cursor = viewer.isPanningMode ? 'grab' : 'default';
     });
 
+    // --- Touch Support (Mobile) ---
+    let lastTouchDist = 0;
+    let lastTouchCenter = null;
+
+    function getTouchCenter(t1, t2) {
+        return { x: (t1.clientX + t2.clientX) / 2, y: (t1.clientY + t2.clientY) / 2 };
+    }
+
+    function getTouchDistance(t1, t2) {
+        const dx = t1.clientX - t2.clientX;
+        const dy = t1.clientY - t2.clientY;
+        return Math.hypot(dx, dy);
+    }
+
+    viewer.container.addEventListener('touchstart', (e) => {
+        if (!viewer.mode) return;
+        if (e.touches.length === 1) {
+            if (!viewer.isPanningMode) return;
+            const t = e.touches[0];
+            viewer.isDragging = true;
+            viewer.dragStartX = t.clientX;
+            viewer.dragStartY = t.clientY;
+            viewer.startTx = viewer.translateX;
+            viewer.startTy = viewer.translateY;
+            viewer.container.style.cursor = 'grabbing';
+            e.preventDefault();
+        } else if (e.touches.length === 2) {
+            lastTouchDist = getTouchDistance(e.touches[0], e.touches[1]);
+            lastTouchCenter = getTouchCenter(e.touches[0], e.touches[1]);
+            e.preventDefault();
+        }
+    }, { passive: false });
+
+    viewer.container.addEventListener('touchmove', (e) => {
+        if (!viewer.mode) return;
+        if (e.touches.length === 1) {
+            if (!viewer.isPanningMode || !viewer.isDragging) return;
+            const t = e.touches[0];
+            const dx = t.clientX - viewer.dragStartX;
+            const dy = t.clientY - viewer.dragStartY;
+            viewer.translateX = viewer.startTx + dx;
+            viewer.translateY = viewer.startTy + dy;
+            applyTransform();
+            e.preventDefault();
+        } else if (e.touches.length === 2) {
+            const dist = getTouchDistance(e.touches[0], e.touches[1]);
+            const center = getTouchCenter(e.touches[0], e.touches[1]);
+            if (lastTouchDist > 0) {
+                const scaleDelta = dist / lastTouchDist;
+                zoomAt(center.x, center.y, scaleDelta);
+            }
+            lastTouchDist = dist;
+            lastTouchCenter = center;
+            e.preventDefault();
+        }
+    }, { passive: false });
+
+    viewer.container.addEventListener('touchend', (e) => {
+        if (e.touches.length === 0) {
+            viewer.isDragging = false;
+            lastTouchDist = 0;
+            lastTouchCenter = null;
+            viewer.container.style.cursor = viewer.isPanningMode ? 'grab' : 'default';
+        }
+    }, { passive: false });
+
     // VARIABLES
     const fileUrlRaw = "<?= $filePath ?>";
     const fileUrl = encodeURI(fileUrlRaw);

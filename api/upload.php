@@ -65,7 +65,7 @@ document.getElementById('uploadForm').addEventListener('submit', async function(
         } else {
             alert('Error: ' + res.msg);
         }
-    } catch(err) { alert('Connection error'); }
+    } catch(err) { alert('Ve a una carpeta'); }
 });
 </script>
 </body>

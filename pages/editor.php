@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 // editor.php - Editor Profesional V9.6 (Fix: Removed Pan Tool & Added 2-Finger Nav)
 require_once __DIR__ . '/../core/auth/session.php';
 require_once __DIR__ . '/../core/db/connection.php';
@@ -140,7 +140,7 @@ if ($filePath !== '') {
             gap: 10px;
             z-index: 30;
             box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
-            transition: all 0.3s ease; /* Transición suave para ocultar/mostrar */
+            transition: all 0.3s ease; /* TransiciÃ³n suave para ocultar/mostrar */
             color: white;
         }
 
@@ -208,14 +208,14 @@ if ($filePath !== '') {
             }
         }
 
-        /* --- BOTÓN SAVE (MORADO Y RESPONSIVE) --- */
+        /* --- BOTÃ“N SAVE (MORADO Y RESPONSIVE) --- */
         #btn-save {
             display: flex;
             align-items: center;
             justify-content: center;
             gap: 8px;
             height: 40px !important;
-            padding: 0 20px !important; /* Estilo píldora en Desktop */
+            padding: 0 20px !important; /* Estilo pÃ­ldora en Desktop */
             border-radius: 50px !important;
             
             /* COLOR MORADO FUERTE */
@@ -229,7 +229,7 @@ if ($filePath !== '') {
         }
         #btn-save:hover { 
             transform: scale(1.05); 
-            background: #7c3aed !important; /* Morado un poco más oscuro al pasar mouse */
+            background: #7c3aed !important; /* Morado un poco mÃ¡s oscuro al pasar mouse */
         }
         #btn-save span { display: inline-block; font-weight: 600; font-size: 0.9rem; }
         #btn-save i { font-size: 1rem; }
@@ -277,7 +277,7 @@ if ($filePath !== '') {
                 max-width: 350px;
             }
 
-            /* Botón Save en Mobile: Solo Icono (Círculo más grande) */
+            /* BotÃ³n Save en Mobile: Solo Icono (CÃ­rculo mÃ¡s grande) */
             #btn-save {
                 width: 40px !important;
                 height: 40px !important;
@@ -289,8 +289,8 @@ if ($filePath !== '') {
 
             /* Ajustar controles flotantes en Mobile */
             .floating-controls {
-                bottom: 20px; right: 15px; /* Ajuste de posición */
-                transform: scale(0.85); /* Reducir tamaño un 15% */
+                bottom: 20px; right: 15px; /* Ajuste de posiciÃ³n */
+                transform: scale(0.85); /* Reducir tamaÃ±o un 15% */
                 transform-origin: bottom right; 
                 padding: 4px 12px;
             }
@@ -534,7 +534,7 @@ if ($filePath !== '') {
     function toggleMobileTools() {
         const sbRight = document.getElementById('sidebarRight');
         const btn = document.getElementById('btn-toggle-tools');
-        const floatControls = document.querySelector('.floating-controls'); // Selección de controles flotantes
+        const floatControls = document.querySelector('.floating-controls'); // SelecciÃ³n de controles flotantes
 
         sbRight.classList.toggle('show-mobile');
         btn.classList.toggle('active');
@@ -555,7 +555,7 @@ if ($filePath !== '') {
         document.getElementById('sidebarRight').classList.remove('show-mobile');
         document.getElementById('btn-toggle-tools').classList.remove('active');
         
-        // Mostrar de nuevo los controles flotantes si se cerró la barra
+        // Mostrar de nuevo los controles flotantes si se cerrÃ³ la barra
         const floatControls = document.querySelector('.floating-controls');
         if(floatControls) floatControls.classList.remove('hide-ui');
     }
@@ -587,8 +587,8 @@ if ($filePath !== '') {
         fireRightClick: true,  
         stopContextMenu: true,
         allowTouchScrolling: false,
-        renderOnAddRemove: true, // Mantener renderizado automático
-        stateful: false // Optimización de rendimiento
+        renderOnAddRemove: true, // Mantener renderizado automÃ¡tico
+        stateful: false // OptimizaciÃ³n de rendimiento
     });
     let pdfDoc = null, pageNum = 1, pdfScale = 2.0;
     const LOW_RES_SCALE = 1.0;
@@ -849,8 +849,8 @@ if ($filePath !== '') {
     let lastTapTarget = null;
     const DOUBLE_TAP_DELAY = 400;
     
-    // Estado para control de modificación de vértices de regla
-    let controlEditMode = false; // Modo de edición activado con doble clic
+    // Estado para control de modificaciÃ³n de vÃ©rtices de regla
+    let controlEditMode = false; // Modo de ediciÃ³n activado con doble clic
     let activeControlPoint = null; // Punto de control activo ('p1' o 'p2')
     let renderAnimationFrame = null; // Para renderizado suave
 
@@ -872,17 +872,19 @@ if ($filePath !== '') {
             return function(e, transform, x, y) {
                 const target = transform.target;
                 
-                // Solo permitir modificación si el modo de edición está activado (doble clic)
-                if (!controlEditMode || activeControlPoint !== pointName) {
-                    return false;
+                // Solo permitir modificaciÃ³n si el modo de ediciÃ³n estÃ¡ activado (doble clic)
+                if (currentMode !== 'measure') {
+                    if (!controlEditMode || activeControlPoint !== pointName) {
+                        return false;
+                    }
                 }
                 
-                // Si el objeto está en modo "moving" (movimiento libre), no permitir modificar controles
+                // Si el objeto estÃ¡ en modo "moving" (movimiento libre), no permitir modificar controles
                 if (target.isMoving && !isDraggingControl) {
                     return false;
                 }
                 
-                // Estamos manipulando un control - permitir la acción
+                // Estamos manipulando un control - permitir la acciÃ³n
                 let localPoint = null;
                 if (fabric.controlsUtils && typeof fabric.controlsUtils.getLocalPoint === 'function') {
                     localPoint = fabric.controlsUtils.getLocalPoint(transform, target.originX || 'center', target.originY || 'center', x, y);
@@ -899,7 +901,7 @@ if ($filePath !== '') {
                     target.set({ x2: localPoint.x, y2: localPoint.y }); 
                 }
                 
-                // Forzar actualización de coordenadas antes de actualizar la etiqueta
+                // Forzar actualizaciÃ³n de coordenadas antes de actualizar la etiqueta
                 target.setCoords();
                 
                 // Usar requestAnimationFrame para renderizado suave sin trazos impresos
@@ -907,7 +909,7 @@ if ($filePath !== '') {
                     cancelAnimationFrame(renderAnimationFrame);
                 }
                 renderAnimationFrame = requestAnimationFrame(() => {
-                    // Actualizar la etiqueta de medición inmediatamente
+                    // Actualizar la etiqueta de mediciÃ³n inmediatamente
                     updateMeasureLabel(target);
                     // Renderizado suave usando requestRenderAll en lugar de renderAll
                     canvas.requestRenderAll();
@@ -918,10 +920,10 @@ if ($filePath !== '') {
             };
         }
         
-        // Crear controles con área de detección más precisa
-        const controlSize = 20; // Tamaño del área de detección del control (más grande para facilitar el clic)
+        // Crear controles con Ã¡rea de detecciÃ³n mÃ¡s precisa
+        const controlSize = 20; // TamaÃ±o del Ã¡rea de detecciÃ³n del control (mÃ¡s grande para facilitar el clic)
         
-        // Función para verificar si el clic fue sobre un control
+        // FunciÃ³n para verificar si el clic fue sobre un control
         function isControlClick(opt) {
             if (!opt.target || !opt.target.isMeasureLine) return false;
             if (!opt.control) return false;
@@ -936,7 +938,7 @@ if ($filePath !== '') {
                 render: renderCircleControl,
                 sizeX: controlSize,
                 sizeY: controlSize,
-                // Asegurar que el control solo se active cuando se hace clic directamente sobre él
+                // Asegurar que el control solo se active cuando se hace clic directamente sobre Ã©l
                 mouseUpHandler: function(e, transformData, x, y) {
                     isDraggingControl = false;
                     controlDragStart = null;
@@ -977,7 +979,7 @@ if ($filePath !== '') {
         });
         if (obj.isMeasureLine) {
             createLineControls(obj);
-            // Asegurar que el objeto puede moverse normalmente cuando no se está manipulando un control
+            // Asegurar que el objeto puede moverse normalmente cuando no se estÃ¡ manipulando un control
             obj.set({ lockMovementX: false, lockMovementY: false });
         }
     }
@@ -996,9 +998,9 @@ if ($filePath !== '') {
         if(!activeObjects.length) return;
         
         // MODIFICADO: Eliminado confirm() y agrupado el historial
-        historyProcessing = true; // Pausar guardado automático por objeto para agrupar la acción
+        historyProcessing = true; // Pausar guardado automÃ¡tico por objeto para agrupar la acciÃ³n
         
-        canvas.discardActiveObject(); // Limpiar selección visual
+        canvas.discardActiveObject(); // Limpiar selecciÃ³n visual
         
         activeObjects.forEach(obj => {
             // Limpieza de dependencias (Etiquetas de medidas)
@@ -1017,7 +1019,7 @@ if ($filePath !== '') {
         showToast("Selection deleted", "success");
     }
 
-    // --- PINCH ZOOM & PAN (GESTOS TÁCTILES MEJORADOS) ---
+    // --- PINCH ZOOM & PAN (GESTOS TÃCTILES MEJORADOS) ---
     const canvasWrapper = document.querySelector('.upper-canvas');
     let lastDist = 0;
     let lastClientX = 0;
@@ -1090,7 +1092,7 @@ if ($filePath !== '') {
         if (currentMode === 'smart') this.selection = true;
         if(this.isDrawingModeWasOn) { canvas.isDrawingMode = true; this.isDrawingModeWasOn = false; }
         
-        // MODIFICADO: Refuerzo contra falsos positivos (líneas cortas/basura)
+        // MODIFICADO: Refuerzo contra falsos positivos (lÃ­neas cortas/basura)
         if (lineState === 1 && activeLine) {
             const ptr = canvas.getPointer(opt.e);
             const dist = Math.sqrt(Math.pow(ptr.x - startPoint.x, 2) + Math.pow(ptr.y - startPoint.y, 2));
@@ -1388,13 +1390,13 @@ if ($filePath !== '') {
         line.label.set({ left: midX, top: midY - 15 });
         line.setCoords(); 
         line.label.setCoords();
-        // NO llamar requestRenderAll aquí - se maneja en los eventos con requestAnimationFrame
+        // NO llamar requestRenderAll aquÃ­ - se maneja en los eventos con requestAnimationFrame
     }
 
     canvas.on('object:moving', function(e) {
         const obj = e.target;
         if (obj.isMeasureLine && obj.label) {
-            // Cuando se mueve el objeto completo, solo actualizar posición de la etiqueta
+            // Cuando se mueve el objeto completo, solo actualizar posiciÃ³n de la etiqueta
             // No actualizar el valor porque la distancia no cambia
             const center = obj.getCenterPoint();
             obj.label.set({ left: center.x, top: center.y - 15 });
@@ -1495,18 +1497,14 @@ if ($filePath !== '') {
         const evt = opt.e;
         const now = new Date().getTime();
         
-        // Verificar si el clic fue sobre un control de una línea de medida
+        // Verificar si el clic fue sobre un control de una lÃ­nea de medida
         if (opt.target && opt.target.isMeasureLine) {
             const activeControl = opt.control;
             
-            // Verificar si es doble clic en un control (vértice)
+                        // Verificar si es clic en un control (vértice)
             if (activeControl && (activeControl === 'p1' || activeControl === 'p2')) {
-                const isDoubleClick = (lastTapTarget === opt.target && 
-                                      lastTapTarget.control === activeControl && 
-                                      (now - lastTapTime < DOUBLE_TAP_DELAY));
-                
-                if (isDoubleClick) {
-                    // Doble clic en vértice - activar modo de edición
+                if (currentMode === 'measure') {
+                    // En modo medida, permitir editar directamente sin doble clic
                     controlEditMode = true;
                     activeControlPoint = activeControl;
                     isDraggingControl = true;
@@ -1514,18 +1512,36 @@ if ($filePath !== '') {
                         x: evt.clientX || (evt.touches && evt.touches[0].clientX), 
                         y: evt.clientY || (evt.touches && evt.touches[0].clientY) 
                     };
-                    // Prevenir que el objeto se mueva cuando arrastramos un control
                     opt.target.set({ lockMovementX: true, lockMovementY: true });
                     opt.target.isMoving = false;
                     showToast("Edit mode: Drag vertex to resize", "success");
                 } else {
-                    // Primer clic en control - solo seleccionar, no activar edición
-                    controlEditMode = false;
-                    activeControlPoint = null;
-                    isDraggingControl = false;
+                    const isDoubleClick = (lastTapTarget === opt.target && 
+                                          lastTapTarget.control === activeControl && 
+                                          (now - lastTapTime < DOUBLE_TAP_DELAY));
+                    
+                    if (isDoubleClick) {
+                        // Doble clic en vértice - activar modo de edición
+                        controlEditMode = true;
+                        activeControlPoint = activeControl;
+                        isDraggingControl = true;
+                        controlDragStart = { 
+                            x: evt.clientX || (evt.touches && evt.touches[0].clientX), 
+                            y: evt.clientY || (evt.touches && evt.touches[0].clientY) 
+                        };
+                        // Prevenir que el objeto se mueva cuando arrastramos un control
+                        opt.target.set({ lockMovementX: true, lockMovementY: true });
+                        opt.target.isMoving = false;
+                        showToast("Edit mode: Drag vertex to resize", "success");
+                    } else {
+                        // Primer clic en control - solo seleccionar, no activar edición
+                        controlEditMode = false;
+                        activeControlPoint = null;
+                        isDraggingControl = false;
+                    }
                 }
             } else {
-                // El clic fue sobre el cuerpo de la línea, no sobre un control
+                // El clic fue sobre el cuerpo de la lÃ­nea, no sobre un control
                 controlEditMode = false;
                 activeControlPoint = null;
                 isDraggingControl = false;
@@ -1533,7 +1549,7 @@ if ($filePath !== '') {
                 opt.target.set({ lockMovementX: false, lockMovementY: false });
             }
         } else {
-            // No es una línea de medida, resetear estado
+            // No es una lÃ­nea de medida, resetear estado
             controlEditMode = false;
             activeControlPoint = null;
             isDraggingControl = false;
@@ -1624,7 +1640,7 @@ if ($filePath !== '') {
         if (isDraggingControl && opt.target && opt.target.isMeasureLine) {
             // Restaurar el movimiento del objeto
             opt.target.set({ lockMovementX: false, lockMovementY: false });
-            // Desactivar modo de edición
+            // Desactivar modo de ediciÃ³n
             controlEditMode = false;
             activeControlPoint = null;
         }
@@ -1817,20 +1833,20 @@ if ($filePath !== '') {
     canvas.on('before:transform', function(e) {
         const obj = e.target;
         if (obj && obj.isMeasureLine) {
-            // Asegurar que las transformaciones no deseadas estén bloqueadas
+            // Asegurar que las transformaciones no deseadas estÃ©n bloqueadas
             obj.set({ lockRotation: true, lockScalingX: true, lockScalingY: true });
             
-            // Si estamos en modo de edición (doble clic en vértice), bloquear movimiento del objeto
+            // Si estamos en modo de ediciÃ³n (doble clic en vÃ©rtice), bloquear movimiento del objeto
             if (isDraggingControl && controlEditMode) {
                 obj.set({ lockMovementX: true, lockMovementY: true });
             } else {
-                // Si no es modo de edición, permitir movimiento del objeto
+                // Si no es modo de ediciÃ³n, permitir movimiento del objeto
                 obj.set({ lockMovementX: false, lockMovementY: false });
             }
         }
     });
     
-    // Detectar cuando se está modificando (durante el arrastre)
+    // Detectar cuando se estÃ¡ modificando (durante el arrastre)
     canvas.on('object:modifying', function(e) {
         const obj = e.target;
         if (obj && obj.isMeasureLine && isDraggingControl && controlEditMode) {
@@ -1841,7 +1857,7 @@ if ($filePath !== '') {
             
             // Usar requestAnimationFrame para renderizado suave sin trazos impresos
             renderAnimationFrame = requestAnimationFrame(() => {
-                // Actualizar la etiqueta de medición en tiempo real mientras se arrastra un control
+                // Actualizar la etiqueta de mediciÃ³n en tiempo real mientras se arrastra un control
                 updateMeasureLabel(obj);
                 // Usar requestRenderAll para renderizado suave
                 canvas.requestRenderAll();
@@ -1850,7 +1866,7 @@ if ($filePath !== '') {
         }
     });
     
-    // Detectar cuando se completa una transformación para restaurar el estado
+    // Detectar cuando se completa una transformaciÃ³n para restaurar el estado
     canvas.on('object:modified', function(e) {
         const obj = e.target;
         if (obj && obj.isMeasureLine) {
@@ -1866,15 +1882,15 @@ if ($filePath !== '') {
                 canvas.requestRenderAll();
             });
             
-            // Restaurar el movimiento del objeto después de modificar
+            // Restaurar el movimiento del objeto despuÃ©s de modificar
             obj.set({ lockMovementX: false, lockMovementY: false });
             
-            // Guardar en historial si fue una modificación de control
+            // Guardar en historial si fue una modificaciÃ³n de control
             if (isDraggingControl && controlEditMode) {
                 saveHistory();
             }
             
-            // Resetear estado de edición
+            // Resetear estado de ediciÃ³n
             controlEditMode = false;
             activeControlPoint = null;
             isDraggingControl = false;
@@ -1905,3 +1921,4 @@ if ($filePath !== '') {
 </script>
 </body>
 </html>
+
