@@ -48,6 +48,9 @@ $allFolders = $foldersStmt->fetchAll(PDO::FETCH_ASSOC);
 // 3. Consulta de Estadísticas Rápidas (Para el Summary)
 $fileCount = $pdo->query("SELECT COUNT(*) FROM files WHERE project_id = $projectId AND deleted_at IS NULL")->fetchColumn();
 $lastActivity = $pdo->query("SELECT uploaded_at FROM files WHERE project_id = $projectId ORDER BY uploaded_at DESC LIMIT 1")->fetchColumn();
+$recentFiles = $pdo->prepare("SELECT id, filename, uploaded_at FROM files WHERE project_id = ? AND deleted_at IS NULL ORDER BY uploaded_at DESC LIMIT 6");
+$recentFiles->execute([$projectId]);
+$recentFiles = $recentFiles->fetchAll(PDO::FETCH_ASSOC);
 
 // CORRECCIÓN: Agregado "/.." para encontrar las vistas
 include __DIR__ . '/../views/header.php'; 
@@ -128,6 +131,27 @@ include __DIR__ . '/../views/header.php';
                             <p class="text-gray mb-0"><?= $lastActivity ? date('F d, Y h:i A', strtotime($lastActivity)) : 'No activity yet' ?></p>
                         </div>
                     </div>
+                </div>
+
+                <div class="mt-5">
+                    <h5 class="fw-bold mb-3">Recent Uploads</h5>
+                    <?php if(empty($recentFiles)): ?>
+                        <div class="text-gray">No files uploaded yet.</div>
+                    <?php else: ?>
+                        <div class="row g-3">
+                            <?php foreach($recentFiles as $rf): ?>
+                                <div class="col-md-4 col-xl-3">
+                                    <div class="box-card p-3 d-flex align-items-center justify-content-between">
+                                        <div class="me-3">
+                                            <div class="fw-bold text-truncate" style="max-width:160px;"><?= htmlspecialchars($rf['filename']) ?></div>
+                                            <div class="small text-gray"><?= date('M d, Y', strtotime($rf['uploaded_at'])) ?></div>
+                                        </div>
+                                        <a href="preview.php?id=<?= (int)$rf['id'] ?>" class="btn-icon" title="Preview"><i class="fas fa-eye"></i></a>
+                                    </div>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                    <?php endif; ?>
                 </div>
 
             <?php elseif($currentView === 'desc'): ?>
