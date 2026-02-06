@@ -1068,9 +1068,23 @@ if ($filePath !== '') {
             y: rect.top + absPos.y * vpt.scaleY + vpt.translateY
         };
 
+        const fontSize = textNode.fontSize();
+        const tempText = new Konva.Text({
+            x: textNode.x(),
+            y: textNode.y(),
+            text: textNode.text(),
+            fontSize,
+            fill: textNode.fill()
+        });
+        tempText.offsetX(tempText.width() / 2);
+        tempText.offsetY(tempText.height() / 2);
+        konvaLayer.add(tempText);
+        textNode.visible(false);
+        konvaLayer.batchDraw();
+
         if (!konvaEditingTextarea) {
             konvaEditingTextarea = document.createElement('textarea');
-            konvaEditingTextarea.style.position = 'fixed';
+            konvaEditingTextarea.style.position = 'absolute';
             konvaEditingTextarea.style.zIndex = '3000';
             konvaEditingTextarea.style.resize = 'none';
             konvaEditingTextarea.style.border = '1px solid #475569';
@@ -1079,14 +1093,14 @@ if ($filePath !== '') {
             konvaEditingTextarea.style.outline = 'none';
             konvaEditingTextarea.style.background = '#0f172a';
             konvaEditingTextarea.style.color = '#ffffff';
-            document.body.appendChild(konvaEditingTextarea);
+            container.appendChild(konvaEditingTextarea);
         }
 
-        const fontSize = textNode.fontSize() * vpt.scaleX;
-        konvaEditingTextarea.style.fontSize = fontSize + 'px';
+        const fontSizePx = fontSize * vpt.scaleX;
+        konvaEditingTextarea.style.fontSize = fontSizePx + 'px';
         konvaEditingTextarea.style.lineHeight = '1.2';
-        konvaEditingTextarea.style.left = areaPosition.x + 'px';
-        konvaEditingTextarea.style.top = areaPosition.y + 'px';
+        konvaEditingTextarea.style.left = (absPos.x * vpt.scaleX + vpt.translateX) + 'px';
+        konvaEditingTextarea.style.top = (absPos.y * vpt.scaleY + vpt.translateY) + 'px';
         konvaEditingTextarea.style.width = Math.max(120, textNode.width() * vpt.scaleX) + 'px';
         konvaEditingTextarea.style.height = Math.max(40, textNode.height() * vpt.scaleY) + 'px';
         konvaEditingTextarea.value = textNode.text();
@@ -1098,26 +1112,21 @@ if ($filePath !== '') {
                 textNode.text(next);
                 textNode.offsetX(textNode.width() / 2);
                 textNode.offsetY(textNode.height() / 2);
-                konvaLayer.batchDraw();
             }
-            konvaEditingTextarea.style.left = '-9999px';
-            konvaEditingTextarea.style.top = '-9999px';
-            konvaEditingTextarea.blur();
+            textNode.visible(true);
+            tempText.destroy();
+            konvaLayer.batchDraw();
+            konvaEditingTextarea.remove();
+            konvaEditingTextarea = null;
         };
 
         const onKey = (e) => {
             if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
                 finish();
-                konvaEditingTextarea.removeEventListener('keydown', onKey);
-                konvaEditingTextarea.removeEventListener('blur', onBlur);
             }
         };
-        const onBlur = () => {
-            finish();
-            konvaEditingTextarea.removeEventListener('keydown', onKey);
-            konvaEditingTextarea.removeEventListener('blur', onBlur);
-        };
+        const onBlur = () => finish();
         konvaEditingTextarea.addEventListener('keydown', onKey);
         konvaEditingTextarea.addEventListener('blur', onBlur);
     }
