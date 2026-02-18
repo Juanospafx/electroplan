@@ -27,6 +27,8 @@ signature = HMAC_SHA256(client_secret, payload)
 ## Endpoints
 - `GET /api/v1/health`
 - `GET /api/v1/projects`
+- `GET /api/v1/projects/{id}`
+- `GET /api/v1/projects/{id}/export`
 - `POST /api/v1/projects`
 - `PATCH /api/v1/projects/{id}`
 - `POST /api/v1/projects/{id}/assign` (admin only)

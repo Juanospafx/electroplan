@@ -30,6 +30,82 @@ class ProjectsController
         }
     }
 
+    private function map_project_export_payload(array $project): array
+    {
+        $projectId = (int)$project['id'];
+        $updatedAt = $project['updated_at'] ?? $project['created_at'] ?? null;
+
+        return [
+            'project_id' => (string)$projectId,
+            'name' => (string)($project['name'] ?? ''),
+            'status' => (string)($project['status'] ?? 'unknown'),
+            'updated_at' => $updatedAt,
+            'metadata' => [
+                'source' => 'electroplan',
+                'electroplan_project_id' => $projectId,
+            ],
+        ];
+    }
+
+    public function show(array $params): void
+    {
+        $id = require_int($params['id'] ?? null);
+        if (!$id) {
+            error_response('VALIDATION_ERROR', 'Invalid id', ['field' => 'id'], 400);
+        }
+
+        try {
+            $stmt = $this->pdo->prepare(
+                "SELECT id, name, description, status, assigned_user_id, created_at, updated_at
+                 FROM projects
+                 WHERE id = ? AND deleted_at IS NULL
+                 LIMIT 1"
+            );
+            $stmt->execute([$id]);
+            $project = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$project) {
+                error_response('NOT_FOUND', 'Project not found', ['id' => $id], 404);
+            }
+
+            ok_response($project);
+        } catch (Exception $e) {
+            error_response('INTERNAL_ERROR', 'Unexpected error', null, 500);
+        }
+    }
+
+    public function export(array $params): void
+    {
+        $id = require_int($params['id'] ?? null);
+        if (!$id) {
+            error_response('VALIDATION_ERROR', 'Invalid id', ['field' => 'id'], 400);
+        }
+
+        try {
+            $stmt = $this->pdo->prepare(
+                "SELECT id, name, description, status, assigned_user_id, created_at, updated_at
+                 FROM projects
+                 WHERE id = ? AND deleted_at IS NULL
+                 LIMIT 1"
+            );
+            $stmt->execute([$id]);
+            $project = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$project) {
+                error_response('NOT_FOUND', 'Project not found', ['id' => $id], 404);
+            }
+
+            $payload = $this->map_project_export_payload($project);
+
+            ok_response([
+                'project' => $project,
+                'export' => $payload,
+            ]);
+        } catch (Exception $e) {
+            error_response('INTERNAL_ERROR', 'Unexpected error', null, 500);
+        }
+    }
+
     private function get_default_admin_user_id(): ?int
     {
         $stmt = $this->pdo->prepare(
