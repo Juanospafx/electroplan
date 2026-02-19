@@ -17,6 +17,88 @@ function cleanName($name) {
     return clean_filename($name);
 }
 
+function inventory_sync_log_line(string $line): void {
+    $dir = __DIR__ . '/../integrations/logs';
+    if (!is_dir($dir)) {
+        @mkdir($dir, 0775, true);
+    }
+    $file = $dir . '/inventory_sync.log';
+    $entry = '[' . gmdate('c') . '] ' . $line . PHP_EOL;
+    @file_put_contents($file, $entry, FILE_APPEND);
+}
+
+function sync_project_to_inventory_from_api(PDO $pdo, int $projectId): void {
+    $inventoryUpsertUrl = trim((string)getenv('INVENTORY_UPSERT_URL'));
+    if ($inventoryUpsertUrl === '') {
+        return;
+    }
+
+    try {
+        $stmt = $pdo->prepare("SELECT id, name, status, created_at, updated_at FROM projects WHERE id = ? AND deleted_at IS NULL LIMIT 1");
+        $stmt->execute([$projectId]);
+        $project = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$project) {
+            return;
+        }
+
+        $payload = [
+            'project_id' => (string)$projectId,
+            'name' => (string)($project['name'] ?? ''),
+            'status' => isset($project['status']) ? (string)$project['status'] : null,
+            'updated_at' => $project['updated_at'] ?? $project['created_at'] ?? null,
+            'metadata' => [
+                'source' => 'electroplan',
+                'electroplan_project_id' => $projectId,
+            ],
+        ];
+
+        $json = json_encode($payload);
+        if ($json === false) {
+            inventory_sync_log_line("project_id={$projectId} exception=json_encode_failed");
+            return;
+        }
+
+        $headers = ['Content-Type: application/json'];
+        $sharedKey = trim((string)getenv('INVENTORY_SHARED_KEY'));
+        if ($sharedKey !== '') {
+            $headers[] = 'X-Integration-Key: ' . $sharedKey;
+        }
+
+        $ch = curl_init($inventoryUpsertUrl);
+        if ($ch === false) {
+            inventory_sync_log_line("project_id={$projectId} curl_error=curl_init_failed");
+            return;
+        }
+
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_POST, true);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, $json);
+        curl_setopt($ch, CURLOPT_TIMEOUT, 6);
+
+        $response = curl_exec($ch);
+        $errno = curl_errno($ch);
+        $error = curl_error($ch);
+        $httpCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        if ($errno !== 0) {
+            inventory_sync_log_line("project_id={$projectId} curl_error code={$errno} msg=" . $error);
+            return;
+        }
+
+        if ($httpCode < 200 || $httpCode >= 300) {
+            $body = is_string($response) ? substr(preg_replace('/\\s+/', ' ', $response), 0, 500) : '';
+            inventory_sync_log_line("project_id={$projectId} http_error code={$httpCode} body=" . $body);
+            return;
+        }
+
+        inventory_sync_log_line("project_id={$projectId} sync_ok code={$httpCode}");
+    } catch (Throwable $e) {
+        inventory_sync_log_line("project_id={$projectId} exception=" . $e->getMessage());
+    }
+}
+
 switch($action) {
     
     // --- 1. CREAR PROYECTO (ADMIN ONLY) ---
@@ -76,6 +158,7 @@ switch($action) {
                 }
             }
             $pdo->commit();
+            sync_project_to_inventory_from_api($pdo, $projectId);
             echo json_encode(['status'=>'success', 'id'=>$projectId]);
         } catch(Exception $e) {
             if ($pdo->inTransaction()) $pdo->rollBack();
@@ -95,6 +178,7 @@ switch($action) {
         try {
             $stmt = $pdo->prepare("UPDATE projects SET name=?, description=?, status=? WHERE id=?");
             $stmt->execute([$name, $desc, $status, $id]);
+            sync_project_to_inventory_from_api($pdo, (int)$id);
             echo json_encode(['status'=>'success']);
         } catch(Exception $e) { echo json_encode(['status'=>'error', 'msg'=>$e->getMessage()]); }
         break;
@@ -151,6 +235,7 @@ switch($action) {
             $sql = "UPDATE projects SET " . implode(', ', $set) . " WHERE id = ?";
             $stmt = $pdo->prepare($sql);
             $stmt->execute($params);
+            sync_project_to_inventory_from_api($pdo, $id);
             echo json_encode(['status'=>'success']);
         } catch(Exception $e) { echo json_encode(['status'=>'error', 'msg'=>$e->getMessage()]); }
         break;
