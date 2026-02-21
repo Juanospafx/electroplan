@@ -30,6 +30,82 @@ class ProjectsController
         }
     }
 
+    private function map_project_export_payload(array $project): array
+    {
+        $projectId = (int)$project['id'];
+        $updatedAt = $project['updated_at'] ?? $project['created_at'] ?? null;
+
+        return [
+            'project_id' => (string)$projectId,
+            'name' => (string)($project['name'] ?? ''),
+            'status' => isset($project['status']) ? (string)$project['status'] : null,
+            'updated_at' => $updatedAt,
+            'metadata' => [
+                'source' => 'electroplan',
+                'electroplan_project_id' => $projectId,
+            ],
+        ];
+    }
+
+    public function show(array $params): void
+    {
+        $id = require_int($params['id'] ?? null);
+        if (!$id) {
+            error_response('VALIDATION_ERROR', 'Invalid id', ['field' => 'id'], 400);
+        }
+
+        try {
+            $stmt = $this->pdo->prepare(
+                "SELECT id, name, description, status, assigned_user_id, created_at, updated_at
+                 FROM projects
+                 WHERE id = ? AND deleted_at IS NULL
+                 LIMIT 1"
+            );
+            $stmt->execute([$id]);
+            $project = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$project) {
+                error_response('NOT_FOUND', 'Project not found', ['id' => $id], 404);
+            }
+
+            ok_response($project);
+        } catch (Exception $e) {
+            error_response('INTERNAL_ERROR', 'Unexpected error', null, 500);
+        }
+    }
+
+    public function export(array $params): void
+    {
+        $id = require_int($params['id'] ?? null);
+        if (!$id) {
+            error_response('VALIDATION_ERROR', 'Invalid id', ['field' => 'id'], 400);
+        }
+
+        try {
+            $stmt = $this->pdo->prepare(
+                "SELECT id, name, description, status, assigned_user_id, created_at, updated_at
+                 FROM projects
+                 WHERE id = ? AND deleted_at IS NULL
+                 LIMIT 1"
+            );
+            $stmt->execute([$id]);
+            $project = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            if (!$project) {
+                error_response('NOT_FOUND', 'Project not found', ['id' => $id], 404);
+            }
+
+            $payload = $this->map_project_export_payload($project);
+
+            ok_response([
+                'project' => $project,
+                'export' => $payload,
+            ]);
+        } catch (Exception $e) {
+            error_response('INTERNAL_ERROR', 'Unexpected error', null, 500);
+        }
+    }
+
     private function get_default_admin_user_id(): ?int
     {
         $stmt = $this->pdo->prepare(
@@ -78,6 +154,9 @@ class ProjectsController
             );
             $dir->execute([$projectId, $assignedUserId]);
 
+            // Best-effort sync to Inventory (does not block project creation on failure)
+            $this->syncProjectToInventory($projectId);
+
             ok_response(['id' => $projectId], null, 201);
         } catch (Exception $e) {
             error_response('INTERNAL_ERROR', 'Unexpected error', null, 500);
@@ -118,9 +197,95 @@ class ProjectsController
             $stmt = $this->pdo->prepare($sql);
             $stmt->execute($values);
 
+            // Best-effort sync to Inventory after updates
+            $this->syncProjectToInventory($id);
+
             ok_response(['updated' => true]);
         } catch (Exception $e) {
             error_response('INTERNAL_ERROR', 'Unexpected error', null, 500);
         }
+    }
+
+    private function syncProjectToInventory(int $projectId): void
+    {
+        $inventoryUpsertUrl = trim((string)getenv('INVENTORY_UPSERT_URL'));
+        if ($inventoryUpsertUrl === '') {
+            return;
+        }
+
+        try {
+            $stmt = $this->pdo->prepare(
+                "SELECT id, name, description, status, assigned_user_id, created_at, updated_at
+                 FROM projects
+                 WHERE id = ? AND deleted_at IS NULL
+                 LIMIT 1"
+            );
+            $stmt->execute([$projectId]);
+            $project = $stmt->fetch(PDO::FETCH_ASSOC);
+            if (!$project) {
+                return;
+            }
+
+            $payload = $this->map_project_export_payload($project);
+            $json = json_encode($payload);
+            if ($json === false) {
+                $this->logInventorySync("project_id={$projectId} exception=json_encode_failed");
+                return;
+            }
+
+            $headers = [
+                'Content-Type: application/json',
+            ];
+
+            $sharedKey = trim((string)getenv('INVENTORY_SHARED_KEY'));
+            if ($sharedKey !== '') {
+                $headers[] = 'X-Integration-Key: ' . $sharedKey;
+            }
+
+            $ch = curl_init($inventoryUpsertUrl);
+            if ($ch === false) {
+                $this->logInventorySync("project_id={$projectId} curl_error=curl_init_failed");
+                return;
+            }
+
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, $json);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 6);
+
+            $response = curl_exec($ch);
+            $errno = curl_errno($ch);
+            $error = curl_error($ch);
+            $httpCode = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+
+            if ($errno !== 0) {
+                $this->logInventorySync("project_id={$projectId} curl_error code={$errno} msg=" . $error);
+                return;
+            }
+
+            if ($httpCode < 200 || $httpCode >= 300) {
+                $body = is_string($response) ? substr(preg_replace('/\s+/', ' ', $response), 0, 500) : '';
+                $this->logInventorySync("project_id={$projectId} http_error code={$httpCode} body=" . $body);
+                return;
+            }
+
+            $this->logInventorySync("project_id={$projectId} sync_ok code={$httpCode}");
+        } catch (Throwable $e) {
+            $this->logInventorySync("project_id={$projectId} exception=" . $e->getMessage());
+        }
+    }
+
+    private function logInventorySync(string $line): void
+    {
+        $dir = __DIR__ . '/../../../../integrations/logs';
+        if (!is_dir($dir)) {
+            @mkdir($dir, 0775, true);
+        }
+
+        $file = $dir . '/inventory_sync.log';
+        $entry = '[' . gmdate('c') . '] ' . $line . PHP_EOL;
+        @file_put_contents($file, $entry, FILE_APPEND);
     }
 }
