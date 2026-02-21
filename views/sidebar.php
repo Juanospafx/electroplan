@@ -20,49 +20,49 @@ $userRoleRawSidebar = $_SESSION['role'] ?? 'viewer';
 $isAdminSidebar = (strtolower($userRoleRawSidebar) === 'admin');
 ?>
 
-<nav class="sidebar">
+<nav class="sidebar" id="mainSidebar">
     <div class="brand">
         <div class="brand-icon"><i class="fas fa-bolt"></i></div>
-        Brightronix
+        <span class="brand-text">Brightronix</span>
     </div>
     
     <div class="flex-grow-1">
         <a href="../pages/index.php" class="menu-item <?= $isDashboard ? 'active' : '' ?>">
-            <i class="fas fa-th-large"></i> Dashboard
+            <i class="fas fa-th-large"></i><span class="menu-label">Dashboard</span>
         </a>
         
         <a href="../pages/projects.php" class="menu-item <?= $isProjects ? 'active' : '' ?>">
-            <i class="fas fa-layer-group"></i> Projects
+            <i class="fas fa-layer-group"></i><span class="menu-label">Projects</span>
         </a>
 
         <a href="../pages/archivos.php" class="menu-item <?= $isFiles ? 'active' : '' ?>">
-            <i class="fas fa-file-alt"></i> Files
+            <i class="fas fa-file-alt"></i><span class="menu-label">Files</span>
         </a>
 
         <?php if($isAdminSidebar): ?>
             <a href="../pages/directorio.php" class="menu-item <?= $isDirectory ? 'active' : '' ?>">
-                <i class="fas fa-sitemap"></i> Directory
+                <i class="fas fa-sitemap"></i><span class="menu-label">Directory</span>
             </a>
 
             <a href="../pages/timeline.php" class="menu-item <?= $isTimeline ? 'active' : '' ?>">
-                <i class="far fa-calendar-alt"></i> Timeline
+                <i class="far fa-calendar-alt"></i><span class="menu-label">Timeline</span>
             </a>
             
             <a href="../admin/settings.php" class="menu-item <?= $isSettings ? 'active' : '' ?>">
-                <i class="fas fa-users-cog"></i> Settings
+                <i class="fas fa-users-cog"></i><span class="menu-label">Settings</span>
             </a>
             
             <hr style="border-color:rgba(255,255,255,0.1)">
             
             <a href="../pages/index.php?view=trash" class="menu-item <?= $isTrash ? 'active' : '' ?> text-danger">
-                <i class="fas fa-trash-alt"></i> Recycle Bin
+                <i class="fas fa-trash-alt"></i><span class="menu-label">Recycle Bin</span>
             </a>
         <?php endif; ?>
     </div>
     
     <div>
         <a href="../pages/logout.php" class="menu-item text-danger">
-            <i class="fas fa-sign-out-alt"></i> Logout
+            <i class="fas fa-sign-out-alt"></i><span class="menu-label">Logout</span>
         </a>
     </div>
 </nav>

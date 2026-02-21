@@ -297,9 +297,11 @@ include __DIR__ . '/../views/header.php';
     .project-content { min-width: 0; }
     .project-layout.sidebar-collapsed .project-sidebar { display: none; }
 
-    .folder-row { min-width: 0; }
+    .project-sidebar .p-3 { min-width: 0; }
+    .folder-row { min-width: 0; align-items: center !important; }
     .folder-link {
         min-width: 0;
+        max-width: calc(100% - 64px);
         flex: 1 1 auto;
         white-space: nowrap;
         line-height: 1.35;
@@ -315,7 +317,7 @@ include __DIR__ . '/../views/header.php';
         display: block;
         max-width: 100%;
     }
-    .folder-actions { flex: 0 0 auto; padding-top: 2px; }
+    .folder-actions { flex: 0 0 56px; width: 56px; padding-top: 0; justify-content: flex-end; }
     .file-hover:hover {
         background: rgba(255,255,255,0.05);
         transform: translateY(-2px);
