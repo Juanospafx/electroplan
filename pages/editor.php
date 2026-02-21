@@ -482,6 +482,43 @@ if ($filePath !== '') {
 
 </div>
 
+<div class="modal fade" id="mobileCalModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered modal-sm">
+        <div class="modal-content p-2">
+            <div class="modal-header">
+                <h6 class="modal-title fw-bold"><i class="fas fa-ruler-combined text-warning me-2"></i>Plan Scale</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <label class="form-label small mb-1">Mode</label>
+                <select id="mobile-cal-mode" class="form-select form-select-sm mb-2" onchange="mobileCalModeChanged(this.value)">
+                    <option value="manual">Manual</option>
+                    <option value="preset">Preset</option>
+                </select>
+
+                <div id="mobile-cal-preset-wrap" class="mb-2">
+                    <label class="form-label small mb-1">Preset scale</label>
+                    <select id="mobile-cal-preset" class="form-select form-select-sm" onchange="mobileCalPresetChanged(this.value)">
+                        <option value="">Preset scale...</option>
+                    </select>
+                </div>
+
+                <div id="mobile-cal-manual-wrap" class="mb-2 d-none">
+                    <label class="form-label small mb-1">Distance (ft)</label>
+                    <input type="number" id="mobile-cal-val" class="form-control form-control-sm" min="0.1" step="0.1" placeholder="e.g. 10">
+                    <div class="small text-muted mt-1">Draw a known line on the plan, then apply.</div>
+                </div>
+
+                <div class="small text-muted">Current scale: <span id="mobile-cal-current">--</span></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-sm btn-success" onclick="mobileApplyManualCal()">Apply</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div class="modal fade" id="reportModal" data-bs-backdrop="static" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content p-3">
@@ -572,6 +609,56 @@ if ($filePath !== '') {
     function closeAllOverlays() {
         document.getElementById('sidebarLeft').classList.remove('show');
         updateOverlay();
+    }
+
+    function openMobileCalModal() {
+        if (window.innerWidth > 991) return;
+        const desktopMode = document.getElementById('cal-mode');
+        const desktopPreset = document.getElementById('cal-preset');
+        const mMode = document.getElementById('mobile-cal-mode');
+        const mPreset = document.getElementById('mobile-cal-preset');
+        const mCurrent = document.getElementById('mobile-cal-current');
+
+        if (desktopMode && mMode) mMode.value = desktopMode.value || 'preset';
+
+        if (desktopPreset && mPreset) {
+            mPreset.innerHTML = desktopPreset.innerHTML;
+            mPreset.value = desktopPreset.value || '';
+        }
+
+        const scaleText = (document.getElementById('scale-display')?.textContent || '--').trim();
+        if (mCurrent) mCurrent.textContent = scaleText || '--';
+
+        mobileCalModeChanged(mMode ? mMode.value : 'preset');
+        new bootstrap.Modal(document.getElementById('mobileCalModal')).show();
+    }
+
+    function mobileCalModeChanged(mode) {
+        const desktopMode = document.getElementById('cal-mode');
+        if (desktopMode) desktopMode.value = mode;
+        setCalMode(mode);
+
+        document.getElementById('mobile-cal-preset-wrap')?.classList.toggle('d-none', mode !== 'preset');
+        document.getElementById('mobile-cal-manual-wrap')?.classList.toggle('d-none', mode !== 'manual');
+    }
+
+    function mobileCalPresetChanged(value) {
+        const desktopPreset = document.getElementById('cal-preset');
+        if (desktopPreset) desktopPreset.value = value;
+        applyScalePreset(value);
+        const scaleText = (document.getElementById('scale-display')?.textContent || '--').trim();
+        const mCurrent = document.getElementById('mobile-cal-current');
+        if (mCurrent) mCurrent.textContent = scaleText || '--';
+    }
+
+    function mobileApplyManualCal() {
+        const v = document.getElementById('mobile-cal-val')?.value;
+        const desktopVal = document.getElementById('cal-val');
+        if (desktopVal) desktopVal.value = v || '';
+        finishCal(true);
+        const scaleText = (document.getElementById('scale-display')?.textContent || '--').trim();
+        const mCurrent = document.getElementById('mobile-cal-current');
+        if (mCurrent) mCurrent.textContent = scaleText || '--';
     }
 
     // --- SETUP ---
@@ -1868,7 +1955,12 @@ if ($filePath !== '') {
         else if(mode === 'measure') {
             if(pixelsPerFoot <= 0) { showToast("Please calibrate first!", "error"); setMode('cal'); return; }
             canvas.defaultCursor = 'crosshair';
-        } else if(mode === 'cal') { updateCalHint(); } 
+        } else if(mode === 'cal') {
+            updateCalHint();
+            if (window.innerWidth <= 991) {
+                openMobileCalModal();
+            }
+        } 
         else { canvas.defaultCursor = 'default'; }
 
         if (useKonvaRuler) {
