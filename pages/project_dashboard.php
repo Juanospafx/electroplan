@@ -95,12 +95,12 @@ include __DIR__ . '/../views/header.php';
                     <div class="mt-3 mb-2 ps-2 text-muted small fw-bold text-uppercase ls-1">Files & Folders</div>
                     
                     <?php foreach($allFolders as $folder): ?>
-                        <div class="d-flex align-items-center justify-content-between">
-                            <a href="?id=<?= $projectId ?>&view=files&folder_id=<?= $folder['id'] ?>" class="nav-link <?= ($currentView=='files' && $currentFolderId==$folder['id'])?'active':'' ?>">
-                                <i class="fas fa-folder me-2 text-warning opacity-75"></i> <?= htmlspecialchars($folder['name']) ?>
+                        <div class="d-flex align-items-start justify-content-between folder-row gap-2">
+                            <a href="?id=<?= $projectId ?>&view=files&folder_id=<?= $folder['id'] ?>" class="nav-link folder-link <?= ($currentView=='files' && $currentFolderId==$folder['id'])?'active':'' ?>" title="<?= htmlspecialchars($folder['name']) ?>">
+                                <i class="fas fa-folder me-2 text-warning opacity-75"></i><span class="folder-link-text"><?= htmlspecialchars($folder['name']) ?></span>
                             </a>
                             <?php if(($_SESSION['role'] ?? '') === 'admin' && $folder['name'] !== 'Reports'): ?>
-                                <div class="d-flex gap-1">
+                                <div class="d-flex gap-1 folder-actions">
                                     <button class="btn btn-sm btn-outline-warning border-0" onclick="openMoveFolderModal(<?= (int)$folder['id'] ?>)" title="Move Folder"><i class="fas fa-exchange-alt"></i></button>
                                     <button class="btn btn-sm btn-outline-danger border-0" onclick="deleteFolder(<?= (int)$folder['id'] ?>)" title="Delete Folder"><i class="fas fa-trash"></i></button>
                                 </div>
@@ -286,6 +286,19 @@ include __DIR__ . '/../views/header.php';
         font-weight: 500;
         box-shadow: 0 4px 10px rgba(99, 102, 241, 0.3);
     }
+    .folder-row { min-width: 0; }
+    .folder-link {
+        min-width: 0;
+        flex: 1 1 auto;
+        white-space: normal;
+        line-height: 1.35;
+        word-break: break-word;
+        overflow-wrap: anywhere;
+        display: flex;
+        align-items: flex-start;
+    }
+    .folder-link-text { min-width: 0; }
+    .folder-actions { flex: 0 0 auto; padding-top: 4px; }
     .file-hover:hover {
         background: rgba(255,255,255,0.05);
         transform: translateY(-2px);
@@ -391,8 +404,9 @@ include __DIR__ . '/../views/header.php';
             </div>
             <form id="newFolderFormDash">
                 <div class="modal-body">
+                    <div id="newFolderError" class="alert alert-danger py-2 px-3 mb-3 d-none" role="alert"></div>
                     <label class="text-gray small mb-2">Folder Name</label>
-                    <input type="text" name="name" class="form-control" required>
+                    <input type="text" name="name" class="form-control" required maxlength="255">
                 </div>
                 <div class="modal-footer">
                     <button type="submit" class="btn-main w-100">Create</button>
@@ -753,22 +767,39 @@ include __DIR__ . '/../views/header.php';
     function openNewFolderModal() {
         const modalEl = document.getElementById('newFolderModalDash');
         if (!modalEl) return;
+        if (typeof clearNewFolderError === 'function') clearNewFolderError();
         new bootstrap.Modal(modalEl).show();
     }
     const newFolderFormDash = document.getElementById('newFolderFormDash');
+    const newFolderError = document.getElementById('newFolderError');
+    const showNewFolderError = (msg) => {
+        if (!newFolderError) return;
+        newFolderError.textContent = msg;
+        newFolderError.classList.remove('d-none');
+    };
+    const clearNewFolderError = () => {
+        if (!newFolderError) return;
+        newFolderError.textContent = '';
+        newFolderError.classList.add('d-none');
+    };
+
     if (newFolderFormDash) {
         newFolderFormDash.addEventListener('submit', function(e) {
             e.preventDefault();
+            clearNewFolderError();
             const fd = new FormData(this);
             fd.append('action', 'create_folder');
             fd.append('project_id', pId);
             fetch('../api/api.php', { method:'POST', body: fd })
                 .then(r => r.json())
                 .then(d => {
-                    if (d.status === 'success') location.reload();
-                    else alert('Error creating folder: ' + (d.msg || 'Unknown'));
+                    if (d.status === 'success') {
+                        location.reload();
+                    } else {
+                        showNewFolderError('Error creating folder: ' + (d.msg || 'Unknown'));
+                    }
                 })
-                .catch(() => alert('Connection error'));
+                .catch(() => showNewFolderError('Connection error while creating folder.'));
         });
     }
 </script>

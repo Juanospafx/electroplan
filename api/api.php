@@ -399,16 +399,22 @@ switch($action) {
     case 'create_folder':
         if($userRole !== 'admin') { echo json_encode(['status'=>'error', 'msg'=>'Access Denied']); exit; }
 
-        $projectId = $_POST['project_id'];
-        $name = $_POST['name'];
-        
-        $stmtCount = $pdo->prepare("SELECT COUNT(*) FROM folders WHERE project_id = ? AND deleted_at IS NULL");
-        $stmtCount->execute([$projectId]);
-        if($stmtCount->fetchColumn() >= 10) {
-            echo json_encode(['status'=>'error', 'msg'=>'Limit reached: Max 10 folders per project.']);
+        $projectId = (int)($_POST['project_id'] ?? 0);
+        $name = trim((string)($_POST['name'] ?? ''));
+
+        if ($projectId <= 0) {
+            echo json_encode(['status'=>'error', 'msg'=>'Invalid project.']);
             exit;
         }
-        
+        if ($name === '') {
+            echo json_encode(['status'=>'error', 'msg'=>'Folder name is required.']);
+            exit;
+        }
+        if (mb_strlen($name) > 255) {
+            echo json_encode(['status'=>'error', 'msg'=>'Folder name is too long (max 255 chars).']);
+            exit;
+        }
+
         try {
             $stmt = $pdo->prepare("INSERT INTO folders (project_id, name) VALUES (?, ?)");
             $stmt->execute([$projectId, $name]);
