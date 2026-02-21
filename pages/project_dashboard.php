@@ -73,6 +73,9 @@ include __DIR__ . '/../views/header.php';
         </div>
         
         <div class="d-flex gap-2">
+            <button id="toggleProjectSidebarBtn" class="btn btn-outline-light btn-sm rounded-pill" type="button" onclick="toggleProjectSidebar()">
+                <i class="fas fa-bars me-2"></i><span id="toggleProjectSidebarText">Hide Menu</span>
+            </button>
             <?php if($_SESSION['role'] === 'admin'): ?>
                 <a href="project_create.php?id=<?= (int)$projectId ?>" class="btn btn-outline-secondary btn-sm rounded-pill"><i class="fas fa-edit me-2"></i>Edit Info</a>
                 <button class="btn btn-outline-info btn-sm rounded-pill" onclick="openAssignUsersModal()"><i class="fas fa-user-plus me-2"></i>Assign Users</button>
@@ -82,9 +85,9 @@ include __DIR__ . '/../views/header.php';
         </div>
     </div>
 
-    <div class="flex-grow-1 d-flex overflow-hidden">
+    <div id="projectLayout" class="flex-grow-1 d-flex overflow-hidden project-layout">
         
-        <aside class="project-sidebar bg-panel border-end border-secondary" style="width: 260px; overflow-y: auto;">
+        <aside id="projectSidebar" class="project-sidebar bg-panel border-end border-secondary" style="width: 320px; overflow-y: auto;">
             <div class="p-3">
                 <p class="text-muted small fw-bold text-uppercase ls-1 mb-3 ps-2">Project Menu</p>
                 
@@ -275,6 +278,9 @@ include __DIR__ . '/../views/header.php';
         padding: 10px 15px;
         transition: 0.2s;
         font-size: 0.95rem;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
     }
     .project-sidebar .nav-link:hover {
         background: rgba(255,255,255,0.05);
@@ -286,19 +292,30 @@ include __DIR__ . '/../views/header.php';
         font-weight: 500;
         box-shadow: 0 4px 10px rgba(99, 102, 241, 0.3);
     }
+    .project-layout { min-width: 0; }
+    .project-sidebar { flex: 0 0 320px; min-width: 320px; transition: all .25s ease; }
+    .project-content { min-width: 0; }
+    .project-layout.sidebar-collapsed .project-sidebar { display: none; }
+
     .folder-row { min-width: 0; }
     .folder-link {
         min-width: 0;
         flex: 1 1 auto;
-        white-space: normal;
+        white-space: nowrap;
         line-height: 1.35;
-        word-break: break-word;
-        overflow-wrap: anywhere;
         display: flex;
-        align-items: flex-start;
+        align-items: center;
+        overflow: hidden;
     }
-    .folder-link-text { min-width: 0; }
-    .folder-actions { flex: 0 0 auto; padding-top: 4px; }
+    .folder-link-text {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        display: block;
+        max-width: 100%;
+    }
+    .folder-actions { flex: 0 0 auto; padding-top: 2px; }
     .file-hover:hover {
         background: rgba(255,255,255,0.05);
         transform: translateY(-2px);
@@ -307,9 +324,14 @@ include __DIR__ . '/../views/header.php';
     @media (max-width: 992px) {
         .bg-header { flex-direction: column; align-items: flex-start; gap: 12px; }
         .bg-header .d-flex.gap-2 { width: 100%; flex-wrap: wrap; }
-        .project-sidebar { width: 100% !important; border-right: 0; border-bottom: 1px solid rgba(255,255,255,0.08); }
+        .project-sidebar {
+            width: 100% !important;
+            min-width: 100%;
+            border-right: 0;
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+        }
         .project-content { padding: 20px !important; }
-        .flex-grow-1.d-flex.overflow-hidden { flex-direction: column; }
+        .project-layout { flex-direction: column; }
     }
 
     .recent-upload-card { gap: 12px; }
@@ -454,6 +476,28 @@ include __DIR__ . '/../views/header.php';
 <script>
     const pId = <?= $projectId ?>;
     const fId = <?= $currentFolderId ?? 'null' ?>;
+
+    function applyProjectSidebarState(collapsed) {
+        const layout = document.getElementById('projectLayout');
+        const text = document.getElementById('toggleProjectSidebarText');
+        if (!layout) return;
+        layout.classList.toggle('sidebar-collapsed', collapsed);
+        if (text) text.textContent = collapsed ? 'Show Menu' : 'Hide Menu';
+    }
+
+    function toggleProjectSidebar() {
+        const layout = document.getElementById('projectLayout');
+        if (!layout) return;
+        const collapsed = !layout.classList.contains('sidebar-collapsed');
+        applyProjectSidebarState(collapsed);
+        try { localStorage.setItem('projectSidebarCollapsed', collapsed ? '1' : '0'); } catch (e) {}
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        let collapsed = false;
+        try { collapsed = localStorage.getItem('projectSidebarCollapsed') === '1'; } catch (e) {}
+        applyProjectSidebarState(collapsed);
+    });
 
     function openUploadModal() {
         if (fId) {
