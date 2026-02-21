@@ -95,12 +95,12 @@ include __DIR__ . '/../views/header.php';
                     <div class="mt-3 mb-2 ps-2 text-muted small fw-bold text-uppercase ls-1">Files & Folders</div>
                     
                     <?php foreach($allFolders as $folder): ?>
-                        <div class="d-flex align-items-center justify-content-between">
-                            <a href="?id=<?= $projectId ?>&view=files&folder_id=<?= $folder['id'] ?>" class="nav-link <?= ($currentView=='files' && $currentFolderId==$folder['id'])?'active':'' ?>">
-                                <i class="fas fa-folder me-2 text-warning opacity-75"></i> <?= htmlspecialchars($folder['name']) ?>
+                        <div class="d-flex align-items-start justify-content-between folder-row gap-2">
+                            <a href="?id=<?= $projectId ?>&view=files&folder_id=<?= $folder['id'] ?>" class="nav-link folder-link <?= ($currentView=='files' && $currentFolderId==$folder['id'])?'active':'' ?>" title="<?= htmlspecialchars($folder['name']) ?>">
+                                <i class="fas fa-folder me-2 text-warning opacity-75"></i><span class="folder-link-text"><?= htmlspecialchars($folder['name']) ?></span>
                             </a>
                             <?php if(($_SESSION['role'] ?? '') === 'admin' && $folder['name'] !== 'Reports'): ?>
-                                <div class="d-flex gap-1">
+                                <div class="d-flex gap-1 folder-actions">
                                     <button class="btn btn-sm btn-outline-warning border-0" onclick="openMoveFolderModal(<?= (int)$folder['id'] ?>)" title="Move Folder"><i class="fas fa-exchange-alt"></i></button>
                                     <button class="btn btn-sm btn-outline-danger border-0" onclick="deleteFolder(<?= (int)$folder['id'] ?>)" title="Delete Folder"><i class="fas fa-trash"></i></button>
                                 </div>
@@ -391,8 +391,9 @@ include __DIR__ . '/../views/header.php';
             </div>
             <form id="newFolderFormDash">
                 <div class="modal-body">
+                    <div id="newFolderError" class="alert alert-danger py-2 px-3 mb-3 d-none" role="alert"></div>
                     <label class="text-gray small mb-2">Folder Name</label>
-                    <input type="text" name="name" class="form-control" required>
+                    <input type="text" name="name" class="form-control" required maxlength="255">
                 </div>
                 <div class="modal-footer">
                     <button type="submit" class="btn-main w-100">Create</button>
