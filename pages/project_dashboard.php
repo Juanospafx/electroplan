@@ -286,6 +286,19 @@ include __DIR__ . '/../views/header.php';
         font-weight: 500;
         box-shadow: 0 4px 10px rgba(99, 102, 241, 0.3);
     }
+    .folder-row { min-width: 0; }
+    .folder-link {
+        min-width: 0;
+        flex: 1 1 auto;
+        white-space: normal;
+        line-height: 1.35;
+        word-break: break-word;
+        overflow-wrap: anywhere;
+        display: flex;
+        align-items: flex-start;
+    }
+    .folder-link-text { min-width: 0; }
+    .folder-actions { flex: 0 0 auto; padding-top: 4px; }
     .file-hover:hover {
         background: rgba(255,255,255,0.05);
         transform: translateY(-2px);
@@ -754,22 +767,39 @@ include __DIR__ . '/../views/header.php';
     function openNewFolderModal() {
         const modalEl = document.getElementById('newFolderModalDash');
         if (!modalEl) return;
+        if (typeof clearNewFolderError === 'function') clearNewFolderError();
         new bootstrap.Modal(modalEl).show();
     }
     const newFolderFormDash = document.getElementById('newFolderFormDash');
+    const newFolderError = document.getElementById('newFolderError');
+    const showNewFolderError = (msg) => {
+        if (!newFolderError) return;
+        newFolderError.textContent = msg;
+        newFolderError.classList.remove('d-none');
+    };
+    const clearNewFolderError = () => {
+        if (!newFolderError) return;
+        newFolderError.textContent = '';
+        newFolderError.classList.add('d-none');
+    };
+
     if (newFolderFormDash) {
         newFolderFormDash.addEventListener('submit', function(e) {
             e.preventDefault();
+            clearNewFolderError();
             const fd = new FormData(this);
             fd.append('action', 'create_folder');
             fd.append('project_id', pId);
             fetch('../api/api.php', { method:'POST', body: fd })
                 .then(r => r.json())
                 .then(d => {
-                    if (d.status === 'success') location.reload();
-                    else alert('Error creating folder: ' + (d.msg || 'Unknown'));
+                    if (d.status === 'success') {
+                        location.reload();
+                    } else {
+                        showNewFolderError('Error creating folder: ' + (d.msg || 'Unknown'));
+                    }
                 })
-                .catch(() => alert('Connection error'));
+                .catch(() => showNewFolderError('Connection error while creating folder.'));
         });
     }
 </script>
