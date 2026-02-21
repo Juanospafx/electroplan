@@ -29,10 +29,10 @@
             position: fixed; 
             top: 0; left: 0;
             height: 100vh; 
-            z-index: 1050; /* Aumentado para estar sobre todo */
+            z-index: 1050;
             overflow-y: auto; 
-            transition: transform 0.3s ease; /* Animación suave */
-            transform: translateX(0); /* Visible por defecto en PC */
+            transition: transform 0.3s ease, width 0.25s ease, padding 0.25s ease;
+            transform: translateX(0);
         }
 
         .brand { font-size: 1.5rem; font-weight: 700; margin-bottom: 50px; display: flex; align-items: center; gap: 12px; color: white; }
@@ -42,6 +42,34 @@
         .menu-item:hover { background: rgba(255,255,255,0.05); color: white; transform: translateX(5px); }
         .menu-item.active { background: var(--primary); color: white; box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3); }
         .menu-item i { width: 20px; text-align: center; }
+        .menu-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+        .sidebar-toggle {
+            position: fixed;
+            top: 14px;
+            left: 274px;
+            z-index: 1200;
+            width: 36px;
+            height: 36px;
+            border-radius: 999px;
+            border: 1px solid rgba(255,255,255,0.2);
+            background: rgba(17,24,39,.92);
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: left .25s ease;
+        }
+
+        body.sidebar-collapsed .sidebar { width: 78px; padding: 24px 10px; }
+        body.sidebar-collapsed .brand { justify-content: center; }
+        body.sidebar-collapsed .brand-text,
+        body.sidebar-collapsed .menu-label { display: none; }
+        body.sidebar-collapsed .menu-item { justify-content: center; padding: 14px 10px; gap: 0; }
+        body.sidebar-collapsed .menu-item i { margin-right: 0 !important; }
+        body.sidebar-collapsed .main-content { margin-left: 78px; width: calc(100% - 78px); }
+        body.sidebar-collapsed .sidebar-toggle { left: 92px; }
 
         /* --- 3. LAYOUT PRINCIPAL (MODIFICADO PARA RESPONSIVE) --- */
         .main-content { 
@@ -107,28 +135,53 @@
         .sidebar-overlay.show { display: block; }
 
         @media (max-width: 991.98px) {
-            /* Sidebar oculto por defecto */
             .sidebar { transform: translateX(-100%); width: 280px; }
-            /* Sidebar visible cuando tiene clase .show */
             .sidebar.show { transform: translateX(0); box-shadow: 10px 0 30px rgba(0,0,0,0.5); }
-            
-            /* Contenido principal ocupa todo el ancho */
-            .main-content { margin-left: 0; width: 100%; padding: 20px; }
-            
-            /* Mostrar botón hamburguesa */
+            .main-content { margin-left: 0 !important; width: 100% !important; padding: 20px; }
             .mobile-toggle { display: block; }
+            .sidebar-toggle { display: none; }
         }
     </style>
 </head>
 <body>
 
 <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+<button id="sidebarCollapseBtn" class="sidebar-toggle" type="button" onclick="toggleSidebarDesktop()" aria-label="Toggle sidebar">
+    <i class="fas fa-angle-left"></i>
+</button>
 
 <script>
     function toggleSidebar() {
         document.querySelector('.sidebar').classList.toggle('show');
         document.getElementById('sidebarOverlay').classList.toggle('show');
     }
+
+    function syncSidebarToggleIcon() {
+        const btn = document.getElementById('sidebarCollapseBtn');
+        if (!btn) return;
+        const icon = btn.querySelector('i');
+        const collapsed = document.body.classList.contains('sidebar-collapsed');
+        if (icon) icon.className = collapsed ? 'fas fa-angle-right' : 'fas fa-angle-left';
+    }
+
+    function toggleSidebarDesktop() {
+        document.body.classList.toggle('sidebar-collapsed');
+        try {
+            localStorage.setItem('mainSidebarCollapsed', document.body.classList.contains('sidebar-collapsed') ? '1' : '0');
+        } catch (e) {}
+        syncSidebarToggleIcon();
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+        if (window.matchMedia('(min-width: 992px)').matches) {
+            try {
+                if (localStorage.getItem('mainSidebarCollapsed') === '1') {
+                    document.body.classList.add('sidebar-collapsed');
+                }
+            } catch (e) {}
+        }
+        syncSidebarToggleIcon();
+    });
 </script>
 
 <div class="d-flex-wrapper">
