@@ -1110,7 +1110,7 @@ if ($filePath !== '') {
         if (!note || !note.label) return true;
         const raw = String(note.label.text() || '');
         const trimmed = raw.trim();
-        return trimmed === '' || trimmed.toLowerCase() === 'note';
+        return trimmed === '';
     }
 
     function removeKonvaNote(note) {
@@ -1133,7 +1133,7 @@ if ($filePath !== '') {
         return true;
     }
 
-    function createKonvaNote(pos, text = 'Note') {
+    function createKonvaNote(pos, text = '') {
         const group = new Konva.Group({ draggable: true });
         const label = new Konva.Text({
             x: pos.x,
@@ -1919,11 +1919,11 @@ if ($filePath !== '') {
         saveHistory();
     });
 
-    // Auto-remove empty/default text on creation
+    // Auto-remove empty text on creation
     canvas.on('text:editing:exited', function(e) {
         const obj = e.target;
         if(obj && obj.isNew) {
-            if(obj.text.trim() === 'Note' || obj.text.trim() === '') {
+            if((obj.text || '').trim() === '') {
                 canvas.remove(obj);
                 canvas.requestRenderAll();
                 showToast("Empty note discarded", "warning");
@@ -2317,12 +2317,12 @@ if ($filePath !== '') {
             setKonvaActive(true);
             updateKonvaInteractivity();
             const center = canvas.getVpCenter();
-            const note = createKonvaNote({ x: center.x, y: center.y }, 'Note');
+            const note = createKonvaNote({ x: center.x, y: center.y }, '');
             startInlineNoteEdit(note);
             return;
         }
         const center = canvas.getVpCenter();
-        const t = new fabric.IText('Note', { left: center.x, top: center.y, fill: '#ef4444', fontSize: 60, isNew: true });
+        const t = new fabric.IText('', { left: center.x, top: center.y, fill: '#ef4444', fontSize: 60, isNew: true });
         lockObject(t); canvas.add(t); canvas.setActiveObject(t); t.selectAll(); t.enterEditing();
         showPropSection('text');
         document.getElementById('text-size-input').value = 60;
