@@ -689,6 +689,7 @@ if ($filePath !== '') {
     const konvaRulersByPage = {};
     let konvaTransformer = null;
     let konvaEditingTextarea = null;
+    let konvaSelectedNote = null;
     let konvaSelectedNode = null;
     let konvaDrawing = null;
     let konvaIsPanning = false;
@@ -1105,6 +1106,33 @@ if ($filePath !== '') {
         return ruler;
     }
 
+    function isKonvaNoteEmpty(note) {
+        if (!note || !note.label) return true;
+        const raw = String(note.label.text() || '');
+        const trimmed = raw.trim();
+        return trimmed === '' || trimmed.toLowerCase() === 'note';
+    }
+
+    function removeKonvaNote(note) {
+        if (!note) return;
+        if (konvaSelectedNote === note) konvaSelectedNote = null;
+        if (konvaSelectedNode && konvaSelectedNode.type === 'note' && konvaSelectedNode.ref === note) {
+            konvaSelectedNode = null;
+        }
+        if (konvaTransformer) konvaTransformer.nodes([]);
+        note.group.destroy();
+        konvaNotes = konvaNotes.filter(n => n !== note);
+        if (konvaLayer) konvaLayer.batchDraw();
+    }
+
+    function discardEmptyActiveKonvaNote() {
+        if (!konvaSelectedNote) return false;
+        if (!isKonvaNoteEmpty(konvaSelectedNote)) return false;
+        removeKonvaNote(konvaSelectedNote);
+        showToast("Empty note discarded", "warning");
+        return true;
+    }
+
     function createKonvaNote(pos, text = 'Note') {
         const group = new Konva.Group({ draggable: true });
         const label = new Konva.Text({
@@ -1122,8 +1150,9 @@ if ($filePath !== '') {
         const note = { group, label, page: pageNum };
         konvaNotes.push(note);
 
-        group.on('click tap', (e) => {
+        group.on('click tap', () => {
             if (currentMode !== 'smart') return;
+            konvaSelectedNote = note;
             if (konvaTransformer) konvaTransformer.nodes([group]);
             konvaSelectedNode = { type: 'note', ref: note };
         });
@@ -1162,6 +1191,7 @@ if ($filePath !== '') {
                 konvaRulersByPage[ref.page] = konvaRulersByPage[ref.page].filter(r => r !== ref);
             }
         } else if (type === 'note') {
+            if (konvaSelectedNote === ref) konvaSelectedNote = null;
             ref.group.destroy();
             konvaNotes = konvaNotes.filter(n => n !== ref);
         }
@@ -1173,6 +1203,7 @@ if ($filePath !== '') {
 
     function startInlineNoteEdit(note) {
         if (!note || !konvaStage || !konvaLayer) return;
+        konvaSelectedNote = note;
         const container = konvaStage.container();
         const rect = container.getBoundingClientRect();
         const vpt = getFabricVpt();
@@ -1216,15 +1247,21 @@ if ($filePath !== '') {
         konvaEditingTextarea.focus();
 
         const finish = () => {
+            if (!konvaEditingTextarea) return;
             const next = konvaEditingTextarea.value.trim();
             if (next !== '') {
                 textNode.text(next);
                 textNode.offsetX(textNode.width() / 2);
                 textNode.offsetY(textNode.height() / 2);
             }
-            konvaLayer.batchDraw();
             konvaEditingTextarea.remove();
             konvaEditingTextarea = null;
+            if (isKonvaNoteEmpty(note)) {
+                removeKonvaNote(note);
+                showToast("Empty note discarded", "warning");
+                return;
+            }
+            konvaLayer.batchDraw();
         };
 
         const onInput = () => {
@@ -1286,6 +1323,19 @@ if ($filePath !== '') {
         konvaStage.on('click tap', (e) => {
             const target = e.target;
             const isEmpty = !target || target === konvaStage;
+
+            if (currentMode === 'smart' && konvaSelectedNote && isKonvaNoteEmpty(konvaSelectedNote)) {
+                const clickedInsideSelectedNote = target && (
+                    target === konvaSelectedNote.group ||
+                    target === konvaSelectedNote.label ||
+                    target.getParent?.() === konvaSelectedNote.group
+                );
+                if (!clickedInsideSelectedNote) {
+                    removeKonvaNote(konvaSelectedNote);
+                    showToast("Empty note discarded", "warning");
+                }
+            }
+
             if (currentMode === 'smart' && isEmpty && konvaTransformer) {
                 konvaTransformer.nodes([]);
                 konvaLayer.batchDraw();
@@ -1926,7 +1976,9 @@ if ($filePath !== '') {
     // --- TOOL SWITCHING ---
     function setMode(mode) {
         if (calLineObject && mode !== 'cal') clearCalLine(); 
-        
+
+        discardEmptyActiveKonvaNote();
+
         // FIX: Check for new note before switching tool
         const activeObj = canvas.getActiveObject();
         if(activeObj && activeObj.isNew && (activeObj.type === 'i-text' || activeObj.type === 'text')) {
