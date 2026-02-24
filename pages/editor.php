@@ -736,6 +736,7 @@ if ($filePath !== '') {
     // STATES
     let pixelsPerFoot = 0;
     let currentMode = 'smart';
+    let pendingPlacementTool = null;
     let lineState = 0, activeLine = null, startPoint = null;
     let calLineObject = null; 
     let calMode = 'preset';
@@ -1272,7 +1273,17 @@ if ($filePath !== '') {
         });
         group.on('dragend', saveCurrentPageAnnotations);
         label.on('dblclick dbltap', () => {
-            if (currentMode !== 'smart') return;
+            if (currentMode !== 'smart') setMode('smart');
+            konvaSelectedNote = note;
+            if (konvaTransformer) konvaTransformer.nodes([group]);
+            konvaSelectedNode = { type: 'note', ref: note };
+            startInlineNoteEdit(note);
+        });
+        group.on('dblclick dbltap', () => {
+            if (currentMode !== 'smart') setMode('smart');
+            konvaSelectedNote = note;
+            if (konvaTransformer) konvaTransformer.nodes([group]);
+            konvaSelectedNode = { type: 'note', ref: note };
             startInlineNoteEdit(note);
         });
 
@@ -1322,6 +1333,11 @@ if ($filePath !== '') {
 
         group.on('click tap', () => {
             if (currentMode !== 'smart') return;
+            if (konvaTransformer) konvaTransformer.nodes([group]);
+            konvaSelectedNode = { type: 'cloud', ref: cloud };
+        });
+        group.on('dblclick dbltap', () => {
+            if (currentMode !== 'smart') setMode('smart');
             if (konvaTransformer) konvaTransformer.nodes([group]);
             konvaSelectedNode = { type: 'cloud', ref: cloud };
         });
@@ -1529,8 +1545,24 @@ if ($filePath !== '') {
         });
 
         konvaStage.on('mousedown touchstart', (e) => {
-            if (currentMode !== 'measure') return;
+            const target = e.target;
+            const isEmpty = !target || target === konvaStage;
             const pos = konvaStage.getPointerPosition();
+            if (pendingPlacementTool && isEmpty) {
+                if (!pos) return;
+                const world = screenToWorld(pos);
+                if (pendingPlacementTool === 'note') {
+                    const note = createKonvaNote(world, 'annotation');
+                    clearPlacementTool();
+                    startInlineNoteEdit(note);
+                } else if (pendingPlacementTool === 'cloud') {
+                    createKonvaCloud(world);
+                    clearPlacementTool();
+                }
+                saveCurrentPageAnnotations();
+                return;
+            }
+            if (currentMode !== 'measure') return;
             if (!pos) return;
             const world = screenToWorld(pos);
             konvaDrawing = createKonvaRuler(world, world);
@@ -2200,6 +2232,7 @@ if ($filePath !== '') {
              showToast("Empty note discarded", "warning");
         }
 
+        if (mode !== 'smart' && pendingPlacementTool) clearPlacementTool();
         resetToolState();
         currentMode = mode;
         canvas.discardActiveObject(); canvas.requestRenderAll();
@@ -2523,15 +2556,26 @@ if ($filePath !== '') {
     function setPenColor(c, el) { canvas.freeDrawingBrush.color = c; document.querySelectorAll('.color-dot').forEach(d => d.classList.remove('active')); el.classList.add('active'); }
     function setPenWidth(w) { canvas.freeDrawingBrush.width = parseInt(w); }
 
+    function startPlacementTool(tool) {
+        pendingPlacementTool = tool;
+        setMode('smart');
+        if (!useKonvaRuler) return;
+        initKonvaRuler();
+        setKonvaActive(true);
+        updateKonvaInteractivity();
+        if (konvaStage && konvaStage.container()) konvaStage.container().style.cursor = 'crosshair';
+        showToast(tool === 'note' ? 'Click where you want to place the note' : 'Click where you want to place the cloud', 'success');
+    }
+
+    function clearPlacementTool() {
+        pendingPlacementTool = null;
+        if (konvaStage && konvaStage.container()) konvaStage.container().style.cursor = 'default';
+    }
+
     function addText() {
         setMode('smart');
         if (useKonvaRuler) {
-            initKonvaRuler();
-            setKonvaActive(true);
-            updateKonvaInteractivity();
-            const center = canvas.getVpCenter();
-            const note = createKonvaNote({ x: center.x, y: center.y }, 'annotation');
-            startInlineNoteEdit(note);
+            startPlacementTool('note');
             return;
         }
         const center = canvas.getVpCenter();
@@ -2556,13 +2600,7 @@ if ($filePath !== '') {
     function addCloud() {
         setMode('smart');
         if (!useKonvaRuler) return;
-        initKonvaRuler();
-        setKonvaActive(true);
-        updateKonvaInteractivity();
-        const center = canvas.getVpCenter();
-        createKonvaCloud({ x: center.x, y: center.y });
-        saveCurrentPageAnnotations();
-        showToast('Cloud marker added', 'success');
+        startPlacementTool('cloud');
     }
 
     function setTextFixedColor(color, el) {
