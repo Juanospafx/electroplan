@@ -247,7 +247,7 @@ include __DIR__ . '/../views/header.php';
                                 <i class="fas <?= $icon ?> fa-3x mb-3"></i>
                                 <h6 class="text-truncate small mb-1"><?= htmlspecialchars($f['filename']) ?></h6>
                                 <small class="text-gray d-block mb-2"><?= date('M d', strtotime($f['uploaded_at'])) ?></small>
-                                <div class="d-flex justify-content-center gap-2">
+                                <div class="d-flex justify-content-center gap-2 file-actions-row">
                                     <a href="preview.php?id=<?= $f['id'] ?>" class="btn btn-sm btn-dark rounded-circle"><i class="fas fa-eye"></i></a>
                                     <a href="editor.php?id=<?= $f['id'] ?>" class="btn btn-sm btn-dark rounded-circle text-primary"><i class="fas fa-pen"></i></a>
                                     <?php if(($_SESSION['role'] ?? '') === 'admin'): ?>
@@ -318,6 +318,9 @@ include __DIR__ . '/../views/header.php';
         max-width: 100%;
     }
     .folder-actions { flex: 0 0 56px; width: 56px; padding-top: 0; justify-content: flex-end; }
+    .file-hover { overflow: visible !important; min-height: 212px; }
+    .file-actions-row { min-height: 34px; padding-bottom: 2px; align-items: center; flex-wrap: nowrap; }
+    .file-actions-row .btn { display: inline-flex; align-items: center; justify-content: center; }
     .file-hover:hover {
         background: rgba(255,255,255,0.05);
         transform: translateY(-2px);
