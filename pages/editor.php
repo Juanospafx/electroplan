@@ -1351,7 +1351,7 @@ if ($filePath !== '') {
             },
             stroke,
             strokeWidth,
-            fill: 'rgba(239, 68, 68, 0.06)',
+            fill: 'transparent',
             shadowColor: '#ef4444',
             shadowBlur: 8,
             shadowOpacity: 0.18
