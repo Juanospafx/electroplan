@@ -472,6 +472,7 @@ if ($filePath !== '') {
         <button class="tool-btn active" id="btn-smart" onclick="setMode('smart')" title="Pointer"><i class="fas fa-mouse-pointer"></i></button>
         <button class="tool-btn" id="btn-draw" onclick="setMode('draw')" title="Pen Tool"><i class="fas fa-pencil-alt"></i></button>
         <button class="tool-btn" id="btn-text" onclick="addText()" title="Add Text"><i class="fas fa-font"></i></button>
+        <button class="tool-btn" id="btn-cloud" onclick="addCloud()" title="Cloud Mark"><i class="fas fa-cloud"></i></button>
         
         <button class="tool-btn" id="btn-stamp" onclick="toggleStampMenu()" title="Stamps"><i class="fas fa-stamp"></i></button>
         
@@ -686,6 +687,7 @@ if ($filePath !== '') {
     let konvaLayer = null;
     let konvaRulers = [];
     let konvaNotes = [];
+    let konvaClouds = [];
     const konvaRulersByPage = {};
     let konvaTransformer = null;
     let konvaEditingTextarea = null;
@@ -1011,6 +1013,65 @@ if ($filePath !== '') {
         r.label.position({ x: midX, y: midY });
     }
 
+    function serializeKonvaForPage(pg) {
+        const notes = konvaNotes
+            .filter(n => n.page === pg)
+            .map(n => ({ x: n.group.x(), y: n.group.y(), text: n.label.text(), fill: n.label.fill(), fontSize: n.label.fontSize() }));
+        const rulers = konvaRulers
+            .filter(r => r.page === pg)
+            .map(r => ({ p1: r.a1.position(), p2: r.a2.position() }));
+        const clouds = konvaClouds
+            .filter(c => c.page === pg)
+            .map(c => ({ x: c.group.x(), y: c.group.y(), scaleX: c.group.scaleX(), scaleY: c.group.scaleY() }));
+        return { notes, rulers, clouds };
+    }
+
+    function clearKonvaPage(pg) {
+        konvaNotes.filter(n => n.page === pg).forEach(n => n.group.destroy());
+        konvaRulers.filter(r => r.page === pg).forEach(r => r.group.destroy());
+        konvaClouds.filter(c => c.page === pg).forEach(c => c.group.destroy());
+        konvaNotes = konvaNotes.filter(n => n.page !== pg);
+        konvaRulers = konvaRulers.filter(r => r.page !== pg);
+        konvaClouds = konvaClouds.filter(c => c.page !== pg);
+    }
+
+    function loadKonvaForPage(pg, data) {
+        if (!useKonvaRuler) return;
+        initKonvaRuler();
+        clearKonvaPage(pg);
+        if (!data || typeof data !== 'object') return;
+        (data.rulers || []).forEach(r => createKonvaRuler(r.p1, r.p2, pg));
+        (data.notes || []).forEach(n => {
+            const note = createKonvaNote({ x: n.x, y: n.y }, n.text || 'annotation', pg);
+            if (n.fill) note.label.fill(n.fill);
+            if (n.fontSize) note.label.fontSize(n.fontSize);
+        });
+        (data.clouds || []).forEach(c => {
+            const cloud = createKonvaCloud({ x: c.x, y: c.y }, pg);
+            cloud.group.scaleX(c.scaleX || 1);
+            cloud.group.scaleY(c.scaleY || 1);
+        });
+    }
+
+    function saveCurrentPageAnnotations() {
+        const fabricJson = JSON.stringify(canvas.toJSON(['isMeasureLine','labelId','labelOffsetX','labelOffsetY']));
+        if (!useKonvaRuler) {
+            allAnnotations[pageNum] = fabricJson;
+            return;
+        }
+        allAnnotations[pageNum] = {
+            fabric: fabricJson,
+            konva: serializeKonvaForPage(pageNum)
+        };
+    }
+
+    function getSavedPageState(pg) {
+        const raw = allAnnotations[pg];
+        if (!raw) return { fabric: null, konva: null };
+        if (typeof raw === 'string') return { fabric: raw, konva: null };
+        return { fabric: raw.fabric || null, konva: raw.konva || null };
+    }
+
     function updateKonvaInteractivity() {
         const allowEdit = (currentMode === 'smart');
         konvaRulers.forEach(r => {
@@ -1020,6 +1081,9 @@ if ($filePath !== '') {
         });
         konvaNotes.forEach(n => {
             n.group.draggable(allowEdit);
+        });
+        konvaClouds.forEach(c => {
+            c.group.draggable(allowEdit);
         });
         if (konvaTransformer) {
             if (!allowEdit) konvaTransformer.nodes([]);
@@ -1034,6 +1098,9 @@ if ($filePath !== '') {
         konvaNotes.forEach(n => {
             n.group.visible(n.page === page);
         });
+        konvaClouds.forEach(c => {
+            c.group.visible(c.page === page);
+        });
         if (konvaTransformer) {
             konvaTransformer.nodes([]);
         }
@@ -1041,7 +1108,7 @@ if ($filePath !== '') {
         if (konvaLayer) konvaLayer.batchDraw();
     }
 
-    function createKonvaRuler(p1, p2) {
+    function createKonvaRuler(p1, p2, targetPage = pageNum) {
         const group = new Konva.Group({ draggable: true });
         const line = new Konva.Line({
             points: [p1.x, p1.y, p2.x, p2.y],
@@ -1076,10 +1143,10 @@ if ($filePath !== '') {
         group.add(line, a1, a2, label);
         konvaLayer.add(group);
 
-        const ruler = { group, line, a1, a2, label, page: pageNum };
+        const ruler = { group, line, a1, a2, label, page: targetPage };
         konvaRulers.push(ruler);
-        if (!konvaRulersByPage[pageNum]) konvaRulersByPage[pageNum] = [];
-        konvaRulersByPage[pageNum].push(ruler);
+        if (!konvaRulersByPage[targetPage]) konvaRulersByPage[targetPage] = [];
+        konvaRulersByPage[targetPage].push(ruler);
 
         const updateLine = () => {
             const p1c = a1.position();
@@ -1135,77 +1202,35 @@ if ($filePath !== '') {
 
     function getResponsiveNotePreset() {
         const width = window.innerWidth || 1280;
-        if (width <= 640) {
-            return { boxW: 260, boxH: 150, fontSize: 26, badgeFont: 14 };
-        }
-        if (width <= 1024) {
-            return { boxW: 340, boxH: 190, fontSize: 32, badgeFont: 15 };
-        }
-        return { boxW: 430, boxH: 230, fontSize: 38, badgeFont: 16 };
+        if (width <= 640) return { fontSize: 42, minEditW: 180, minEditH: 52 };
+        if (width <= 1024) return { fontSize: 54, minEditW: 220, minEditH: 64 };
+        return { fontSize: 64, minEditW: 260, minEditH: 72 };
     }
 
-    function createKonvaNote(pos, text = 'TEXT') {
+    function createKonvaNote(pos, text = 'annotation', targetPage = pageNum) {
         const preset = getResponsiveNotePreset();
-        const badgeH = 34;
-        const pad = 14;
-
         const group = new Konva.Group({ x: pos.x, y: pos.y, draggable: true });
-        const body = new Konva.Rect({
-            x: -preset.boxW / 2,
-            y: -preset.boxH / 2,
-            width: preset.boxW,
-            height: preset.boxH,
-            fill: 'rgba(239, 68, 68, 0.16)',
-            stroke: '#facc15',
-            strokeWidth: 3,
-            cornerRadius: 10,
-            shadowColor: '#facc15',
-            shadowBlur: 12,
-            shadowOpacity: 0.22
-        });
-        const badge = new Konva.Rect({
-            x: -preset.boxW / 2,
-            y: -preset.boxH / 2,
-            width: 98,
-            height: badgeH,
-            fill: '#facc15',
-            cornerRadius: [10, 10, 10, 0]
-        });
-        const badgeLabel = new Konva.Text({
-            x: -preset.boxW / 2 + 10,
-            y: -preset.boxH / 2 + 7,
-            width: 80,
-            text: 'TEXT',
-            fontSize: preset.badgeFont,
-            fontStyle: 'bold',
-            fill: '#111827',
-            align: 'center'
-        });
-
         const label = new Konva.Text({
-            x: -preset.boxW / 2 + pad,
-            y: -preset.boxH / 2 + badgeH + pad,
-            width: preset.boxW - (pad * 2),
-            height: preset.boxH - badgeH - (pad * 2),
+            x: 0,
+            y: 0,
             text,
             fontSize: preset.fontSize,
-            fill: '#f8fafc',
-            wrap: 'word',
-            lineHeight: 1.2
+            fill: '#ef4444',
+            fontFamily: 'Arial',
+            wrap: 'word'
         });
-
-        group.add(body);
-        group.add(badge);
-        group.add(badgeLabel);
         group.add(label);
         konvaLayer.add(group);
 
-        const note = { group, label, page: pageNum };
+        const note = { group, label, page: targetPage };
         konvaNotes.push(note);
 
         group.on('click tap', () => {
             if (currentMode !== 'smart') return;
             konvaSelectedNote = note;
+            showPropSection('text');
+            const sizeInput = document.getElementById('text-size-input');
+            if (sizeInput) sizeInput.value = Math.round(note.label.fontSize());
             if (konvaTransformer) konvaTransformer.nodes([group]);
             konvaSelectedNode = { type: 'note', ref: note };
         });
@@ -1216,6 +1241,32 @@ if ($filePath !== '') {
 
         updateKonvaInteractivity();
         return note;
+    }
+
+    function createKonvaCloud(pos, targetPage = pageNum) {
+        const group = new Konva.Group({ x: pos.x, y: pos.y, draggable: true });
+        const fill = 'rgba(251, 191, 36, 0.26)';
+        const stroke = '#f59e0b';
+        const parts = [
+            new Konva.Ellipse({ x: -52, y: 8, radiusX: 38, radiusY: 24, fill, stroke, strokeWidth: 3 }),
+            new Konva.Ellipse({ x: -16, y: -8, radiusX: 34, radiusY: 24, fill, stroke, strokeWidth: 3 }),
+            new Konva.Ellipse({ x: 20, y: -4, radiusX: 36, radiusY: 26, fill, stroke, strokeWidth: 3 }),
+            new Konva.Ellipse({ x: 56, y: 10, radiusX: 34, radiusY: 22, fill, stroke, strokeWidth: 3 })
+        ];
+        parts.forEach(p => group.add(p));
+        konvaLayer.add(group);
+
+        const cloud = { group, page: targetPage };
+        konvaClouds.push(cloud);
+
+        group.on('click tap', () => {
+            if (currentMode !== 'smart') return;
+            if (konvaTransformer) konvaTransformer.nodes([group]);
+            konvaSelectedNode = { type: 'cloud', ref: cloud };
+        });
+
+        updateKonvaInteractivity();
+        return cloud;
     }
 
     function ensureKonvaTransformer() {
@@ -1247,6 +1298,9 @@ if ($filePath !== '') {
             if (konvaSelectedNote === ref) konvaSelectedNote = null;
             ref.group.destroy();
             konvaNotes = konvaNotes.filter(n => n !== ref);
+        } else if (type === 'cloud') {
+            ref.group.destroy();
+            konvaClouds = konvaClouds.filter(c => c !== ref);
         }
         konvaSelectedNode = null;
         if (konvaTransformer) konvaTransformer.nodes([]);
@@ -1290,8 +1344,9 @@ if ($filePath !== '') {
         konvaEditingTextarea.style.lineHeight = '1.2';
         konvaEditingTextarea.style.left = (absPos.x * vpt.scaleX + vpt.translateX) + 'px';
         konvaEditingTextarea.style.top = (absPos.y * vpt.scaleY + vpt.translateY) + 'px';
-        konvaEditingTextarea.style.width = Math.max(120, textNode.width() * vpt.scaleX) + 'px';
-        konvaEditingTextarea.style.height = Math.max(40, textNode.height() * vpt.scaleY) + 'px';
+        const preset = getResponsiveNotePreset();
+        konvaEditingTextarea.style.width = Math.max(preset.minEditW, textNode.width() * vpt.scaleX) + 'px';
+        konvaEditingTextarea.style.height = Math.max(preset.minEditH, textNode.height() * vpt.scaleY) + 'px';
         konvaEditingTextarea.style.background = 'transparent';
         konvaEditingTextarea.style.border = 'none';
         konvaEditingTextarea.style.color = 'transparent';
