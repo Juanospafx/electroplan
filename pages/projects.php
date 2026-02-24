@@ -26,9 +26,18 @@ $stmt = $pdo->query("
 $projects = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 $users = [];
+$assignedUsersByProject = [];
 if ($isAdmin) {
     $stmtUsers = $pdo->query("SELECT id, username, role FROM users ORDER BY username ASC");
     $users = $stmtUsers->fetchAll(PDO::FETCH_ASSOC);
+
+    $stmtDir = $pdo->query("SELECT project_id, user_id FROM directory ORDER BY project_id, user_id");
+    foreach ($stmtDir->fetchAll(PDO::FETCH_ASSOC) as $row) {
+        $pid = (int)$row['project_id'];
+        $uid = (int)$row['user_id'];
+        if (!isset($assignedUsersByProject[$pid])) $assignedUsersByProject[$pid] = [];
+        $assignedUsersByProject[$pid][] = $uid;
+    }
 }
 
 $pageTitle = "Projects | Brightronix";
@@ -272,24 +281,25 @@ include __DIR__ . '/../views/header.php';
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <form id="assignForm">
-                <input type="hidden" name="action" value="assign_project_user">
+                <input type="hidden" name="action" value="assign_project_users">
                 <input type="hidden" name="project_id" id="assign_project_id">
                 <div class="modal-body">
                     <label class="text-gray small mb-2">Project</label>
                     <input type="text" id="assign_project_name" class="form-control mb-3" disabled>
 
-                    <label class="text-gray small mb-2">User</label>
-                    <select name="user_id" id="assign_user_id" class="form-control" required>
-                        <option value="">Select a user...</option>
+                    <label class="text-gray small mb-2">Users</label>
+                    <div class="border rounded p-2" style="max-height:240px; overflow:auto;">
                         <?php foreach($users as $u): ?>
-                            <option value="<?= (int)$u['id'] ?>">
-                                <?= htmlspecialchars($u['username']) ?> (<?= htmlspecialchars($u['role']) ?>)
-                            </option>
+                            <label class="d-flex align-items-center gap-2 small text-gray mb-2">
+                                <input type="checkbox" name="user_ids[]" value="<?= (int)$u['id'] ?>" data-role="<?= htmlspecialchars($u['role']) ?>">
+                                <span><?= htmlspecialchars($u['username']) ?> (<?= htmlspecialchars($u['role']) ?>)</span>
+                            </label>
                         <?php endforeach; ?>
-                    </select>
+                    </div>
+                    <small class="text-muted d-block mt-2" style="font-size:0.75rem;">At least one admin must be assigned.</small>
                 </div>
                 <div class="modal-footer">
-                    <button type="submit" class="btn-main w-100">Assign</button>
+                    <button type="submit" class="btn-main w-100">Save assignment</button>
                 </div>
             </form>
         </div>
@@ -329,16 +339,32 @@ include __DIR__ . '/../views/header.php';
         }
     }
 
-    // 3. Asignar Usuario
+    const assignedUsersByProject = <?= json_encode($assignedUsersByProject, JSON_UNESCAPED_UNICODE) ?>;
+
+    // 3. Asignar Usuario(s)
     function openAssignModal(projectId, projectName, assignedUserId = null) {
         document.getElementById('assign_project_id').value = projectId;
         document.getElementById('assign_project_name').value = projectName;
-        const select = document.getElementById('assign_user_id');
-        select.value = (assignedUserId !== null && assignedUserId !== undefined) ? String(assignedUserId) : '';
+
+        const selected = (assignedUsersByProject[String(projectId)] || assignedUsersByProject[projectId] || []).map(String);
+        const fallback = (assignedUserId !== null && assignedUserId !== undefined) ? [String(assignedUserId)] : [];
+        const finalSelected = selected.length ? selected : fallback;
+
+        document.querySelectorAll('#assignForm input[name="user_ids[]"]').forEach(ch => {
+            ch.checked = finalSelected.includes(String(ch.value));
+        });
+
         new bootstrap.Modal(document.getElementById('assignUserModal')).show();
     }
     document.getElementById('assignForm').addEventListener('submit', function(e) {
         e.preventDefault();
+        const checked = Array.from(this.querySelectorAll('input[name="user_ids[]"]:checked'));
+        const hasAdmin = checked.some(ch => (ch.dataset.role || '').toLowerCase() === 'admin');
+        if (!hasAdmin) {
+            alert('At least one admin must be assigned to the project.');
+            return;
+        }
+
         const fd = new FormData(this);
         fetch('../api/api.php', { method:'POST', body:fd })
         .then(r => r.json()).then(d => {
