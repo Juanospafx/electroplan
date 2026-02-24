@@ -1133,17 +1133,70 @@ if ($filePath !== '') {
         return true;
     }
 
-    function createKonvaNote(pos, text = '') {
-        const group = new Konva.Group({ draggable: true });
-        const label = new Konva.Text({
-            x: pos.x,
-            y: pos.y,
-            text,
-            fontSize: 28,
-            fill: '#ef4444'
+    function getResponsiveNotePreset() {
+        const width = window.innerWidth || 1280;
+        if (width <= 640) {
+            return { boxW: 260, boxH: 150, fontSize: 26, badgeFont: 14 };
+        }
+        if (width <= 1024) {
+            return { boxW: 340, boxH: 190, fontSize: 32, badgeFont: 15 };
+        }
+        return { boxW: 430, boxH: 230, fontSize: 38, badgeFont: 16 };
+    }
+
+    function createKonvaNote(pos, text = 'TEXT') {
+        const preset = getResponsiveNotePreset();
+        const badgeH = 34;
+        const pad = 14;
+
+        const group = new Konva.Group({ x: pos.x, y: pos.y, draggable: true });
+        const body = new Konva.Rect({
+            x: -preset.boxW / 2,
+            y: -preset.boxH / 2,
+            width: preset.boxW,
+            height: preset.boxH,
+            fill: 'rgba(239, 68, 68, 0.16)',
+            stroke: '#facc15',
+            strokeWidth: 3,
+            cornerRadius: 10,
+            shadowColor: '#facc15',
+            shadowBlur: 12,
+            shadowOpacity: 0.22
         });
-        label.offsetX(label.width() / 2);
-        label.offsetY(label.height() / 2);
+        const badge = new Konva.Rect({
+            x: -preset.boxW / 2,
+            y: -preset.boxH / 2,
+            width: 98,
+            height: badgeH,
+            fill: '#facc15',
+            cornerRadius: [10, 10, 10, 0]
+        });
+        const badgeLabel = new Konva.Text({
+            x: -preset.boxW / 2 + 10,
+            y: -preset.boxH / 2 + 7,
+            width: 80,
+            text: 'TEXT',
+            fontSize: preset.badgeFont,
+            fontStyle: 'bold',
+            fill: '#111827',
+            align: 'center'
+        });
+
+        const label = new Konva.Text({
+            x: -preset.boxW / 2 + pad,
+            y: -preset.boxH / 2 + badgeH + pad,
+            width: preset.boxW - (pad * 2),
+            height: preset.boxH - badgeH - (pad * 2),
+            text,
+            fontSize: preset.fontSize,
+            fill: '#f8fafc',
+            wrap: 'word',
+            lineHeight: 1.2
+        });
+
+        group.add(body);
+        group.add(badge);
+        group.add(badgeLabel);
         group.add(label);
         konvaLayer.add(group);
 
@@ -1251,8 +1304,6 @@ if ($filePath !== '') {
             const next = konvaEditingTextarea.value.trim();
             if (next !== '') {
                 textNode.text(next);
-                textNode.offsetX(textNode.width() / 2);
-                textNode.offsetY(textNode.height() / 2);
             }
             konvaEditingTextarea.remove();
             konvaEditingTextarea = null;
@@ -1266,8 +1317,6 @@ if ($filePath !== '') {
 
         const onInput = () => {
             textNode.text(konvaEditingTextarea.value);
-            textNode.offsetX(textNode.width() / 2);
-            textNode.offsetY(textNode.height() / 2);
             konvaLayer.batchDraw();
         };
         const onKey = (e) => {
@@ -2317,15 +2366,31 @@ if ($filePath !== '') {
             setKonvaActive(true);
             updateKonvaInteractivity();
             const center = canvas.getVpCenter();
-            const note = createKonvaNote({ x: center.x, y: center.y }, '');
+            const note = createKonvaNote({ x: center.x, y: center.y }, 'TEXT');
             startInlineNoteEdit(note);
             return;
         }
         const center = canvas.getVpCenter();
-        const t = new fabric.IText('', { left: center.x, top: center.y, fill: '#ef4444', fontSize: 60, isNew: true });
+        const preset = getResponsiveNotePreset();
+        const t = new fabric.Textbox('TEXT', {
+            left: center.x,
+            top: center.y,
+            width: preset.boxW,
+            fill: '#ef4444',
+            fontSize: preset.fontSize,
+            fontWeight: 'bold',
+            backgroundColor: 'rgba(239, 68, 68, 0.28)',
+            stroke: '#facc15',
+            strokeWidth: 2,
+            rx: 8,
+            ry: 8,
+            originX: 'center',
+            originY: 'center',
+            isNew: true
+        });
         lockObject(t); canvas.add(t); canvas.setActiveObject(t); t.selectAll(); t.enterEditing();
         showPropSection('text');
-        document.getElementById('text-size-input').value = 60;
+        document.getElementById('text-size-input').value = preset.fontSize;
         document.querySelectorAll('#prop-text .color-dot').forEach(d => d.classList.remove('active'));
         document.querySelector('#prop-text .color-dot[data-col="#ef4444"]').classList.add('active');
     }
@@ -2397,7 +2462,7 @@ if ($filePath !== '') {
 
     function updateTextProp(prop, val) {
         const active = canvas.getActiveObject();
-        if(active && (active.type === 'i-text' || active.type === 'text')) { active.set(prop, val); canvas.requestRenderAll(); }
+        if(active && (active.type === 'i-text' || active.type === 'text' || active.type === 'textbox')) { active.set(prop, val); canvas.requestRenderAll(); }
     }
 
     function updateTextScales(zoom) {
