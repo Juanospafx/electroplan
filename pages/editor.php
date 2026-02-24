@@ -672,6 +672,28 @@ if ($filePath !== '') {
     let allAnnotations = <?= $annotations ?>;
     if(typeof allAnnotations !== 'object' || allAnnotations === null) allAnnotations = {};
 
+    const draftAnnotationsKey = `ep_annotations_draft_file_${fileId}`;
+    function loadDraftAnnotations() {
+        try {
+            const raw = localStorage.getItem(draftAnnotationsKey);
+            if (!raw) return;
+            const parsed = JSON.parse(raw);
+            if (parsed && typeof parsed === 'object') {
+                allAnnotations = { ...allAnnotations, ...parsed };
+            }
+        } catch (e) {
+            console.warn('Draft annotations could not be loaded', e);
+        }
+    }
+    function persistDraftAnnotations() {
+        try {
+            localStorage.setItem(draftAnnotationsKey, JSON.stringify(allAnnotations));
+        } catch (e) {
+            console.warn('Draft annotations could not be saved', e);
+        }
+    }
+    loadDraftAnnotations();
+
     // FABRIC INIT
     let canvas = new fabric.Canvas('c', { 
         preserveObjectStacking: true,
@@ -1051,18 +1073,21 @@ if ($filePath !== '') {
             cloud.group.scaleX(c.scaleX || 1);
             cloud.group.scaleY(c.scaleY || 1);
         });
+        setKonvaPage(pg);
     }
 
     function saveCurrentPageAnnotations() {
         const fabricJson = JSON.stringify(canvas.toJSON(['isMeasureLine','labelId','labelOffsetX','labelOffsetY']));
         if (!useKonvaRuler) {
             allAnnotations[pageNum] = fabricJson;
+            persistDraftAnnotations();
             return;
         }
         allAnnotations[pageNum] = {
             fabric: fabricJson,
             konva: serializeKonvaForPage(pageNum)
         };
+        persistDraftAnnotations();
     }
 
     function getSavedPageState(pg) {
@@ -1158,10 +1183,13 @@ if ($filePath !== '') {
 
         a1.on('dragmove', updateLine);
         a2.on('dragmove', updateLine);
+        a1.on('dragend', saveCurrentPageAnnotations);
+        a2.on('dragend', saveCurrentPageAnnotations);
         group.on('dragmove', () => {
             updateKonvaLabel(ruler);
             konvaLayer.batchDraw();
         });
+        group.on('dragend', saveCurrentPageAnnotations);
         group.on('click tap', () => {
             if (currentMode !== 'smart') return;
             if (konvaTransformer) konvaTransformer.nodes([group]);
@@ -1190,6 +1218,7 @@ if ($filePath !== '') {
         note.group.destroy();
         konvaNotes = konvaNotes.filter(n => n !== note);
         if (konvaLayer) konvaLayer.batchDraw();
+        saveCurrentPageAnnotations();
     }
 
     function discardEmptyActiveKonvaNote() {
@@ -1234,6 +1263,7 @@ if ($filePath !== '') {
             if (konvaTransformer) konvaTransformer.nodes([group]);
             konvaSelectedNode = { type: 'note', ref: note };
         });
+        group.on('dragend', saveCurrentPageAnnotations);
         label.on('dblclick dbltap', () => {
             if (currentMode !== 'smart') return;
             startInlineNoteEdit(note);
@@ -1264,6 +1294,7 @@ if ($filePath !== '') {
             if (konvaTransformer) konvaTransformer.nodes([group]);
             konvaSelectedNode = { type: 'cloud', ref: cloud };
         });
+        group.on('dragend', saveCurrentPageAnnotations);
 
         updateKonvaInteractivity();
         return cloud;
@@ -1305,6 +1336,7 @@ if ($filePath !== '') {
         konvaSelectedNode = null;
         if (konvaTransformer) konvaTransformer.nodes([]);
         if (konvaLayer) konvaLayer.batchDraw();
+        saveCurrentPageAnnotations();
         return true;
     }
 
@@ -1365,9 +1397,11 @@ if ($filePath !== '') {
             if (isKonvaNoteEmpty(note)) {
                 removeKonvaNote(note);
                 showToast("Empty note discarded", "warning");
+                saveCurrentPageAnnotations();
                 return;
             }
             konvaLayer.batchDraw();
+            saveCurrentPageAnnotations();
         };
 
         const onInput = () => {
@@ -1500,6 +1534,7 @@ if ($filePath !== '') {
                 konvaLayer.draw();
             }
             konvaDrawing = null;
+            saveCurrentPageAnnotations();
         });
 
         setKonvaPage(pageNum);
@@ -1914,7 +1949,7 @@ if ($filePath !== '') {
     }
 
     function jumpToPage(targetPage) {
-        allAnnotations[pageNum] = JSON.stringify(canvas.toJSON(['isMeasureLine','labelId','labelOffsetX','labelOffsetY']));
+        saveCurrentPageAnnotations();
         canvas.clear(); undoStack = []; historyIndex = -1;
         pageNum = targetPage; 
         loadCalibrationForPage(false);
@@ -1937,8 +1972,9 @@ if ($filePath !== '') {
 
     function loadPageAnnotations(pg) {
         historyProcessing = true;
-        if(allAnnotations[pg]) {
-            canvas.loadFromJSON(allAnnotations[pg], function() { 
+        const state = getSavedPageState(pg);
+        if(state.fabric) {
+            canvas.loadFromJSON(state.fabric, function() { 
                 const objects = canvas.getObjects();
                 objects.forEach(obj => {
                     if (obj.isMeasureLine) {
@@ -1951,6 +1987,7 @@ if ($filePath !== '') {
                         obj.set({ lockMovementX:true, lockMovementY:true, borderColor:'#22c55e' });
                     }
                 });
+                  if (useKonvaRuler) loadKonvaForPage(pg, state.konva);
                   updateTextScales(canvas.getZoom()); 
                   canvas.requestRenderAll(); 
                   refreshMeasureLabels();
@@ -1958,6 +1995,7 @@ if ($filePath !== '') {
                   saveHistory(); 
               });
         } else {
+            if (useKonvaRuler) loadKonvaForPage(pg, state.konva);
             historyProcessing = false;
             saveHistory(); 
         }
@@ -2085,7 +2123,7 @@ if ($filePath !== '') {
 
         // FIX: Check for new note before switching tool
         const activeObj = canvas.getActiveObject();
-        if(activeObj && activeObj.isNew && (activeObj.type === 'i-text' || activeObj.type === 'text')) {
+        if(activeObj && activeObj.isNew && (activeObj.type === 'i-text' || activeObj.type === 'text' || activeObj.type === 'textbox')) {
              canvas.remove(activeObj);
              canvas.requestRenderAll();
              showToast("Empty note discarded", "warning");
@@ -2131,7 +2169,7 @@ if ($filePath !== '') {
         
         if(mode === 'smart') {
             const active = canvas.getActiveObject();
-            if(active && (active.type === 'i-text' || active.type === 'text')) showPropSection('text');
+            if(active && (active.type === 'i-text' || active.type === 'text' || active.type === 'textbox')) showPropSection('text');
         }
         
         // Auto-close tools on mobile after selecting a tool (Optional UX improvement)
@@ -2421,24 +2459,18 @@ if ($filePath !== '') {
             setKonvaActive(true);
             updateKonvaInteractivity();
             const center = canvas.getVpCenter();
-            const note = createKonvaNote({ x: center.x, y: center.y }, 'TEXT');
+            const note = createKonvaNote({ x: center.x, y: center.y }, 'annotation');
             startInlineNoteEdit(note);
             return;
         }
         const center = canvas.getVpCenter();
         const preset = getResponsiveNotePreset();
-        const t = new fabric.Textbox('TEXT', {
+        const t = new fabric.Textbox('annotation', {
             left: center.x,
             top: center.y,
-            width: preset.boxW,
             fill: '#ef4444',
             fontSize: preset.fontSize,
-            fontWeight: 'bold',
-            backgroundColor: 'rgba(239, 68, 68, 0.28)',
-            stroke: '#facc15',
-            strokeWidth: 2,
-            rx: 8,
-            ry: 8,
+            fontWeight: 'normal',
             originX: 'center',
             originY: 'center',
             isNew: true
@@ -2450,6 +2482,18 @@ if ($filePath !== '') {
         document.querySelector('#prop-text .color-dot[data-col="#ef4444"]').classList.add('active');
     }
 
+    function addCloud() {
+        setMode('smart');
+        if (!useKonvaRuler) return;
+        initKonvaRuler();
+        setKonvaActive(true);
+        updateKonvaInteractivity();
+        const center = canvas.getVpCenter();
+        createKonvaCloud({ x: center.x, y: center.y });
+        saveCurrentPageAnnotations();
+        showToast('Cloud marker added', 'success');
+    }
+
     function setTextFixedColor(color, el) {
         document.querySelectorAll('#prop-text .color-dot').forEach(d => d.classList.remove('active'));
         el.classList.add('active');
@@ -2457,7 +2501,7 @@ if ($filePath !== '') {
     }
 
     function openReportModal() {
-        allAnnotations[pageNum] = JSON.stringify(canvas.toJSON(['isMeasureLine','labelId']));
+        saveCurrentPageAnnotations();
         new bootstrap.Modal(document.getElementById('reportModal')).show();
     }
 
@@ -2516,6 +2560,13 @@ if ($filePath !== '') {
     }
 
     function updateTextProp(prop, val) {
+        if (konvaSelectedNote && konvaSelectedNote.label) {
+            if (prop === 'fill') konvaSelectedNote.label.fill(val);
+            if (prop === 'fontSize') konvaSelectedNote.label.fontSize(parseInt(val, 10) || konvaSelectedNote.label.fontSize());
+            if (konvaLayer) konvaLayer.batchDraw();
+            saveCurrentPageAnnotations();
+            return;
+        }
         const active = canvas.getActiveObject();
         if(active && (active.type === 'i-text' || active.type === 'text' || active.type === 'textbox')) { active.set(prop, val); canvas.requestRenderAll(); }
     }
@@ -2533,7 +2584,7 @@ if ($filePath !== '') {
     function handleSelectionChange() {
         const active = canvas.getActiveObject();
         if (active) {
-            if(active.type === 'i-text' || active.type === 'text') {
+            if(active.type === 'i-text' || active.type === 'text' || active.type === 'textbox') {
                 const sInp = document.getElementById('text-size-input');
                 if(sInp) sInp.value = active.fontSize;
                 const currentColor = active.fill;
@@ -2639,6 +2690,10 @@ if ($filePath !== '') {
         if (useKonvaRuler) syncKonvaToFabric();
         updateTextScales(zoom);
         opt.e.preventDefault(); opt.e.stopPropagation();
+    });
+
+    window.addEventListener('beforeunload', () => {
+        saveCurrentPageAnnotations();
     });
 
 </script>
