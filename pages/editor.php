@@ -1275,15 +1275,39 @@ if ($filePath !== '') {
 
     function createKonvaCloud(pos, targetPage = pageNum) {
         const group = new Konva.Group({ x: pos.x, y: pos.y, draggable: true });
-        const fill = 'rgba(251, 191, 36, 0.26)';
-        const stroke = '#f59e0b';
-        const parts = [
-            new Konva.Ellipse({ x: -52, y: 8, radiusX: 38, radiusY: 24, fill, stroke, strokeWidth: 3 }),
-            new Konva.Ellipse({ x: -16, y: -8, radiusX: 34, radiusY: 24, fill, stroke, strokeWidth: 3 }),
-            new Konva.Ellipse({ x: 20, y: -4, radiusX: 36, radiusY: 26, fill, stroke, strokeWidth: 3 }),
-            new Konva.Ellipse({ x: 56, y: 10, radiusX: 34, radiusY: 22, fill, stroke, strokeWidth: 3 })
-        ];
-        parts.forEach(p => group.add(p));
+
+        const w = 180;
+        const h = 120;
+        const step = 10;
+        const r = 3;
+        const stroke = '#ef4444';
+
+        const hitBox = new Konva.Rect({
+            x: -w / 2,
+            y: -h / 2,
+            width: w,
+            height: h,
+            fill: 'rgba(0,0,0,0.001)',
+            strokeWidth: 0
+        });
+        group.add(hitBox);
+
+        const addBubble = (x, y) => {
+            group.add(new Konva.Circle({
+                x,
+                y,
+                radius: r,
+                stroke,
+                strokeWidth: 2,
+                fill: '#ffffff'
+            }));
+        };
+
+        for (let x = -w / 2; x <= w / 2; x += step) addBubble(x, -h / 2);
+        for (let y = -h / 2 + step; y <= h / 2; y += step) addBubble(w / 2, y);
+        for (let x = w / 2 - step; x >= -w / 2; x -= step) addBubble(x, h / 2);
+        for (let y = h / 2 - step; y > -h / 2; y -= step) addBubble(-w / 2, y);
+
         konvaLayer.add(group);
 
         const cloud = { group, page: targetPage };
