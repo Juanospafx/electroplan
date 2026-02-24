@@ -737,6 +737,8 @@ if ($filePath !== '') {
     let pixelsPerFoot = 0;
     let currentMode = 'smart';
     let pendingPlacementTool = null;
+    let pendingPlacementStart = null;
+    let pendingPlacementPreview = null;
     let lineState = 0, activeLine = null, startPoint = null;
     let calLineObject = null; 
     let calMode = 'preset';
@@ -1263,7 +1265,7 @@ if ($filePath !== '') {
         konvaNotes.push(note);
 
         group.on('click tap', () => {
-            if (currentMode !== 'smart') return;
+            if (currentMode !== 'smart') setMode('smart');
             konvaSelectedNote = note;
             showPropSection('text');
             const sizeInput = document.getElementById('text-size-input');
@@ -1332,7 +1334,7 @@ if ($filePath !== '') {
         konvaClouds.push(cloud);
 
         group.on('click tap', () => {
-            if (currentMode !== 'smart') return;
+            if (currentMode !== 'smart') setMode('smart');
             if (konvaTransformer) konvaTransformer.nodes([group]);
             konvaSelectedNode = { type: 'cloud', ref: cloud };
         });
@@ -1353,12 +1355,13 @@ if ($filePath !== '') {
             konvaTransformer = new Konva.Transformer({
                 enabledAnchors: ['top-left','top-right','bottom-left','bottom-right'],
                 rotateEnabled: false,
-                keepRatio: true,
+                keepRatio: false,
                 boundBoxFunc: (oldBox, newBox) => {
                     if (newBox.width < 20 || newBox.height < 20) return oldBox;
                     return newBox;
                 }
             });
+            konvaTransformer.on('transformend', saveCurrentPageAnnotations);
             konvaLayer.add(konvaTransformer);
         }
     }
@@ -1550,16 +1553,19 @@ if ($filePath !== '') {
             const pos = konvaStage.getPointerPosition();
             if (pendingPlacementTool && isEmpty) {
                 if (!pos) return;
-                const world = screenToWorld(pos);
-                if (pendingPlacementTool === 'note') {
-                    const note = createKonvaNote(world, 'annotation');
-                    clearPlacementTool();
-                    startInlineNoteEdit(note);
-                } else if (pendingPlacementTool === 'cloud') {
-                    createKonvaCloud(world);
-                    clearPlacementTool();
-                }
-                saveCurrentPageAnnotations();
+                pendingPlacementStart = screenToWorld(pos);
+                if (pendingPlacementPreview) pendingPlacementPreview.destroy();
+                pendingPlacementPreview = new Konva.Rect({
+                    x: pendingPlacementStart.x,
+                    y: pendingPlacementStart.y,
+                    width: 1,
+                    height: 1,
+                    stroke: '#22c55e',
+                    strokeWidth: 1.5,
+                    dash: [6, 4]
+                });
+                konvaLayer.add(pendingPlacementPreview);
+                konvaLayer.batchDraw();
                 return;
             }
             if (currentMode !== 'measure') return;
@@ -1570,8 +1576,19 @@ if ($filePath !== '') {
         });
 
         konvaStage.on('mousemove touchmove', () => {
-            if (!konvaDrawing) return;
             const pos = konvaStage.getPointerPosition();
+            if (pendingPlacementTool && pendingPlacementStart && pendingPlacementPreview && pos) {
+                const world = screenToWorld(pos);
+                const x = Math.min(pendingPlacementStart.x, world.x);
+                const y = Math.min(pendingPlacementStart.y, world.y);
+                const w = Math.max(1, Math.abs(world.x - pendingPlacementStart.x));
+                const h = Math.max(1, Math.abs(world.y - pendingPlacementStart.y));
+                pendingPlacementPreview.position({ x, y });
+                pendingPlacementPreview.size({ width: w, height: h });
+                konvaLayer.batchDraw();
+                return;
+            }
+            if (!konvaDrawing) return;
             if (!pos) return;
             const world = screenToWorld(pos);
             konvaDrawing.a2.position(world);
@@ -1584,6 +1601,44 @@ if ($filePath !== '') {
         });
 
         konvaStage.on('mouseup touchend', () => {
+            if (pendingPlacementTool && pendingPlacementStart) {
+                const pos = konvaStage.getPointerPosition();
+                const end = pos ? screenToWorld(pos) : pendingPlacementStart;
+                const minX = Math.min(pendingPlacementStart.x, end.x);
+                const minY = Math.min(pendingPlacementStart.y, end.y);
+                const width = Math.max(10, Math.abs(end.x - pendingPlacementStart.x));
+                const height = Math.max(10, Math.abs(end.y - pendingPlacementStart.y));
+                const cx = minX + (width / 2);
+                const cy = minY + (height / 2);
+
+                if (pendingPlacementPreview) {
+                    pendingPlacementPreview.destroy();
+                    pendingPlacementPreview = null;
+                }
+
+                if (pendingPlacementTool === 'note') {
+                    const note = createKonvaNote({ x: cx, y: cy }, 'annotation');
+                    const baseW = Math.max(1, note.label.width());
+                    const baseH = Math.max(1, note.label.height());
+                    note.group.scaleX(Math.max(0.35, width / baseW));
+                    note.group.scaleY(Math.max(0.35, height / baseH));
+                    if (konvaTransformer) konvaTransformer.nodes([note.group]);
+                    konvaSelectedNode = { type: 'note', ref: note };
+                    konvaSelectedNote = note;
+                    startInlineNoteEdit(note);
+                } else if (pendingPlacementTool === 'cloud') {
+                    const cloud = createKonvaCloud({ x: cx, y: cy });
+                    cloud.group.scaleX(Math.max(0.35, width / 180));
+                    cloud.group.scaleY(Math.max(0.35, height / 120));
+                    if (konvaTransformer) konvaTransformer.nodes([cloud.group]);
+                    konvaSelectedNode = { type: 'cloud', ref: cloud };
+                }
+
+                clearPlacementTool();
+                saveCurrentPageAnnotations();
+                return;
+            }
+
             if (!konvaDrawing) return;
             const p1 = konvaDrawing.a1.position();
             const p2 = konvaDrawing.a2.position();
@@ -2569,6 +2624,12 @@ if ($filePath !== '') {
 
     function clearPlacementTool() {
         pendingPlacementTool = null;
+        pendingPlacementStart = null;
+        if (pendingPlacementPreview) {
+            pendingPlacementPreview.destroy();
+            pendingPlacementPreview = null;
+            if (konvaLayer) konvaLayer.batchDraw();
+        }
         if (konvaStage && konvaStage.container()) konvaStage.container().style.cursor = 'default';
     }
 
