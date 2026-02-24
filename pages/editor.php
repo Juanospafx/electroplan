@@ -411,7 +411,7 @@ if ($filePath !== '') {
         </div>
 
         <div class="header-right">
-            <button class="btn btn-outline-danger rounded-circle d-none d-md-flex align-items-center justify-content-center" 
+            <button class="btn btn-outline-danger rounded-circle d-inline-flex align-items-center justify-content-center" 
                     id="btn-delete-selection" 
                     style="width:35px;height:35px;border-color:var(--danger);" 
                     onclick="deleteSelected()" 
@@ -1503,6 +1503,7 @@ if ($filePath !== '') {
             const evt = e.evt;
             const target = e.target;
             const isEmpty = !target || target === konvaStage;
+            if (pendingPlacementTool) return;
             if (evt && ((evt.altKey || evt.button === 2) || (currentMode === 'smart' && isEmpty))) {
                 panStart = { x: evt.clientX, y: evt.clientY };
                 konvaIsPanning = true;
@@ -1533,6 +1534,7 @@ if ($filePath !== '') {
             }
         });
         konvaStage.on('mousemove', (e) => {
+            if (pendingPlacementTool) return;
             if (!konvaIsPanning || !panStart) return;
             const evt = e.evt;
             const vpt = canvas.viewportTransform;
@@ -1656,6 +1658,8 @@ if ($filePath !== '') {
         });
 
         setKonvaPage(pageNum);
+        setKonvaActive(currentMode === 'smart' || currentMode === 'measure');
+        updateKonvaInteractivity();
     }
 
     // --- DOUBLE TAP & NODE LOGIC ---
@@ -1933,16 +1937,15 @@ if ($filePath !== '') {
     if(fileExt === 'pdf') {
         const loadingTask = pdfjsLib.getDocument({
             url: fileUrl,
-            rangeChunkSize: 65536,
+            rangeChunkSize: 262144,
             disableStream: false,
-            disableAutoFetch: false
+            disableAutoFetch: true
         });
         loadingTask.promise.then(pdf => {
             pdfDoc = pdf;
             document.getElementById('p-total').textContent = pdf.numPages;
             renderPageList(pdf.numPages);
             renderPage(pageNum);
-            prefetchNeighbors(pageNum);
         });
     } else if (fileExt === 'heic') {
         document.getElementById('p-total').textContent = '1'; renderPageList(1);
