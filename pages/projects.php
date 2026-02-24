@@ -167,7 +167,7 @@ include __DIR__ . '/../views/header.php';
                             
                             <?php if($isAdmin): ?>
                                 <a class="btn-action me-1" href="project_create.php?id=<?= (int)$p['id'] ?>" title="Edit"><i class="fas fa-pen"></i></a>
-                                <button class="btn-action me-1" onclick="openAssignModal(<?= $p['id'] ?>, '<?= addslashes($p['name']) ?>')" title="Assign User"><i class="fas fa-user-plus"></i></button>
+                                <button class="btn-action me-1" onclick="openAssignModal(<?= (int)$p['id'] ?>, '<?= addslashes($p['name']) ?>', <?= isset($p['assigned_user_id']) && $p['assigned_user_id'] !== null ? (int)$p['assigned_user_id'] : 'null' ?>)" title="Assign User"><i class="fas fa-user-plus"></i></button>
                                 <button class="btn-action delete" onclick="deleteProject(<?= $p['id'] ?>)" title="Move to Trash"><i class="fas fa-trash"></i></button>
                             <?php endif; ?>
                         </td>
@@ -211,7 +211,7 @@ include __DIR__ . '/../views/header.php';
                         <a href="project_dashboard.php?id=<?= $p['id'] ?>" class="btn-action" title="Open"><i class="fas fa-external-link-alt"></i></a>
                         <?php if($isAdmin): ?>
                             <a class="btn-action" href="project_create.php?id=<?= (int)$p['id'] ?>" title="Edit"><i class="fas fa-pen"></i></a>
-                            <button class="btn-action" onclick="openAssignModal(<?= $p['id'] ?>, '<?= addslashes($p['name']) ?>')" title="Assign User"><i class="fas fa-user-plus"></i></button>
+                            <button class="btn-action" onclick="openAssignModal(<?= (int)$p['id'] ?>, '<?= addslashes($p['name']) ?>', <?= isset($p['assigned_user_id']) && $p['assigned_user_id'] !== null ? (int)$p['assigned_user_id'] : 'null' ?>)" title="Assign User"><i class="fas fa-user-plus"></i></button>
                             <button class="btn-action delete" onclick="deleteProject(<?= $p['id'] ?>)" title="Move to Trash"><i class="fas fa-trash"></i></button>
                         <?php endif; ?>
                     </div>
@@ -330,10 +330,11 @@ include __DIR__ . '/../views/header.php';
     }
 
     // 3. Asignar Usuario
-    function openAssignModal(projectId, projectName) {
+    function openAssignModal(projectId, projectName, assignedUserId = null) {
         document.getElementById('assign_project_id').value = projectId;
         document.getElementById('assign_project_name').value = projectName;
-        document.getElementById('assign_user_id').value = '';
+        const select = document.getElementById('assign_user_id');
+        select.value = (assignedUserId !== null && assignedUserId !== undefined) ? String(assignedUserId) : '';
         new bootstrap.Modal(document.getElementById('assignUserModal')).show();
     }
     document.getElementById('assignForm').addEventListener('submit', function(e) {
