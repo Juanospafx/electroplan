@@ -318,9 +318,32 @@ include __DIR__ . '/../views/header.php';
         max-width: 100%;
     }
     .folder-actions { flex: 0 0 56px; width: 56px; padding-top: 0; justify-content: flex-end; }
-    .file-hover { overflow: visible !important; min-height: 212px; }
-    .file-actions-row { min-height: 34px; padding-bottom: 2px; align-items: center; flex-wrap: nowrap; }
-    .file-actions-row .btn { display: inline-flex; align-items: center; justify-content: center; }
+    .file-hover {
+        position: relative;
+        overflow: hidden;
+        min-height: 214px;
+        padding-bottom: 54px !important;
+    }
+    .file-actions-row {
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: 10px;
+        min-height: 34px;
+        align-items: center;
+        justify-content: center;
+        flex-wrap: nowrap;
+        z-index: 2;
+    }
+    .file-actions-row .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 32px;
+        height: 32px;
+        padding: 0;
+        line-height: 1;
+    }
     .file-hover:hover {
         background: rgba(255,255,255,0.05);
         transform: translateY(-2px);
