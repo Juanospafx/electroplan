@@ -717,14 +717,21 @@ if ($filePath !== '') {
     let konvaSelectedNode = null;
     let konvaDrawing = null;
     let konvaIsPanning = false;
-    let pdfDoc = null, pageNum = 1, pdfScale = 2.0;
-    const LOW_RES_SCALE = 1.0;
-    const MAX_HIGH_CACHE = 4;
-    const MAX_LOW_CACHE = 6;
+    const isMobileViewport = window.innerWidth <= 768;
+    const dpr = Math.min(window.devicePixelRatio || 1, 1.6);
+    let pdfDoc = null, pageNum = 1, pdfScale = (isMobileViewport ? 1.35 : 1.8) * dpr;
+    const LOW_RES_SCALE = (isMobileViewport ? 0.72 : 0.95) * Math.min(dpr, 1.25);
+    const PREFETCH_DISTANCE = isMobileViewport ? 1 : 2;
+    const MAX_HIGH_CACHE = isMobileViewport ? 3 : 5;
+    const MAX_LOW_CACHE = isMobileViewport ? 5 : 8;
     const pageCache = new Map();
     const highOrder = [];
     const lowOrder = [];
     let renderToken = 0;
+    const tempRenderCanvas = document.createElement('canvas');
+    const tempRenderCtx = tempRenderCanvas.getContext('2d', { alpha: false, desynchronized: true });
+    let prefetchBusy = false;
+    const prefetchQueue = [];
     
     // STATES
     let pixelsPerFoot = 0;
@@ -1837,11 +1844,18 @@ if ($filePath !== '') {
 
     // --- LOAD LOGIC ---
     if(fileExt === 'pdf') {
-        pdfjsLib.getDocument(fileUrl).promise.then(pdf => {
+        const loadingTask = pdfjsLib.getDocument({
+            url: fileUrl,
+            rangeChunkSize: 65536,
+            disableStream: false,
+            disableAutoFetch: false
+        });
+        loadingTask.promise.then(pdf => {
             pdfDoc = pdf;
             document.getElementById('p-total').textContent = pdf.numPages;
             renderPageList(pdf.numPages);
             renderPage(pageNum);
+            prefetchNeighbors(pageNum);
         });
     } else if (fileExt === 'heic') {
         document.getElementById('p-total').textContent = '1'; renderPageList(1);
@@ -1904,11 +1918,11 @@ if ($filePath !== '') {
     async function renderPageToDataUrl(num, scale) {
         const page = await pdfDoc.getPage(num);
         const viewport = page.getViewport({ scale });
-        const tempC = document.createElement('canvas');
-        tempC.width = viewport.width; tempC.height = viewport.height;
-        await page.render({ canvasContext: tempC.getContext('2d'), viewport }).promise;
-        const quality = scale >= pdfScale ? 0.85 : 0.7;
-        return tempC.toDataURL('image/jpeg', quality);
+        tempRenderCanvas.width = Math.max(1, Math.floor(viewport.width));
+        tempRenderCanvas.height = Math.max(1, Math.floor(viewport.height));
+        await page.render({ canvasContext: tempRenderCtx, viewport }).promise;
+        const quality = scale >= pdfScale ? 0.8 : 0.62;
+        return tempRenderCanvas.toDataURL('image/jpeg', quality);
     }
 
     function applyBackground(url, num, token, loadAnnotations) {
@@ -1942,15 +1956,48 @@ if ($filePath !== '') {
         renderHigh(num, token);
     }
 
+    function queuePrefetch(num) {
+        if (prefetchQueue.includes(num)) return;
+        prefetchQueue.push(num);
+    }
+
+    async function flushPrefetchQueue() {
+        if (prefetchBusy || !pdfDoc || prefetchQueue.length === 0) return;
+        prefetchBusy = true;
+        try {
+            while (prefetchQueue.length) {
+                const n = prefetchQueue.shift();
+                const cached = getCache(n);
+                if (cached && (cached.low || cached.high)) continue;
+                try {
+                    const url = await renderPageToDataUrl(n, LOW_RES_SCALE);
+                    setCache(n, 'low', url);
+                } catch (_) {}
+            }
+        } finally {
+            prefetchBusy = false;
+        }
+    }
+
+    function scheduleIdlePrefetch() {
+        const runner = () => flushPrefetchQueue();
+        if (typeof window.requestIdleCallback === 'function') {
+            window.requestIdleCallback(runner, { timeout: 800 });
+        } else {
+            setTimeout(runner, 120);
+        }
+    }
+
     function prefetchNeighbors(num) {
         if(!pdfDoc) return;
         const total = pdfDoc.numPages;
-        [num - 1, num + 1].forEach(n => {
-            if(n < 1 || n > total) return;
-            const cached = getCache(n);
-            if(cached && (cached.low || cached.high)) return;
-            renderPageToDataUrl(n, LOW_RES_SCALE).then(url => { setCache(n, 'low', url); }).catch(() => {});
-        });
+        for (let step = 1; step <= PREFETCH_DISTANCE; step++) {
+            const left = num - step;
+            const right = num + step;
+            if (left >= 1) queuePrefetch(left);
+            if (right <= total) queuePrefetch(right);
+        }
+        scheduleIdlePrefetch();
     }
 
     async function renderPage(num) {
@@ -2718,6 +2765,12 @@ if ($filePath !== '') {
 
     window.addEventListener('beforeunload', () => {
         saveCurrentPageAnnotations();
+    });
+    window.addEventListener('pagehide', () => {
+        saveCurrentPageAnnotations();
+    });
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') saveCurrentPageAnnotations();
     });
 
 </script>
