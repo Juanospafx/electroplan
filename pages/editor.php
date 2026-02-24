@@ -1298,36 +1298,76 @@ if ($filePath !== '') {
 
         const w = 180;
         const h = 120;
-        const step = 10;
-        const r = 3;
+        const pad = 12;
         const stroke = '#ef4444';
+        const strokeWidth = 3;
+
+        const cloudShape = new Konva.Shape({
+            sceneFunc: (ctx, shape) => {
+                const left = -w / 2;
+                const top = -h / 2;
+                const right = w / 2;
+                const bottom = h / 2;
+                const scallop = 9;
+
+                ctx.beginPath();
+
+                // Top
+                let x = left;
+                ctx.moveTo(x, top);
+                while (x < right) {
+                    const nx = Math.min(x + scallop, right);
+                    const mid = (x + nx) / 2;
+                    ctx.quadraticCurveTo(mid, top - 7, nx, top);
+                    x = nx;
+                }
+                // Right
+                let y = top;
+                while (y < bottom) {
+                    const ny = Math.min(y + scallop, bottom);
+                    const mid = (y + ny) / 2;
+                    ctx.quadraticCurveTo(right + 7, mid, right, ny);
+                    y = ny;
+                }
+                // Bottom
+                x = right;
+                while (x > left) {
+                    const nx = Math.max(x - scallop, left);
+                    const mid = (x + nx) / 2;
+                    ctx.quadraticCurveTo(mid, bottom + 7, nx, bottom);
+                    x = nx;
+                }
+                // Left
+                y = bottom;
+                while (y > top) {
+                    const ny = Math.max(y - scallop, top);
+                    const mid = (y + ny) / 2;
+                    ctx.quadraticCurveTo(left - 7, mid, left, ny);
+                    y = ny;
+                }
+
+                ctx.closePath();
+                ctx.fillStrokeShape(shape);
+            },
+            stroke,
+            strokeWidth,
+            fill: 'rgba(239, 68, 68, 0.06)',
+            shadowColor: '#ef4444',
+            shadowBlur: 8,
+            shadowOpacity: 0.18
+        });
 
         const hitBox = new Konva.Rect({
-            x: -w / 2,
-            y: -h / 2,
-            width: w,
-            height: h,
+            x: -(w / 2) - pad,
+            y: -(h / 2) - pad,
+            width: w + (pad * 2),
+            height: h + (pad * 2),
             fill: 'rgba(0,0,0,0.001)',
             strokeWidth: 0
         });
+
+        group.add(cloudShape);
         group.add(hitBox);
-
-        const addBubble = (x, y) => {
-            group.add(new Konva.Circle({
-                x,
-                y,
-                radius: r,
-                stroke,
-                strokeWidth: 2,
-                fill: '#ffffff'
-            }));
-        };
-
-        for (let x = -w / 2; x <= w / 2; x += step) addBubble(x, -h / 2);
-        for (let y = -h / 2 + step; y <= h / 2; y += step) addBubble(w / 2, y);
-        for (let x = w / 2 - step; x >= -w / 2; x -= step) addBubble(x, h / 2);
-        for (let y = h / 2 - step; y > -h / 2; y -= step) addBubble(-w / 2, y);
-
         konvaLayer.add(group);
 
         const cloud = { group, page: targetPage };
