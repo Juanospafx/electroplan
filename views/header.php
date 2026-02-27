@@ -13,6 +13,50 @@
         /* --- 1. VARIABLES Y BASE --- */
         :root { --bg-body: #0b1120; --bg-sidebar: #111827; --bg-card: #1e293b; --bg-card-hover: #334155; --primary: #6366f1; --primary-hover: #4f46e5; --accent: #0ea5e9; --text-white: #ffffff; --text-gray: #94a3b8; --radius-box: 20px; --radius-btn: 50px; }
         body { background-color: var(--bg-body); color: var(--text-white); font-family: 'Outfit', sans-serif; overflow-x: hidden; }
+
+        body.theme-light {
+            --bg-body: #f3f6fb;
+            --bg-sidebar: #ffffff;
+            --bg-card: #ffffff;
+            --bg-card-hover: #edf2f8;
+            --text-white: #0f172a;
+            --text-gray: #475569;
+        }
+        body.theme-light .sidebar,
+        body.theme-light .app-header,
+        body.theme-light .box-card,
+        body.theme-light .modal-content,
+        body.theme-light .user-pill,
+        body.theme-light .bulk-actions-bar { border-color: rgba(15,23,42,0.12) !important; }
+        body.theme-light .box-card { box-shadow: 0 8px 20px rgba(15,23,42,0.08); }
+        body.theme-light .btn-icon,
+        body.theme-light .btn-back,
+        body.theme-light .sidebar-toggle { color: #0f172a; border-color: rgba(15,23,42,0.25); }
+        body.theme-light .btn-icon:hover { background: #0f172a; color: #fff; }
+        body.theme-light .form-control,
+        body.theme-light .form-select { background: #fff; color: #0f172a; border-color: rgba(15,23,42,0.2); }
+
+        .global-theme-toggle {
+            position: fixed;
+            top: 14px;
+            right: 16px;
+            z-index: 1300;
+            width: 38px;
+            height: 38px;
+            border-radius: 999px;
+            border: 1px solid rgba(255,255,255,0.2);
+            background: rgba(17,24,39,.92);
+            color: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+        body.theme-light .global-theme-toggle {
+            border-color: rgba(15,23,42,0.25);
+            background: rgba(255,255,255,0.95);
+            color: #0f172a;
+        }
         a { text-decoration: none; color: inherit; }
         
         /* Wrapper principal */
@@ -149,6 +193,9 @@
 <button id="sidebarCollapseBtn" class="sidebar-toggle" type="button" onclick="toggleSidebarDesktop()" aria-label="Toggle sidebar">
     <i class="fas fa-angle-left"></i>
 </button>
+<button id="globalThemeToggle" class="global-theme-toggle" type="button" onclick="toggleAppTheme()" aria-label="Toggle day/night theme" title="Switch theme">
+    <i class="fas fa-sun"></i>
+</button>
 
 <script>
     function toggleSidebar() {
@@ -162,6 +209,20 @@
         const icon = btn.querySelector('i');
         const collapsed = document.body.classList.contains('sidebar-collapsed');
         if (icon) icon.className = collapsed ? 'fas fa-angle-right' : 'fas fa-angle-left';
+    }
+
+    function applyAppTheme(theme) {
+        const next = (theme === 'light') ? 'light' : 'dark';
+        document.body.classList.toggle('theme-light', next === 'light');
+        const btn = document.getElementById('globalThemeToggle');
+        const icon = btn ? btn.querySelector('i') : null;
+        if (icon) icon.className = next === 'light' ? 'fas fa-moon' : 'fas fa-sun';
+        if (btn) btn.title = next === 'light' ? 'Switch to Night Mode' : 'Switch to Day Mode';
+        try { localStorage.setItem('app_theme', next); } catch (e) {}
+    }
+
+    function toggleAppTheme() {
+        applyAppTheme(document.body.classList.contains('theme-light') ? 'dark' : 'light');
     }
 
     function toggleSidebarDesktop() {
@@ -180,6 +241,9 @@
                 }
             } catch (e) {}
         }
+        let savedTheme = 'dark';
+        try { savedTheme = localStorage.getItem('app_theme') || localStorage.getItem('editor_theme') || 'dark'; } catch (e) {}
+        applyAppTheme(savedTheme);
         syncSidebarToggleIcon();
     });
 </script>
