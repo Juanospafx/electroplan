@@ -81,6 +81,22 @@
         body.theme-light .badge.bg-dark { background: #334155 !important; color: #fff !important; border-color: #475569 !important; }
         body.theme-light .menu-item.active { color: #fff !important; }
 
+        /* Bootstrap utility harmonization in light mode */
+        body.theme-light .btn-outline-light {
+            color: #0f172a !important;
+            border-color: rgba(15,23,42,0.25) !important;
+            background: transparent !important;
+        }
+        body.theme-light .btn-outline-light:hover {
+            background: #0f172a !important;
+            color: #fff !important;
+            border-color: #0f172a !important;
+        }
+        body.theme-light .border-secondary { border-color: rgba(15,23,42,0.18) !important; }
+        body.theme-light .bg-dark { background-color: #334155 !important; }
+        body.theme-light .text-dark { color: #0f172a !important; }
+        body.theme-light .text-light { color: #f8fafc !important; }
+
         .global-theme-toggle {
             position: fixed;
             top: 14px;

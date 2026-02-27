@@ -111,6 +111,18 @@ if ($filePath !== '') {
         body.theme-light .form-control,
         body.theme-light .form-select { background: #fff; color: #0f172a; border-color: rgba(15,23,42,0.2); }
         body.theme-light .text-muted { color: #64748b !important; }
+        body.theme-light .btn-outline-light {
+            color: #0f172a !important;
+            border-color: rgba(15,23,42,0.25) !important;
+            background: transparent !important;
+        }
+        body.theme-light .btn-outline-light:hover {
+            background: #0f172a !important;
+            color: #fff !important;
+            border-color: #0f172a !important;
+        }
+        body.theme-light .border-secondary { border-color: rgba(15,23,42,0.18) !important; }
+        body.theme-light .bg-dark { background-color: #334155 !important; }
 
         /* --- LAYOUT GRID (Desktop Default) --- */
         .app-container {

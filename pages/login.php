@@ -68,6 +68,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             margin: 0;
         }
 
+        body.theme-light {
+            --bg-body: #f3f6fb;
+            --bg-card: #ffffff;
+            --text-white: #0f172a;
+            --text-gray: #475569;
+            --text-muted: #64748b;
+        }
+        body.theme-light .form-control,
+        body.theme-light .btn-eye { background: #fff; color: #0f172a; border-color: rgba(15,23,42,0.2); }
+        body.theme-light .brand { color: #0f172a; }
+
+        .login-theme-toggle {
+            position: fixed; top: 16px; right: 16px; width: 38px; height: 38px; border-radius: 999px;
+            border: 1px solid rgba(255,255,255,0.2); background: rgba(17,24,39,.92); color: #fff;
+            display: flex; align-items: center; justify-content: center; cursor: pointer;
+        }
+        body.theme-light .login-theme-toggle { border-color: rgba(15,23,42,0.25); background: #fff; color: #0f172a; }
+
         .login-wrapper {
             width: 100%;
             max-width: 420px;
@@ -177,6 +195,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 </head>
 <body>
 
+<button type="button" id="loginThemeToggle" class="login-theme-toggle" onclick="toggleTheme()" title="Switch Day/Night">
+    <i class="fas fa-sun"></i>
+</button>
+
 <div class="login-wrapper">
     <div class="login-card">
         <div class="brand">
@@ -228,10 +250,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 </div>
 
 <script>
+    function applyTheme(theme) {
+        const next = (theme === 'light') ? 'light' : 'dark';
+        document.body.classList.toggle('theme-light', next === 'light');
+        const btn = document.getElementById('loginThemeToggle');
+        const icon = btn ? btn.querySelector('i') : null;
+        if (icon) icon.className = next === 'light' ? 'fas fa-moon' : 'fas fa-sun';
+        if (btn) btn.title = next === 'light' ? 'Switch to Night Mode' : 'Switch to Day Mode';
+        try { localStorage.setItem('app_theme', next); } catch (e) {}
+    }
+
+    function toggleTheme() {
+        applyTheme(document.body.classList.contains('theme-light') ? 'dark' : 'light');
+    }
+
     function togglePassword(inputId, btn) {
         const input = document.getElementById(inputId);
         const icon = btn.querySelector('i');
-        
+
         if (input.type === "password") {
             input.type = "text";
             icon.classList.remove('fa-eye');
@@ -242,6 +278,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             icon.classList.add('fa-eye');
         }
     }
+
+    (function initTheme(){
+        let saved = 'dark';
+        try { saved = localStorage.getItem('app_theme') || 'dark'; } catch (e) {}
+        applyTheme(saved);
+    })();
 </script>
 
 </body>

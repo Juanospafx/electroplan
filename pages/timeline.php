@@ -101,6 +101,18 @@ include __DIR__ . '/../views/header.php';
             .date-separator { position: relative; margin: 40px 0 30px 0; padding-left: 60px; }
             .date-separator::before { content: ''; position: absolute; left: 19px; top: 50%; width: 12px; height: 12px; background: #6366f1; border-radius: 50%; border: 3px solid #0b1120; z-index: 3; transform: translateY(-50%); }
             .date-label { display: inline-block; background: rgba(99, 102, 241, 0.1); color: #6366f1; padding: 5px 15px; border-radius: 20px; font-weight: 700; font-size: 0.85rem; border: 1px solid rgba(99, 102, 241, 0.2); }
+
+            body.theme-light .timeline-container::before { background: rgba(15,23,42,0.15); }
+            body.theme-light .timeline-icon { background: #ffffff; border-color: rgba(15,23,42,0.18); color: #475569; }
+            body.theme-light .timeline-card { background: #ffffff; border-color: rgba(15,23,42,0.12); }
+            body.theme-light .timeline-card:hover { background: #f8fafc; border-color: rgba(15,23,42,0.2); }
+            body.theme-light .activity-title { color: #0f172a; }
+            body.theme-light .activity-desc,
+            body.theme-light .time-badge,
+            body.theme-light .user-role-badge { color: #475569; }
+            body.theme-light .user-mini { border-top-color: rgba(15,23,42,0.12); }
+            body.theme-light .date-separator::before { border-color: #f3f6fb; }
+            body.theme-light .bg-dark { background-color: #ffffff !important; color: #0f172a !important; }
         </style>
 
         <header class="header">

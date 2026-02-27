@@ -166,6 +166,22 @@ include __DIR__ . '/../views/header.php';
         .box-card-compact { padding: 12px; }
         .folder-list { max-height: 260px; }
     }
+
+    body.theme-light .form-control {
+        background-color: #fff !important;
+        color: #0f172a !important;
+        border-color: rgba(15,23,42,0.18);
+    }
+    body.theme-light .form-control:focus { background-color: #fff !important; }
+    body.theme-light .form-control::placeholder { color: #94a3b8; }
+    body.theme-light .form-label,
+    body.theme-light .text-white,
+    body.theme-light .section-title,
+    body.theme-light .fw-bold { color: #0f172a !important; }
+    body.theme-light .text-gray { color: #475569 !important; }
+    body.theme-light .section-header { border-bottom-color: rgba(15,23,42,0.12); }
+    body.theme-light .check-item:hover { background: rgba(15,23,42,0.05); }
+    body.theme-light .folder-list::-webkit-scrollbar-thumb { background: rgba(15,23,42,0.25); }
 </style>
 
 <div class="main-content p-3">
