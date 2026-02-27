@@ -310,6 +310,14 @@ if ($filePath !== '') {
     </style>
 </head>
 <body>
+<script>
+(function(){
+  try {
+    var t = localStorage.getItem('app_theme');
+    if (t === 'light') document.body.classList.add('theme-light');
+  } catch(e) {}
+})();
+</script>
 
 <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeAllSidebars()"></div>
 

@@ -123,6 +123,9 @@ if ($filePath !== '') {
         }
         body.theme-light .border-secondary { border-color: rgba(15,23,42,0.18) !important; }
         body.theme-light .bg-dark { background-color: #334155 !important; }
+        #rep-attach-dropzone { background: #0f172a; }
+        body.theme-light #rep-attach-dropzone { background: #f8fafc; border-color: rgba(15,23,42,0.25) !important; }
+        body.theme-light #rep-attachments-preview > div { background: #ffffff !important; border-color: rgba(15,23,42,0.2) !important; }
 
         /* --- LAYOUT GRID (Desktop Default) --- */
         .app-container {
@@ -354,6 +357,15 @@ if ($filePath !== '') {
     </style>
 </head>
 <body>
+<script>
+(function(){
+  try {
+    if ((localStorage.getItem('app_theme') || localStorage.getItem('editor_theme')) === 'light') {
+      document.body.classList.add('theme-light');
+    }
+  } catch(e) {}
+})();
+</script>
 
 <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeAllOverlays()"></div>
 
@@ -603,7 +615,7 @@ if ($filePath !== '') {
 
                 <div class="mb-2">
                     <label class="form-label small fw-bold">Attachments</label>
-                    <div id="rep-attach-dropzone" class="border rounded-3 p-3 text-center" style="border-style:dashed !important; border-color:#475569 !important; background:#0f172a;">
+                    <div id="rep-attach-dropzone" class="border rounded-3 p-3 text-center" style="border-style:dashed !important; border-color:#475569 !important;">
                         <div class="small text-muted mb-2"><i class="fas fa-paperclip me-1"></i>Drag &amp; drop files here or</div>
                         <button type="button" class="btn btn-sm btn-outline-light" onclick="document.getElementById('rep-attachments').click()">Browse files</button>
                         <input type="file" id="rep-attachments" class="d-none" multiple>

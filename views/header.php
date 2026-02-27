@@ -249,6 +249,15 @@
     </style>
 </head>
 <body>
+<script>
+(function(){
+  try {
+    if ((localStorage.getItem('app_theme') || localStorage.getItem('editor_theme')) === 'light') {
+      document.body.classList.add('theme-light');
+    }
+  } catch(e) {}
+})();
+</script>
 
 <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
 <button id="sidebarCollapseBtn" class="sidebar-toggle" type="button" onclick="toggleSidebarDesktop()" aria-label="Toggle sidebar">
