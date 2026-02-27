@@ -379,6 +379,16 @@ if ($filePath !== '') {
                 <input type="number" id="text-size-input" class="form-control py-0 px-2 text-center" value="60" min="8" max="100" style="width:60px; height:30px;" onchange="updateTextProp('fontSize', parseInt(this.value))">
             </div>
 
+            <div id="prop-cloud" class="prop-section">
+                <span class="prop-label"><i class="fas fa-cloud me-1"></i>Cloud stroke</span>
+                <select id="cloud-stroke" class="form-select form-select-sm ms-2" style="width:180px; height:30px;" onchange="setCloudStrokeWidth(this.value)">
+                    <option value="1.5">Fina (0.5px)</option>
+                    <option value="3" selected>Normal (1px)</option>
+                    <option value="6">Gruesa (2px)</option>
+                    <option value="9">Extra gruesa (3px)</option>
+                </select>
+            </div>
+
             <div id="prop-measure" class="prop-section">
                 <span class="prop-label text-success"><i class="fas fa-ruler me-2"></i>Measurement</span>
                 <span class="text-white small">Drag nodes to adjust. Dbl-Tap to move.</span>
@@ -742,6 +752,7 @@ if ($filePath !== '') {
     let lineState = 0, activeLine = null, startPoint = null;
     let calLineObject = null; 
     let calMode = 'preset';
+    let cloudStrokeWidth = 3; // default actual behavior
 
     // Calibration Persistence
     function getCalKey(suffix) {
@@ -1029,6 +1040,24 @@ if ($filePath !== '') {
         canvas.requestRenderAll();
     }
 
+    function syncCloudStrokeControl(value = cloudStrokeWidth) {
+        const ctrl = document.getElementById('cloud-stroke');
+        if (ctrl) ctrl.value = String(value);
+    }
+
+    function setCloudStrokeWidth(value) {
+        const next = parseFloat(value);
+        if (!isFinite(next) || next <= 0) return;
+        cloudStrokeWidth = next;
+        syncCloudStrokeControl(cloudStrokeWidth);
+
+        if (konvaSelectedNode?.type === 'cloud' && konvaSelectedNode.ref?.shape) {
+            konvaSelectedNode.ref.shape.strokeWidth(cloudStrokeWidth);
+            if (konvaLayer) konvaLayer.batchDraw();
+            saveCurrentPageAnnotations();
+        }
+    }
+
     function runScalePresetSelfCheck() {
         const cases = [
             { label: '1/8" = 1\'', expected: 8 },
@@ -1048,6 +1077,7 @@ if ($filePath !== '') {
     setCalMode(calMode);
     loadCalibrationForPage(true);
     keepScaleDisplayVisible();
+    syncCloudStrokeControl();
 
     // HISTORY
     const MAX_HISTORY = 21;
@@ -1133,7 +1163,13 @@ if ($filePath !== '') {
             .map(r => ({ p1: r.a1.position(), p2: r.a2.position() }));
         const clouds = konvaClouds
             .filter(c => c.page === pg)
-            .map(c => ({ x: c.group.x(), y: c.group.y(), scaleX: c.group.scaleX(), scaleY: c.group.scaleY() }));
+            .map(c => ({
+                x: c.group.x(),
+                y: c.group.y(),
+                scaleX: c.group.scaleX(),
+                scaleY: c.group.scaleY(),
+                strokeWidth: c.shape ? c.shape.strokeWidth() : cloudStrokeWidth
+            }));
         return { notes, rulers, clouds };
     }
 
@@ -1158,7 +1194,7 @@ if ($filePath !== '') {
             if (n.fontSize) note.label.fontSize(n.fontSize);
         });
         (data.clouds || []).forEach(c => {
-            const cloud = createKonvaCloud({ x: c.x, y: c.y }, pg);
+            const cloud = createKonvaCloud({ x: c.x, y: c.y }, pg, c.strokeWidth || cloudStrokeWidth);
             cloud.group.scaleX(c.scaleX || 1);
             cloud.group.scaleY(c.scaleY || 1);
         });
@@ -1372,14 +1408,13 @@ if ($filePath !== '') {
         return note;
     }
 
-    function createKonvaCloud(pos, targetPage = pageNum) {
+    function createKonvaCloud(pos, targetPage = pageNum, strokeWidth = cloudStrokeWidth) {
         const group = new Konva.Group({ x: pos.x, y: pos.y, draggable: true });
 
         const w = 180;
         const h = 120;
         const pad = 12;
         const stroke = '#ef4444';
-        const strokeWidth = 3;
 
         const cloudShape = new Konva.Shape({
             sceneFunc: (ctx, shape) => {
@@ -1449,18 +1484,24 @@ if ($filePath !== '') {
         group.add(hitBox);
         konvaLayer.add(group);
 
-        const cloud = { group, page: targetPage };
+        const cloud = { group, shape: cloudShape, page: targetPage };
         konvaClouds.push(cloud);
 
         group.on('click tap', () => {
             if (currentMode !== 'smart') setMode('smart');
             if (konvaTransformer) konvaTransformer.nodes([group]);
             konvaSelectedNode = { type: 'cloud', ref: cloud };
+            cloudStrokeWidth = cloud.shape.strokeWidth();
+            syncCloudStrokeControl(cloudStrokeWidth);
+            showPropSection('cloud');
         });
         group.on('dblclick dbltap', () => {
             if (currentMode !== 'smart') setMode('smart');
             if (konvaTransformer) konvaTransformer.nodes([group]);
             konvaSelectedNode = { type: 'cloud', ref: cloud };
+            cloudStrokeWidth = cloud.shape.strokeWidth();
+            syncCloudStrokeControl(cloudStrokeWidth);
+            showPropSection('cloud');
         });
         group.on('dragend', saveCurrentPageAnnotations);
 
@@ -2782,6 +2823,8 @@ if ($filePath !== '') {
 
     function addCloud() {
         setMode('smart');
+        showPropSection('cloud');
+        syncCloudStrokeControl();
         if (!useKonvaRuler) return;
         startPlacementTool('cloud');
     }
