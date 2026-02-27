@@ -372,6 +372,42 @@ if ($filePath !== '') {
                     <div class="report-desc">
                         "<?= htmlspecialchars($r['description']) ?>"
                     </div>
+                    <?php
+                        $attachments = [];
+                        if (!empty($r['attachments_json'])) {
+                            $decoded = json_decode($r['attachments_json'], true);
+                            if (is_array($decoded)) $attachments = $decoded;
+                        }
+                    ?>
+                    <?php if (!empty($attachments)): ?>
+                        <div class="mb-2">
+                            <div class="small text-muted mb-1"><i class="fas fa-paperclip me-1"></i>Attachments</div>
+                            <div class="d-flex flex-column gap-1">
+                                <?php foreach($attachments as $att): ?>
+                                    <?php
+                                        $attName = $att['name'] ?? 'attachment';
+                                        $attPath = $att['path'] ?? '';
+                                        $attMime = strtolower((string)($att['mime'] ?? ''));
+                                        $attHref = $attPath;
+                                        if ($attHref && strpos($attHref, 'uploads/') === 0) $attHref = '../' . $attHref;
+                                        $isImage = strpos($attMime, 'image/') === 0;
+                                    ?>
+                                    <?php if ($attHref): ?>
+                                        <a href="<?= htmlspecialchars($attHref) ?>" target="_blank" class="small text-decoration-none">
+                                            <?php if ($isImage): ?>
+                                                <span class="d-flex align-items-center gap-2">
+                                                    <img src="<?= htmlspecialchars($attHref) ?>" alt="<?= htmlspecialchars($attName) ?>" style="width:34px;height:34px;object-fit:cover;border-radius:6px;">
+                                                    <span class="text-white"><?= htmlspecialchars($attName) ?></span>
+                                                </span>
+                                            <?php else: ?>
+                                                <span class="text-accent"><i class="fas fa-file me-1"></i><?= htmlspecialchars($attName) ?></span>
+                                            <?php endif; ?>
+                                        </a>
+                                    <?php endif; ?>
+                                <?php endforeach; ?>
+                            </div>
+                        </div>
+                    <?php endif; ?>
                     <div class="report-meta">
                         <span class="report-date"><i class="far fa-clock me-1"></i> <?= date('M d, H:i', strtotime($r['created_at'])) ?></span>
                         <?php if($r['report_pdf_path']): ?>
