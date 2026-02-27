@@ -786,6 +786,85 @@ if ($filePath !== '') {
         }
     }
 
+    function getActiveScaleLabel() {
+        const el = document.getElementById('scale-display');
+        return (el?.textContent || '').trim();
+    }
+
+    function gcd(a, b) {
+        let x = Math.abs(a);
+        let y = Math.abs(b);
+        while (y) {
+            const t = y;
+            y = x % y;
+            x = t;
+        }
+        return x || 1;
+    }
+
+    function getArchitecturalInchStep(scaleLabel) {
+        const parsed = parseScaleLabel(scaleLabel || '');
+        if (!parsed) return 1 / 16;
+
+        // Civil scales (ej. 1" = 10') se muestran en pies enteros
+        if (parsed.feet > 1) return null;
+
+        const inchesPerFoot = parsed.inches;
+        if (inchesPerFoot <= (1 / 8)) return 1;      // 1/8" o menor -> 1"
+        if (inchesPerFoot <= (1 / 4)) return 1 / 2;  // 3/16", 1/4" -> 1/2"
+        if (inchesPerFoot <= (1 / 2)) return 1 / 4;  // 3/8", 1/2" -> 1/4"
+        if (inchesPerFoot < 1) return 1 / 8;         // 3/4" -> 1/8"
+        return 1 / 16;                                // 1" o mayor -> 1/16"
+    }
+
+    function formatFeetForDisplay(feetDecimal) {
+        if (!isFinite(feetDecimal)) return '--';
+
+        const step = getArchitecturalInchStep(getActiveScaleLabel());
+
+        // Civil: solo pies enteros redondeados
+        if (step === null) {
+            return `${Math.round(feetDecimal)}'`;
+        }
+
+        let feetWhole = Math.floor(feetDecimal);
+        let inches = (feetDecimal - feetWhole) * 12;
+        inches = Math.round(inches / step) * step;
+
+        if (inches >= 12 - 1e-9) {
+            feetWhole += 1;
+            inches = 0;
+        }
+
+        let wholeInches = Math.floor(inches + 1e-9);
+        const frac = inches - wholeInches;
+
+        if (frac < 1e-9) {
+            return `${feetWhole}' ${wholeInches}"`;
+        }
+
+        let den = Math.round(1 / step);
+        let num = Math.round(frac * den);
+
+        if (num === den) {
+            wholeInches += 1;
+            num = 0;
+        }
+        if (wholeInches >= 12) {
+            feetWhole += 1;
+            wholeInches = 0;
+        }
+        if (num === 0) {
+            return `${feetWhole}' ${wholeInches}"`;
+        }
+
+        const factor = gcd(num, den);
+        num /= factor;
+        den /= factor;
+
+        return `${feetWhole}' ${wholeInches} ${num}/${den}"`;
+    }
+
     // --- SCALE PRESETS ---
     const RAW_SCALE_PRESETS = [
         { category: 'Architectural', label: '1/128" = 1\'' },
@@ -1033,7 +1112,7 @@ if ($filePath !== '') {
         let textVal = "";
         if (pixelsPerFoot > 0) {
             const feet = distPx / pixelsPerFoot;
-            textVal = feet.toFixed(2) + " ft";
+            textVal = formatFeetForDisplay(feet);
         } else {
             textVal = Math.round(distPx) + " px";
         }
@@ -2286,7 +2365,7 @@ if ($filePath !== '') {
         let textVal = "";
         if (pixelsPerFoot > 0) { 
             const feet = distPx / pixelsPerFoot; 
-            textVal = feet.toFixed(2) + " ft"; 
+            textVal = formatFeetForDisplay(feet);
         } else { 
             textVal = Math.round(distPx) + " px"; 
         }
@@ -2612,7 +2691,7 @@ if ($filePath !== '') {
             canvas.tempDist = distPx; calLineObject = activeLine; 
         } else if (currentMode === 'measure') {
             const feet = distPx / pixelsPerFoot;
-            const textVal = feet.toFixed(2) + " ft"; 
+            const textVal = formatFeetForDisplay(feet);
             const midX = (activeLine.x1 + activeLine.x2) / 2;
             const midY = (activeLine.y1 + activeLine.y2) / 2;
             const uniqueId = Date.now();
