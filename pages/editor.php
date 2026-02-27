@@ -83,6 +83,35 @@ if ($filePath !== '') {
 
         body { overflow: hidden; background: var(--bg-dark); }
 
+        body.theme-light {
+            --bg-body: #f3f6fb;
+            --bg-panel: #ffffff;
+            --bg-header: rgba(255, 255, 255, 0.96);
+            --border: rgba(15, 23, 42, 0.18);
+            --text-main: #0f172a;
+            --text-muted: #475569;
+            --bg-dark: #f3f6fb;
+            --border-color: rgba(15, 23, 42, 0.18);
+            color: #0f172a;
+        }
+        body.theme-light .canvas-area { background: #dbe4f0; }
+        body.theme-light .floating-controls { background: rgba(255,255,255,0.95); color: #0f172a; }
+        body.theme-light .float-btn { color: #0f172a; }
+        body.theme-light .tool-btn { color: #334155; }
+        body.theme-light .tool-btn:hover { background: rgba(15,23,42,0.08); color: #0f172a; }
+        body.theme-light .brand-logo,
+        body.theme-light .file-info span,
+        body.theme-light .text-white,
+        body.theme-light .prop-label,
+        body.theme-light .small,
+        body.theme-light .btn-outline-light,
+        body.theme-light .btn-close-custom,
+        body.theme-light .stamp-item,
+        body.theme-light .modal-content { color: #0f172a !important; }
+        body.theme-light .form-control,
+        body.theme-light .form-select { background: #fff; color: #0f172a; border-color: rgba(15,23,42,0.2); }
+        body.theme-light .text-muted { color: #64748b !important; }
+
         /* --- LAYOUT GRID (Desktop Default) --- */
         .app-container {
             display: grid;
@@ -421,6 +450,13 @@ if ($filePath !== '') {
         </div>
 
         <div class="header-right">
+            <button class="btn btn-outline-light rounded-circle d-inline-flex align-items-center justify-content-center"
+                    id="btn-theme-toggle"
+                    style="width:35px;height:35px;border-color:var(--border);"
+                    onclick="toggleTheme()"
+                    title="Toggle Day/Night">
+                <i class="fas fa-sun"></i>
+            </button>
             <button class="btn btn-outline-danger rounded-circle d-inline-flex align-items-center justify-content-center" 
                     id="btn-delete-selection" 
                     style="width:35px;height:35px;border-color:var(--danger);" 
@@ -621,6 +657,27 @@ if ($filePath !== '') {
         // Mostrar de nuevo los controles flotantes si se cerrÃ³ la barra
         const floatControls = document.querySelector('.floating-controls');
         if(floatControls) floatControls.classList.remove('hide-ui');
+    }
+
+    function applyTheme(theme) {
+        const next = (theme === 'light') ? 'light' : 'dark';
+        document.body.classList.toggle('theme-light', next === 'light');
+        const btn = document.getElementById('btn-theme-toggle');
+        const icon = btn ? btn.querySelector('i') : null;
+        if (btn) btn.title = (next === 'light') ? 'Switch to Night Mode' : 'Switch to Day Mode';
+        if (icon) icon.className = (next === 'light') ? 'fas fa-moon' : 'fas fa-sun';
+        try { localStorage.setItem('editor_theme', next); } catch (e) {}
+    }
+
+    function toggleTheme() {
+        const isLight = document.body.classList.contains('theme-light');
+        applyTheme(isLight ? 'dark' : 'light');
+    }
+
+    function initTheme() {
+        let saved = null;
+        try { saved = localStorage.getItem('editor_theme'); } catch (e) {}
+        applyTheme(saved === 'light' ? 'light' : 'dark');
     }
 
     function updateOverlay() {
@@ -1085,6 +1142,7 @@ if ($filePath !== '') {
     }
 
     window.__scalePresetSelfCheck = runScalePresetSelfCheck;
+    initTheme();
     populateScalePresets();
     setCalMode(calMode);
     loadCalibrationForPage(true);
