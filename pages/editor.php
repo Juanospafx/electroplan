@@ -666,7 +666,7 @@ if ($filePath !== '') {
         const icon = btn ? btn.querySelector('i') : null;
         if (btn) btn.title = (next === 'light') ? 'Switch to Night Mode' : 'Switch to Day Mode';
         if (icon) icon.className = (next === 'light') ? 'fas fa-moon' : 'fas fa-sun';
-        try { localStorage.setItem('editor_theme', next); } catch (e) {}
+        try { localStorage.setItem('app_theme', next); } catch (e) {}
     }
 
     function toggleTheme() {
@@ -676,7 +676,7 @@ if ($filePath !== '') {
 
     function initTheme() {
         let saved = null;
-        try { saved = localStorage.getItem('editor_theme'); } catch (e) {}
+        try { saved = localStorage.getItem('app_theme') || localStorage.getItem('editor_theme'); } catch (e) {}
         applyTheme(saved === 'light' ? 'light' : 'dark');
     }
 

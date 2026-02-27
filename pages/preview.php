@@ -93,6 +93,26 @@ if ($filePath !== '') {
             touch-action: none; /* CRÍTICO: Prevenir gestos nativos */
         }
 
+        body.theme-light {
+            --bg-body: #f3f6fb;
+            --bg-panel: #ffffff;
+            --bg-header: rgba(255,255,255,0.96);
+            --border: rgba(15,23,42,0.14);
+            --text-main: #0f172a;
+            --text-muted: #475569;
+        }
+        body.theme-light .canvas-area,
+        body.theme-light #map { background: #dbe4f0; }
+        body.theme-light .report-card { background: #f8fafc; }
+        body.theme-light .text-white,
+        body.theme-light .brand-logo,
+        body.theme-light .file-info span,
+        body.theme-light .sidebar-title,
+        body.theme-light .history-header,
+        body.theme-light .small,
+        body.theme-light .btn-close-custom,
+        body.theme-light .btn-outline-light { color: #0f172a !important; }
+
         .app-container {
             display: grid;
             grid-template-columns: 280px 1fr 320px; 
@@ -197,6 +217,13 @@ if ($filePath !== '') {
             text-decoration: none; transition: 0.2s;
         }
         .btn-close-custom:hover { background: var(--danger); color: white; border-color: var(--danger); }
+
+        .btn-theme-custom {
+            width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--border);
+            background: transparent; color: var(--text-main); display: flex; align-items: center; justify-content: center;
+            text-decoration: none; transition: 0.2s;
+        }
+        .btn-theme-custom:hover { background: rgba(255,255,255,0.1); }
         
         #toast-container { position: absolute; bottom: 80px; left: 30px; z-index: 1100; pointer-events: none; }
         .toast-msg { background: var(--bg-panel); border: 1px solid var(--border); padding: 12px 20px; border-radius: 12px; margin-top: 10px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); color: white; display: flex; align-items: center; gap: 10px; animation: slideIn 0.3s; }
@@ -296,7 +323,10 @@ if ($filePath !== '') {
         </div>
 
         <div class="d-flex align-items-center gap-2">
-            
+            <button type="button" id="btn-theme-toggle" class="btn-theme-custom" onclick="toggleTheme()" title="Switch Day/Night">
+                <i class="fas fa-sun"></i>
+            </button>
+
             <?php if($userRole !== 'viewer'): ?>
                 <a href="editor.php?id=<?= $id ?>" class="btn-action">
                     <i class="fas fa-pen"></i>
@@ -473,7 +503,28 @@ if ($filePath !== '') {
         document.getElementById('sidebarOverlay').classList.remove('show');
     }
 
+    function applyTheme(theme) {
+        const next = (theme === 'light') ? 'light' : 'dark';
+        document.body.classList.toggle('theme-light', next === 'light');
+        const btn = document.getElementById('btn-theme-toggle');
+        const icon = btn ? btn.querySelector('i') : null;
+        if (icon) icon.className = next === 'light' ? 'fas fa-moon' : 'fas fa-sun';
+        if (btn) btn.title = next === 'light' ? 'Switch to Night Mode' : 'Switch to Day Mode';
+        try { localStorage.setItem('app_theme', next); } catch (e) {}
+    }
+
+    function toggleTheme() {
+        applyTheme(document.body.classList.contains('theme-light') ? 'dark' : 'light');
+    }
+
+    function initTheme() {
+        let saved = 'dark';
+        try { saved = localStorage.getItem('app_theme') || 'dark'; } catch (e) {}
+        applyTheme(saved);
+    }
+
     // --- SETUP ---
+    initTheme();
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
 
     // --- Lightweight Viewer (PDF.js + Image) ---
