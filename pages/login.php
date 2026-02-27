@@ -194,6 +194,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     </style>
 </head>
 <body>
+<script>
+(function(){
+  try {
+    var t = localStorage.getItem('app_theme');
+    if (t === 'light') document.body.classList.add('theme-light');
+  } catch(e) {}
+})();
+</script>
 
 <button type="button" id="loginThemeToggle" class="login-theme-toggle" onclick="toggleTheme()" title="Switch Day/Night">
     <i class="fas fa-sun"></i>
