@@ -369,6 +369,23 @@ include __DIR__ . '/../views/header.php';
         .recent-upload-card { flex-wrap: wrap; }
         .recent-upload-actions { width: 100%; justify-content: flex-end; }
     }
+
+    body.theme-light .project-sidebar .nav-link:hover { background: rgba(15,23,42,0.08); color: #0f172a; }
+    body.theme-light .file-hover:hover { background: rgba(15,23,42,0.06); }
+    body.theme-light .project-content .text-white,
+    body.theme-light .project-content h1,
+    body.theme-light .project-content h2,
+    body.theme-light .project-content h3,
+    body.theme-light .project-content h4,
+    body.theme-light .project-content h5,
+    body.theme-light .project-content h6,
+    body.theme-light .project-content .fw-bold,
+    body.theme-light .project-content .small { color: #0f172a !important; }
+    body.theme-light .project-content .text-gray,
+    body.theme-light .project-content .text-muted { color: #475569 !important; }
+    body.theme-light .project-content .btn.btn-dark { background: #334155 !important; border-color: #334155 !important; color: #fff !important; }
+    body.theme-light .project-content .form-select.bg-dark,
+    body.theme-light .project-content .form-control.bg-dark { background: #fff !important; color: #0f172a !important; }
 </style>
 
 <?php include __DIR__ . '/../views/modals.php'; ?>
