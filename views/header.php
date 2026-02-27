@@ -96,6 +96,13 @@
         body.theme-light .bg-dark { background-color: #334155 !important; }
         body.theme-light .text-dark { color: #0f172a !important; }
         body.theme-light .text-light { color: #f8fafc !important; }
+        body.theme-light .toast-msg {
+            background: #ffffff !important;
+            color: #0f172a !important;
+            border-color: rgba(15,23,42,0.18) !important;
+            box-shadow: 0 10px 24px rgba(15,23,42,0.14) !important;
+        }
+        body.theme-light .toast-msg span { color: #0f172a !important; }
 
         .global-theme-toggle {
             position: fixed;

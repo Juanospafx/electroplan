@@ -126,6 +126,13 @@ if ($filePath !== '') {
         #rep-attach-dropzone { background: #0f172a; }
         body.theme-light #rep-attach-dropzone { background: #f8fafc; border-color: rgba(15,23,42,0.25) !important; }
         body.theme-light #rep-attachments-preview > div { background: #ffffff !important; border-color: rgba(15,23,42,0.2) !important; }
+        body.theme-light .toast-msg {
+            background: #ffffff !important;
+            color: #0f172a !important;
+            border-color: rgba(15,23,42,0.18) !important;
+            box-shadow: 0 10px 24px rgba(15,23,42,0.14) !important;
+        }
+        body.theme-light .toast-msg span { color: #0f172a !important; }
 
         /* --- LAYOUT GRID (Desktop Default) --- */
         .app-container {
