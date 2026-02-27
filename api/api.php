@@ -17,6 +17,40 @@ function cleanName($name) {
     return clean_filename($name);
 }
 
+function db_has_column(PDO $pdo, string $table, string $column): bool {
+    static $cache = [];
+    $key = $table . '.' . $column;
+    if (array_key_exists($key, $cache)) return $cache[$key];
+    try {
+        $stmt = $pdo->prepare("SHOW COLUMNS FROM `$table` LIKE ?");
+        $stmt->execute([$column]);
+        $cache[$key] = ($stmt->rowCount() > 0);
+    } catch (Throwable $e) {
+        $cache[$key] = false;
+    }
+    return $cache[$key];
+}
+
+function ensure_report_attachments_table(PDO $pdo): void {
+    static $done = false;
+    if ($done) return;
+    $done = true;
+    $sql = "CREATE TABLE IF NOT EXISTS field_report_attachments (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        field_report_id BIGINT UNSIGNED NOT NULL,
+        original_name VARCHAR(255) NOT NULL,
+        mime_type VARCHAR(191) NOT NULL,
+        file_size BIGINT UNSIGNED NOT NULL,
+        storage_path VARCHAR(1024) NOT NULL,
+        public_url VARCHAR(1024) DEFAULT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        KEY idx_fra_report (field_report_id),
+        CONSTRAINT fk_fra_report FOREIGN KEY (field_report_id) REFERENCES file_reports(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4";
+    try { $pdo->exec($sql); } catch (Throwable $e) { /* migration not guaranteed at runtime */ }
+}
+
 function inventory_sync_log_line(string $line): void {
     $dir = __DIR__ . '/../integrations/logs';
     if (!is_dir($dir)) {
@@ -609,19 +643,38 @@ switch($action) {
         }
         // NUEVO: Borrar reporte individualmente
         elseif ($type === 'report') {
-            // Opcional: Borrar el PDF del disco
-            $stmt = $pdo->prepare("SELECT report_pdf_path FROM file_reports WHERE id = ?");
+            // Borrar PDF y adjuntos físicos si existen
+            $stmt = $pdo->prepare("SELECT report_pdf_path, attachments_json FROM file_reports WHERE id = ?");
             $stmt->execute([$id]);
             $rep = $stmt->fetch();
-            if ($rep && !empty($rep['report_pdf_path'])) {
-                $repPath = $rep['report_pdf_path'];
-                $repDiskPath = $repPath;
-                if (strpos($repPath, 'uploads/') === 0) {
-                    $repDiskPath = __DIR__ . '/../' . $repPath;
+            if ($rep) {
+                if (!empty($rep['report_pdf_path'])) {
+                    $repPath = $rep['report_pdf_path'];
+                    $repDiskPath = $repPath;
+                    if (strpos($repPath, 'uploads/') === 0) {
+                        $repDiskPath = __DIR__ . '/../' . $repPath;
+                    }
+                    if (file_exists($repDiskPath)) {
+                        unlink($repDiskPath);
+                    }
                 }
-                if (file_exists($repDiskPath)) {
-                    unlink($repDiskPath);
+                if (!empty($rep['attachments_json'])) {
+                    $arr = json_decode($rep['attachments_json'], true);
+                    if (is_array($arr)) {
+                        foreach ($arr as $a) {
+                            $p = $a['path'] ?? '';
+                            if ($p && strpos($p, 'uploads/') === 0) {
+                                $disk = __DIR__ . '/../' . $p;
+                                if (file_exists($disk)) @unlink($disk);
+                            }
+                        }
+                    }
                 }
+            }
+            try {
+                $pdo->prepare("DELETE FROM field_report_attachments WHERE field_report_id = ?")->execute([$id]);
+            } catch (Throwable $e) {
+                // optional table
             }
             $pdo->prepare("DELETE FROM file_reports WHERE id = ?")->execute([$id]);
         }
@@ -638,30 +691,117 @@ switch($action) {
                 throw new Exception("Missing data (ID or PDF)");
             }
 
-            $fileId = $_POST['file_id'];
-            $json = $_POST['annotations_json'];
-            $techName = $_POST['tech_name'];
-            $techRole = $_POST['tech_role'];
-            $desc = $_POST['description'];
-            
+            $fileId = (int)$_POST['file_id'];
+            $json = $_POST['annotations_json'] ?? '{}';
+            $techName = trim((string)($_POST['tech_name'] ?? ''));
+            $techRole = trim((string)($_POST['tech_role'] ?? ''));
+            $desc = trim((string)($_POST['description'] ?? ''));
+
             $reportDir = __DIR__ . '/../uploads/reports/';
             if (!is_dir($reportDir)) { mkdir($reportDir, 0777, true); }
 
             $fileName = 'Report_F' . $fileId . '_' . time() . '.pdf';
             $destPath = $reportDir . $fileName;
-            
+
             if (!move_uploaded_file($_FILES['pdf_file']['tmp_name'], $destPath)) {
                 throw new Exception("Failed to save PDF file to server");
             }
 
+            $allowedMimes = [
+                'application/pdf',
+                'application/msword',
+                'application/vnd.ms-excel'
+            ];
+            $allowedPrefix = [
+                'image/',
+                'application/vnd.openxmlformats-officedocument.'
+            ];
+            $maxFiles = 5;
+            $maxBytes = 10 * 1024 * 1024;
+            $attachments = [];
+            $attachmentsInput = $_FILES['attachments'] ?? null;
+
+            if ($attachmentsInput && is_array($attachmentsInput['name'] ?? null)) {
+                $count = count($attachmentsInput['name']);
+                if ($count > $maxFiles) {
+                    throw new Exception('Maximum 5 attachments per report');
+                }
+
+                $attachDir = __DIR__ . '/../uploads/report_attachments/';
+                if (!is_dir($attachDir)) { mkdir($attachDir, 0777, true); }
+
+                for ($i = 0; $i < $count; $i++) {
+                    $err = (int)($attachmentsInput['error'][$i] ?? UPLOAD_ERR_NO_FILE);
+                    if ($err === UPLOAD_ERR_NO_FILE) continue;
+                    if ($err !== UPLOAD_ERR_OK) throw new Exception('Attachment upload error');
+
+                    $tmp = $attachmentsInput['tmp_name'][$i] ?? '';
+                    $orig = (string)($attachmentsInput['name'][$i] ?? 'attachment');
+                    $size = (int)($attachmentsInput['size'][$i] ?? 0);
+                    $mime = (string)($attachmentsInput['type'][$i] ?? 'application/octet-stream');
+
+                    if ($size <= 0 || $size > $maxBytes) {
+                        throw new Exception('Attachment exceeds 10MB: ' . $orig);
+                    }
+
+                    $mimeAllowed = in_array($mime, $allowedMimes, true);
+                    if (!$mimeAllowed) {
+                        foreach ($allowedPrefix as $prefix) {
+                            if (strpos($mime, $prefix) === 0) { $mimeAllowed = true; break; }
+                        }
+                    }
+                    if (!$mimeAllowed) {
+                        throw new Exception('Unsupported attachment type: ' . $orig);
+                    }
+
+                    $safeBase = preg_replace('/[^A-Za-z0-9._-]/', '_', basename($orig));
+                    if ($safeBase === '' || $safeBase === '.' || $safeBase === '..') $safeBase = 'attachment';
+                    $stored = 'R' . $fileId . '_' . time() . '_' . $i . '_' . $safeBase;
+                    $target = $attachDir . $stored;
+
+                    if (!move_uploaded_file($tmp, $target)) {
+                        throw new Exception('Failed to save attachment: ' . $orig);
+                    }
+
+                    $attachments[] = [
+                        'name' => $orig,
+                        'mime' => $mime,
+                        'size' => $size,
+                        'path' => 'uploads/report_attachments/' . $stored,
+                        'url' => '../uploads/report_attachments/' . $stored
+                    ];
+                }
+            }
+
             $publicReportPath = 'uploads/reports/' . $fileName;
-            $stmt = $pdo->prepare("INSERT INTO file_reports (file_id, technician_name, technician_role, description, report_pdf_path, annotations_json) VALUES (?, ?, ?, ?, ?, ?)");
-            $stmt->execute([$fileId, $techName, $techRole, $desc, $publicReportPath, $json]);
+            $hasAttachmentsJson = db_has_column($pdo, 'file_reports', 'attachments_json');
+
+            if ($hasAttachmentsJson) {
+                $stmt = $pdo->prepare("INSERT INTO file_reports (file_id, technician_name, technician_role, description, report_pdf_path, annotations_json, attachments_json) VALUES (?, ?, ?, ?, ?, ?, ?)");
+                $stmt->execute([$fileId, $techName, $techRole, $desc, $publicReportPath, $json, json_encode($attachments)]);
+            } else {
+                $stmt = $pdo->prepare("INSERT INTO file_reports (file_id, technician_name, technician_role, description, report_pdf_path, annotations_json) VALUES (?, ?, ?, ?, ?, ?)");
+                $stmt->execute([$fileId, $techName, $techRole, $desc, $publicReportPath, $json]);
+            }
+
+            $reportId = (int)$pdo->lastInsertId();
+
+            if (!empty($attachments)) {
+                ensure_report_attachments_table($pdo);
+                try {
+                    $ins = $pdo->prepare("INSERT INTO field_report_attachments (field_report_id, original_name, mime_type, file_size, storage_path, public_url) VALUES (?, ?, ?, ?, ?, ?)");
+                    foreach ($attachments as $a) {
+                        $ins->execute([$reportId, $a['name'], $a['mime'], $a['size'], $a['path'], $a['url']]);
+                    }
+                } catch (Throwable $e) {
+                    // optional relational table may not exist yet; keep attachments_json fallback
+                }
+            }
 
             echo json_encode(['status' => 'success', 'msg' => 'Report saved']);
 
         } catch (Exception $e) {
-            http_response_code(500); 
+            http_response_code(500);
             echo json_encode(['status' => 'error', 'msg' => $e->getMessage()]);
         }
         break;    

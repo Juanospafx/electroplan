@@ -552,6 +552,18 @@ if ($filePath !== '') {
                     <label class="form-label small fw-bold">Activity Description</label>
                     <textarea id="rep-desc" class="form-control" rows="3" placeholder="e.g. Added conduit path to room 102..."></textarea>
                 </div>
+
+                <div class="mb-2">
+                    <label class="form-label small fw-bold">Attachments</label>
+                    <div id="rep-attach-dropzone" class="border rounded-3 p-3 text-center" style="border-style:dashed !important; border-color:#475569 !important; background:#0f172a;">
+                        <div class="small text-muted mb-2"><i class="fas fa-paperclip me-1"></i>Drag &amp; drop files here or</div>
+                        <button type="button" class="btn btn-sm btn-outline-light" onclick="document.getElementById('rep-attachments').click()">Browse files</button>
+                        <input type="file" id="rep-attachments" class="d-none" multiple>
+                        <div class="small text-muted mt-2">Accepted: Images, PDF, DOC, XLS</div>
+                        <div class="small text-muted">Max: 10MB per file · Up to 5 files</div>
+                    </div>
+                    <div id="rep-attachments-preview" class="mt-2 d-flex flex-column gap-2"></div>
+                </div>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-action" id="btn-generate" onclick="submitReport()">
@@ -2835,8 +2847,152 @@ if ($filePath !== '') {
         updateTextProp('fill', color);
     }
 
+    const REPORT_ATTACH_MAX_FILES = 5;
+    const REPORT_ATTACH_MAX_BYTES = 10 * 1024 * 1024;
+    const REPORT_ATTACH_ALLOWED = [
+        /^image\//,
+        /^application\/pdf$/,
+        /^application\/msword$/,
+        /^application\/vnd\.openxmlformats-officedocument\./,
+        /^application\/vnd\.ms-excel$/
+    ];
+    let reportAttachments = [];
+
+    function isAllowedAttachmentType(file) {
+        return REPORT_ATTACH_ALLOWED.some(rx => rx.test(file.type || ''));
+    }
+
+    function formatBytes(bytes) {
+        if (!isFinite(bytes) || bytes <= 0) return '0 B';
+        const units = ['B','KB','MB','GB'];
+        let i = 0;
+        let val = bytes;
+        while (val >= 1024 && i < units.length - 1) { val /= 1024; i++; }
+        return `${val.toFixed(i === 0 ? 0 : 1)} ${units[i]}`;
+    }
+
+    function getAttachmentIcon(file) {
+        const type = (file.type || '').toLowerCase();
+        if (type.startsWith('image/')) return 'fa-file-image';
+        if (type === 'application/pdf') return 'fa-file-pdf';
+        if (type.includes('word') || type.includes('officedocument.word')) return 'fa-file-word';
+        if (type.includes('excel') || type.includes('spreadsheet')) return 'fa-file-excel';
+        return 'fa-file';
+    }
+
+    function renderAttachmentPreview() {
+        const box = document.getElementById('rep-attachments-preview');
+        if (!box) return;
+        box.innerHTML = '';
+        reportAttachments.forEach((entry, idx) => {
+            const row = document.createElement('div');
+            row.className = 'd-flex align-items-center justify-content-between p-2 rounded';
+            row.style.background = '#111827';
+            row.style.border = '1px solid #334155';
+
+            const left = document.createElement('div');
+            left.className = 'd-flex align-items-center gap-2';
+
+            if (entry.previewUrl) {
+                const img = document.createElement('img');
+                img.src = entry.previewUrl;
+                img.alt = entry.file.name;
+                img.style.width = '44px';
+                img.style.height = '44px';
+                img.style.objectFit = 'cover';
+                img.style.borderRadius = '6px';
+                left.appendChild(img);
+            } else {
+                const icon = document.createElement('i');
+                icon.className = `fas ${getAttachmentIcon(entry.file)} text-accent`;
+                left.appendChild(icon);
+            }
+
+            const meta = document.createElement('div');
+            meta.className = 'small';
+            meta.innerHTML = `<div class="text-white">${entry.file.name}</div><div class="text-muted">${formatBytes(entry.file.size)}</div>`;
+            left.appendChild(meta);
+
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'btn btn-sm btn-outline-danger';
+            btn.innerHTML = '<i class="fas fa-times"></i>';
+            btn.onclick = () => {
+                if (entry.previewUrl) URL.revokeObjectURL(entry.previewUrl);
+                reportAttachments.splice(idx, 1);
+                renderAttachmentPreview();
+            };
+
+            row.appendChild(left);
+            row.appendChild(btn);
+            box.appendChild(row);
+        });
+    }
+
+    function addReportAttachments(fileList) {
+        const files = Array.from(fileList || []);
+        for (const file of files) {
+            if (reportAttachments.length >= REPORT_ATTACH_MAX_FILES) {
+                showToast('Maximum 5 attachments per report', 'warning');
+                break;
+            }
+            if (!isAllowedAttachmentType(file)) {
+                showToast(`Unsupported file type: ${file.name}`, 'error');
+                continue;
+            }
+            if (file.size > REPORT_ATTACH_MAX_BYTES) {
+                showToast(`File exceeds 10MB: ${file.name}`, 'error');
+                continue;
+            }
+            const previewUrl = (file.type || '').startsWith('image/') ? URL.createObjectURL(file) : null;
+            reportAttachments.push({ file, previewUrl });
+        }
+        renderAttachmentPreview();
+    }
+
+    function initReportAttachmentUI() {
+        const input = document.getElementById('rep-attachments');
+        const drop = document.getElementById('rep-attach-dropzone');
+        if (!input || !drop || input.dataset.bound === '1') return;
+
+        input.addEventListener('change', (e) => {
+            addReportAttachments(e.target.files);
+            input.value = '';
+        });
+
+        ['dragenter', 'dragover'].forEach(evt => {
+            drop.addEventListener(evt, (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                drop.style.borderColor = '#22c55e';
+            });
+        });
+
+        ['dragleave', 'drop'].forEach(evt => {
+            drop.addEventListener(evt, (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                drop.style.borderColor = '#475569';
+            });
+        });
+
+        drop.addEventListener('drop', (e) => {
+            addReportAttachments(e.dataTransfer?.files || []);
+        });
+
+        input.dataset.bound = '1';
+    }
+
+    function resetReportAttachments() {
+        reportAttachments.forEach(a => { if (a.previewUrl) URL.revokeObjectURL(a.previewUrl); });
+        reportAttachments = [];
+        renderAttachmentPreview();
+    }
+
     function openReportModal() {
         saveCurrentPageAnnotations();
+        initReportAttachmentUI();
+        resetReportAttachments();
         new bootstrap.Modal(document.getElementById('reportModal')).show();
     }
 
@@ -2857,6 +3013,13 @@ if ($filePath !== '') {
             const desc = document.getElementById('rep-desc').value;
             const splitText = doc.splitTextToSize(desc, 170);
             doc.text(splitText, 20, 90);
+            if (reportAttachments.length > 0) {
+                const names = reportAttachments.map(a => `- ${a.file.name}`);
+                doc.setFontSize(12);
+                doc.text('Attachments:', 20, 118);
+                doc.setFontSize(10);
+                doc.text(doc.splitTextToSize(names.join('\n'), 170), 20, 126);
+            }
             const dataUrl = canvas.toDataURL({ format: 'jpeg', quality: 0.8 });
             doc.addPage();
             doc.text("Plan Snapshot (Current View)", 20, 20);
@@ -2874,6 +3037,7 @@ if ($filePath !== '') {
             fd.append('tech_name', document.getElementById('rep-name').value);
             fd.append('tech_role', document.getElementById('rep-role').value);
             fd.append('description', desc);
+            reportAttachments.forEach(a => fd.append('attachments[]', a.file, a.file.name));
             const res = await fetch('../api/api.php', { method: 'POST', body: fd });
             const d = await res.json();
             if(d.status === 'success') {
