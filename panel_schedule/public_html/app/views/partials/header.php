@@ -5,7 +5,7 @@ $electroplanProjectName = '';
 $electroplanProjectId = (int)($_SESSION['electroplan_project_id'] ?? 0);
 if ($electroplanProjectId > 0) {
   try {
-    $epDb = dirname(__DIR__, 5) . '/core/db/connection.php';
+    $epDb = dirname(__DIR__, 6) . '/core/db/connection.php';
     if (file_exists($epDb)) {
       require $epDb;
       if (isset($pdo) && $pdo instanceof PDO) {
