@@ -1,0 +1,4 @@
+body { background-color: #f7f9fb; }
+.table thead th { position: sticky; top: 0; background: #f8f9fa; z-index: 1; }
+.slot-disabled { background: #f1f3f5; }
+.slot-disabled input, .slot-disabled select { background: #e9ecef; }
