@@ -5,10 +5,27 @@ use App\Lib\Csrf;
 
 function base_url(string $path = ''): string
 {
-    $base = rtrim(dirname($_SERVER['SCRIPT_NAME']), '/');
-    if ($base === '/') {
-        $base = '';
+    $scriptName = (string)($_SERVER['SCRIPT_NAME'] ?? '');
+    $requestPath = (string)parse_url((string)($_SERVER['REQUEST_URI'] ?? ''), PHP_URL_PATH);
+
+    $base = '';
+
+    // Preferred: running through /public/index.php
+    if (strpos($scriptName, '/public/index.php') !== false) {
+        $base = rtrim(dirname($scriptName), '/');
     }
+
+    // Fallback: infer /public from pretty URL (e.g. /.../public/projects)
+    if ($base === '' && preg_match('#^(.*?/public)(?:/.*)?$#', $requestPath, $m)) {
+        $base = rtrim($m[1], '/');
+    }
+
+    // Last fallback: dirname(script)
+    if ($base === '') {
+        $base = rtrim(dirname($scriptName), '/');
+        if ($base === '/') $base = '';
+    }
+
     return $base . $path;
 }
 
