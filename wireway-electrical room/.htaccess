@@ -1,0 +1,16 @@
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /
+
+    # No redirigir nada de backend
+    RewriteCond %{REQUEST_URI} ^/backend/ [NC]
+    RewriteRule .* - [L]
+
+    # Home al módulo Wireway
+    RewriteRule ^$ wireway.html [L]
+
+    # Si no existe archivo o carpeta real, mandar a wireway.html
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^.*$ wireway.html [L]
+</IfModule>

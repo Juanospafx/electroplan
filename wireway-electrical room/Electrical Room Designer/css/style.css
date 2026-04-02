@@ -1,0 +1,463 @@
+/* --- SISTEMA DE COLOR (VARIABLES) --- */
+:root {
+    /* Paleta Base (Light Mode - Friendly & Legible) */
+    --bg-app: #e2e8f0;       /* Slate-200: Fondo gris más oscuro para reducir el brillo general */
+    --bg-panel: #f8fafc;     /* Slate-50: Paneles casi blancos pero suaves */
+    --bg-input: #ffffff;     /* White: Inputs blancos para máximo contraste de entrada */
+    --rgb-bg-input: 255, 255, 255;
+    
+    --text-primary: #0f172a; /* Slate-900: Negro suave */
+    --text-secondary: #334155; /* Slate-700: Gris oscuro, mucho más legible */
+    --text-muted: #475569;   /* Slate-600: Gris medio, ya no tan claro */
+    
+    --border-subtle: #cbd5e1; /* Slate-300: Bordes más definidos */
+    --border-focus: #3b82f6;  /* Blue-500 */
+
+    --accent-primary: #fb5a3a; /* Brightronix Orange */
+    --accent-bg: #fff1f2;      /* Orange-50 (Light) */
+    
+    --shadow-card: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+    
+    /* Colores auxiliares para botones */
+    --blue-500: #3b82f6; 
+    --emerald-500: #10b981;
+    --amber-500: #f59e0b;
+    --purple-500: #8b5cf6; /* Low Voltage */
+}
+
+/* --- DARK MODE OVERRIDES (DEEP MATTE THEME) --- */
+[data-theme="dark"] {
+    /* 1. FONDOS: Ajustados al estilo "Matte Blue-Grey" de la imagen */
+    --bg-app: #1b212d;       /* Fondo general: Azul grisáceo profundo */
+    --bg-panel: #242a38;     /* Paneles: Un tono ligeramente más claro para contraste */
+    --bg-input: #151a23;     /* Inputs: Más oscuros para profundidad */
+    --rgb-bg-input: 21, 26, 35;
+    
+    /* 2. TEXTOS */
+    --text-primary: #ffffff; /* Blanco puro para máxima legibilidad */
+    --text-secondary: #94a3b8; /* Slate-400 */
+    --text-muted: #58657a;   /* Gris medio */
+    
+    /* 3. BORDES */
+    --border-subtle: #2f384a; /* Gris azulado sutil */
+    --border-focus: #fb5a3a;  /* Naranja al enfocar */
+
+    /* 4. ACENTOS */
+    --accent-primary: #fb5a3a; /* Mismo Naranja */
+    --accent-bg: #3a1d18;      /* Fondo naranja muy oscuro y transparente */
+    
+    --shadow-card: 0 10px 25px -5px rgba(0, 0, 0, 0.4); /* Sombra suave y difusa */
+}
+
+* { box-sizing: border-box; outline: none; -webkit-tap-highlight-color: transparent; }
+
+body { 
+    margin: 0; font-family: 'Poppins', sans-serif; 
+    background-color: var(--bg-app); color: var(--text-primary); 
+    height: 100vh; display: flex; overflow: hidden; 
+    transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* --- HIDE SCROLLBARS --- */
+body, .sidebar, .main-content, #rd-loadListContainer, #wc-loadListContainer, #wc-svgContainer, .carousel-content {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+}
+body::-webkit-scrollbar,
+.sidebar::-webkit-scrollbar,
+.main-content::-webkit-scrollbar,
+#rd-loadListContainer::-webkit-scrollbar,
+#wc-loadListContainer::-webkit-scrollbar,
+#wc-svgContainer::-webkit-scrollbar,
+.carousel-content::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, Opera */
+}
+
+/* --- SIDEBAR --- */
+.sidebar { 
+    width: 380px; background: var(--bg-panel); 
+    border-right: 1px solid var(--border-subtle); 
+    display: flex; flex-direction: column; z-index: 20; padding: 2rem; 
+    overflow-y: auto; flex-shrink: 0; 
+    box-shadow: 4px 0 24px rgba(0,0,0,0.02);
+    transition: background 0.3s, border 0.3s;
+}
+
+/* --- LOGO STYLES (MEJORADO) --- */
+.logo-container {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    margin-bottom: 0.5rem;
+}
+
+.logo-full {
+    height: 4rem; /* AUMENTADO: Logo más grande */
+    width: auto;
+    display: block;
+    object-fit: contain;
+    transition: filter 0.3s ease;
+}
+
+.app-subtitle {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    margin-top: -0.5rem;
+    margin-left: 0.5rem;
+}
+
+/* Inversión inteligente de color para el logo en modo oscuro */
+[data-theme="dark"] .logo-full {
+        filter: brightness(0) invert(1) opacity(0.9);
+}
+
+/* --- MAIN CONTENT --- */
+.main-content { 
+    flex: 1; display: flex; flex-direction: column; 
+    background: var(--bg-app); overflow-y: auto; position: relative;
+    transition: background 0.3s;
+}
+
+/* Top Bar */
+.top-bar {
+    background: var(--bg-panel); border-bottom: 1px solid var(--border-subtle); 
+    padding: 1.25rem 2rem; display: flex; justify-content: space-between; 
+    align-items: center; flex-shrink: 0; z-index: 10;
+    transition: background 0.3s, border 0.3s;
+}
+
+.workspace { padding: 2rem; flex: 1; scroll-behavior: smooth; }
+
+/* --- TEXTOS --- */
+h1 { font-size: 1.25rem; font-weight: 900; margin: 0; color: var(--text-primary); letter-spacing: -0.02em; }
+h2 { font-size: 0.8rem; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); margin: 2rem 0 1rem 0; }
+
+/* --- TARJETAS --- */
+.card-box { 
+    background: var(--bg-panel); border-radius: 1rem; 
+    border: 1px solid var(--border-subtle); 
+    box-shadow: var(--shadow-card);
+    transition: background 0.3s, border 0.3s;
+}
+
+/* --- WALL SELECTOR --- */
+.wall-selector {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+}
+.wall-btn {
+    padding: 0.5rem; border: 1px solid var(--border-subtle); background: var(--bg-input);
+    border-radius: 0.5rem; cursor: pointer; font-size: 0.75rem; font-weight: 700; color: var(--text-muted);
+}
+.wall-btn.active { background: var(--accent-primary); color: white; border-color: var(--accent-primary); }
+
+/* --- BOTONES DE ACCIÓN --- */
+.btn-add {
+    width: 100%; padding: 1.25rem;
+    border: 1px solid var(--border-subtle); background: var(--bg-panel);
+    border-radius: 1rem; color: var(--text-secondary); font-weight: 700; font-size: 0.95rem;
+    cursor: pointer; display: flex; align-items: center; justify-content: flex-start; gap: 1rem;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1); margin-bottom: 0.75rem;
+}
+.btn-add:hover { 
+    border-color: var(--border-focus); color: var(--accent-primary); 
+    background: var(--bg-app); transform: translateY(-1px);
+}
+
+.view-switcher {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+    margin-bottom: 2rem;
+    border: 1px solid var(--border-subtle);
+    background: var(--bg-app);
+    padding: 0.5rem;
+    border-radius: 1rem;
+}
+
+.view-btn {
+    padding: 0.75rem 0.5rem;
+    border-radius: 0.75rem;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    font-weight: 700;
+    font-size: 0.8rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    transition: all 0.2s ease;
+}
+.view-btn.active {
+    background: var(--bg-panel);
+    color: var(--accent-primary);
+    box-shadow: var(--shadow-card);
+}
+
+.btn-add-sm {
+    padding: 0.75rem; font-size: 0.8rem; gap: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+/* --- INPUTS --- */
+.input-label { font-size: 0.7rem; font-weight: 800; color: var(--text-muted); display: block; margin-bottom: 0.4rem; text-transform: uppercase; }
+
+.input-std, .input-custom { 
+    width: 100%; padding: 0.8rem 1rem;
+    border: 1px solid var(--border-subtle); border-radius: 0.75rem; 
+    background: var(--bg-input); color: var(--text-primary); 
+    font-weight: 600; font-family: 'Poppins', sans-serif; font-size: 0.9rem;
+    appearance: none; transition: 0.2s;
+}
+.input-std:focus, .input-custom:focus { border-color: var(--border-focus); }
+
+/* Fix para icono del select */
+select.input-std, select.input-custom {
+    background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%22292.4%22%20height%3D%22292.4%22%3E%3Cpath%20fill%3D%22%2394a3b8%22%20d%3D%22M287%2069.4a17.6%2017.6%200%200%200-13-5.4H18.4c-5%200-9.3%201.8-12.9%205.4A17.6%2017.6%200%200%200%200%2082.2c0%205%201.8%209.3%205.4%2012.9l128%20127.9c3.6%203.6%207.8%205.4%2012.8%205.4s9.2-1.8%2012.8-5.4L287%2095c3.5-3.5%205.4-7.8%205.4-12.8%200-5-1.9-9.2-5.5-12.8z%22%2F%3E%3C%2Fsvg%3E");
+    background-repeat: no-repeat; background-position: right 1rem center; background-size: 0.65em auto;
+}
+
+/* Botones Pequeños */
+.btn-icon-only { background: transparent; border: none; color: var(--text-muted); cursor: pointer; transition: 0.2s; }
+.btn-icon-only:hover { color: var(--accent-primary); } 
+
+.btn-toggle { padding: 0.35rem 0.85rem; border-radius: 99px; font-size: 0.7rem; font-weight: 900; cursor: pointer; border: none; transition: 0.2s; }
+.btn-toggle.active { background: var(--accent-bg); color: var(--accent-primary); }
+.btn-toggle.inactive { background: var(--bg-input); color: var(--text-muted); }
+.opacity-40 { opacity: 0.4; pointer-events: none; }
+
+/* Botón Tema */
+.theme-btn {
+    background: var(--bg-input); border: 1px solid var(--border-subtle);
+    color: var(--text-primary); width: 2.5rem; height: 2.5rem;
+    border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center;
+    transition: all 0.3s ease;
+}
+.theme-btn:hover { background: var(--border-subtle); transform: rotate(15deg); color: var(--accent-primary); }
+
+/* --- RESPONSIVE --- */
+@media (max-width: 900px) {
+    body { flex-direction: column; height: auto; overflow-y: auto; }
+    .sidebar { width: 100%; height: auto; border-right: none; border-bottom: 1px solid var(--border-subtle); padding: 1.5rem; order: 1; }
+    .main-content { overflow: visible; order: 2; }
+    .top-bar { position: sticky; top: 0; }
+}
+@media (max-width: 900px) {
+    .carousel-btn {
+        /* En móvil, los botones se superponen al contenido para maximizar el espacio */
+        position: absolute;
+        top: 50%;
+        transform: translateY(-50%);
+        background: rgba(var(--rgb-bg-input), 0.75);
+        backdrop-filter: blur(4px);
+        -webkit-backdrop-filter: blur(4px);
+        border: 1px solid rgba(128,128,128, 0.2);
+    }
+    .carousel-btn:first-of-type { left: 0.5rem; }
+    .carousel-btn:last-of-type { right: 0.5rem; }
+    .carousel-content {
+        overflow-x: auto; /* Habilitar scroll horizontal */
+        justify-content: flex-start; /* Alinear contenido a la izquierda */
+        min-height: 350px; /* Asegurar altura mínima en móvil */
+    }
+    .carousel-content svg {
+        width: auto; /* Dejar que el ancho se calcule basado en la altura y el aspect-ratio */
+        height: 350px; /* Altura fija para evitar colapso y tener tamaño predecible */
+        max-width: none; /* Sobreescribir cualquier max-width para permitir el scroll */
+    }
+}
+
+/* --- UTILS --- */
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+.section-title {
+    font-size: 0.75rem; font-weight: 800; color: var(--text-muted); 
+    display:block; margin-bottom: 0.5rem; text-transform: uppercase; border-bottom: 1px solid var(--border-subtle); padding-bottom: 0.25rem;
+}
+
+/* --- PRINT --- */
+@media print {
+    @page {
+        margin: 1cm;
+    }
+    body > * { display: none !important; }
+    #printArea { 
+        display: block !important; 
+        position: relative; 
+        top: auto; 
+        left: auto; 
+        width: 100%; 
+        height: auto;
+        background: white; 
+        color: black; 
+        padding: 0; 
+        overflow: visible;
+    }
+    #printArea svg { width: 100% !important; height: auto !important; display: block; margin: 0 auto; }
+
+    .page-break { page-break-before: always; }
+    /* Estilos para la tabla en el PDF */
+    #printArea table { width: 100%; border-collapse: collapse; margin-top: 1.5rem; font-size: 10pt; }
+    #printArea thead { display: table-header-group; }
+    #printArea tr { page-break-inside: avoid; }
+    #printArea th, #printArea td { 
+        border: 1px solid #bbb; 
+        padding: 8px 15px; /* AUMENTADO: Más espacio horizontal entre columnas */
+        text-align: left; 
+        vertical-align: top;
+    }
+    #printArea th { background-color: #f2f2f2; font-weight: bold; }
+    
+    :root {
+        --bg-app: white !important;
+        --bg-panel: white !important;
+        --text-primary: black !important;
+        --border-subtle: #ccc !important;
+    }
+}
+#printArea { display: none; }
+
+/* --- CAROUSEL --- */
+.carousel-container { display: flex; align-items: center; justify-content: center; gap: 1rem; width: 100%; position: relative; }
+.carousel-btn {
+    background: var(--bg-input); border: 1px solid var(--border-subtle); color: var(--text-muted);
+    width: 2.5rem; height: 2.5rem; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    cursor: pointer; transition: all 0.2s; flex-shrink: 0; z-index: 5;
+}
+.carousel-btn:hover { background: var(--border-subtle); color: var(--accent-primary); transform: scale(1.1); }
+.carousel-content { flex: 1; display: flex; justify-content: center; overflow: hidden; align-items: center; min-height: 450px; width: 100%; }
+.carousel-content svg {
+    height: 100%;
+    width: 100%;
+    max-height: 500px; /* Altura por defecto para escritorio */
+}
+
+/* --- LOAD ITEM CONTROLS (for alignment) --- */
+.load-item-controls {
+    display: flex;
+    align-items: flex-end; /* Align items to the bottom */
+    gap: 0.75rem;
+    flex-wrap: wrap; /* Allow wrapping on smaller screens */
+    justify-content: flex-end;
+}
+
+.control-group {
+    display: flex;
+    flex-direction: column;
+}
+
+/* Ensure all inputs in controls have same height */
+.load-item-controls .input-custom {
+    height: 2.75rem; 
+}
+
+.control-group-buttons {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    height: 2.75rem; /* Match input height */
+}
+
+/* --- FULLSCREEN MODE --- */
+.btn-fullscreen-trigger {
+    position: absolute;
+    top: 1rem;
+    right: 1rem;
+    background: var(--bg-input);
+    border: 1px solid var(--border-subtle);
+    color: var(--text-muted);
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 0.75rem;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+    z-index: 5;
+}
+.btn-fullscreen-trigger:hover {
+    background: var(--border-subtle);
+    color: var(--accent-primary);
+}
+
+.fullscreen-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(var(--rgb-bg-input), 0.9);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+}
+
+.fullscreen-svg-container {
+    width: 100%;
+    height: 100%;
+}
+
+.fullscreen-close-btn {
+    position: absolute;
+    top: 1.5rem;
+    left: 1.5rem;
+    background: rgba(var(--rgb-bg-input), 0.8);
+    border: 1px solid var(--border-subtle);
+    color: var(--text-primary);
+    width: 3rem;
+    height: 3rem;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.2rem;
+    transition: all 0.2s;
+    z-index: 1001;
+}
+.fullscreen-close-btn:hover {
+    transform: scale(1.1) rotate(90deg);
+    background: var(--accent-primary);
+    color: white;
+    border-color: transparent;
+}
+
+/* --- CUSTOM MODAL --- */
+.modal-overlay {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(0, 0, 0, 0.5); z-index: 2000;
+    display: flex; align-items: center; justify-content: center;
+    backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+    opacity: 0; visibility: hidden; transition: all 0.3s ease;
+}
+.modal-overlay.show { opacity: 1; visibility: visible; }
+
+.modal-content {
+    background: var(--bg-panel); width: 90%; max-width: 400px;
+    border-radius: 1rem; border: 1px solid var(--border-subtle);
+    box-shadow: var(--shadow-card);
+    transform: scale(0.95); transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    overflow: hidden;
+}
+.modal-overlay.show .modal-content { transform: scale(1); }
+
+.modal-header {
+    padding: 1rem 1.5rem; border-bottom: 1px solid var(--border-subtle);
+    display: flex; justify-content: space-between; align-items: center;
+}
+.modal-header h3 { margin: 0; font-size: 1rem; font-weight: 800; color: var(--text-primary); }
+
+.modal-body { padding: 1.5rem; color: var(--text-secondary); font-size: 0.95rem; line-height: 1.5; }
+
+.modal-footer {
+    padding: 1rem 1.5rem; background: var(--bg-app);
+    display: flex; justify-content: flex-end; border-top: 1px solid var(--border-subtle);
+}

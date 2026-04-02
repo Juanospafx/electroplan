@@ -1,0 +1,91 @@
+{
+    "description": "DO NOT DELETE THIS FILE. This file is used to keep track of which files have been synced in the most recent deployment. If you delete this file a resync will need to be done (which can take a while) - read more: https://github.com/SamKirkland/FTP-Deploy-Action",
+    "version": "1.0.0",
+    "generatedTime": 1773027815922,
+    "data": [
+        {
+            "type": "file",
+            "name": ".htaccess",
+            "size": 435,
+            "hash": "c1645a904bfdf7783684243c15f6dba89c472c7ab297153fd27910ffa02a60a2"
+        },
+        {
+            "type": "folder",
+            "name": "Electrical Room Designer"
+        },
+        {
+            "type": "folder",
+            "name": "css"
+        },
+        {
+            "type": "file",
+            "name": "electrical-room.html",
+            "size": 7200,
+            "hash": "41807d46f4a22b4d9dee820530c31f870f6cfddee1f5701784284d7232e0f187"
+        },
+        {
+            "type": "file",
+            "name": "script.js",
+            "size": 35753,
+            "hash": "430d18f5c16008682a98b00c5697c024b590b54ddd1a072dde6fcd6198c12f31"
+        },
+        {
+            "type": "file",
+            "name": "wareway_script.js",
+            "size": 25162,
+            "hash": "137cc1a5d04ccc4f66a363d880f50c7066c8ad07253ce992a80dd8eb1e021cf2"
+        },
+        {
+            "type": "file",
+            "name": "wireway.html",
+            "size": 5997,
+            "hash": "c9ddbdba547f98afa9c0b8511b710d6d571839e3b8c9eb82e96eb02f7c8ef1f9"
+        },
+        {
+            "type": "file",
+            "name": "Electrical Room Designer/.htaccess",
+            "size": 372,
+            "hash": "fa7b9263d3b4b9ae30bffcb9ab9e9b265313c5f73f243fdf75699b9eaac5a428"
+        },
+        {
+            "type": "folder",
+            "name": "Electrical Room Designer/css"
+        },
+        {
+            "type": "file",
+            "name": "Electrical Room Designer/index.html",
+            "size": 12203,
+            "hash": "be79dbd186d4ebfa4e52c32ff9901126d3b5ae87afcd44f5302a7ba537217a79"
+        },
+        {
+            "type": "file",
+            "name": "Electrical Room Designer/script.js",
+            "size": 63072,
+            "hash": "9b2797ca42ebbd4e69c7699f1a883bdc3cc0f82fbd2773b0d37e49263f77954c"
+        },
+        {
+            "type": "file",
+            "name": "css/logo-text.png",
+            "size": 112949,
+            "hash": "debd79f64d18f08aa54f7e3528fc54dbd3d7eb5dcdcdd7bbf91d31508c58beaf"
+        },
+        {
+            "type": "file",
+            "name": "css/style.css",
+            "size": 16292,
+            "hash": "1840f0caf49d649ed8d54eed8edc23404d3c2d4c45a8b5dd45d2307e45672a9d"
+        },
+        {
+            "type": "file",
+            "name": "Electrical Room Designer/css/logo-text.png",
+            "size": 112949,
+            "hash": "debd79f64d18f08aa54f7e3528fc54dbd3d7eb5dcdcdd7bbf91d31508c58beaf"
+        },
+        {
+            "type": "file",
+            "name": "Electrical Room Designer/css/style.css",
+            "size": 16292,
+            "hash": "1840f0caf49d649ed8d54eed8edc23404d3c2d4c45a8b5dd45d2307e45672a9d"
+        }
+    ]
+}
