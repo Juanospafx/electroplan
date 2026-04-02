@@ -1,4 +1,40 @@
-body { background-color: #f7f9fb; }
-.table thead th { position: sticky; top: 0; background: #f8f9fa; z-index: 1; }
-.slot-disabled { background: #f1f3f5; }
-.slot-disabled input, .slot-disabled select { background: #e9ecef; }
+
+:root {
+  --bg: #0b1220;
+  --panel: #111827;
+  --panel-2: #0f172a;
+  --text: #e5e7eb;
+  --muted: #94a3b8;
+  --border: rgba(148,163,184,.22);
+  --accent: #6366f1;
+  --accent-2: #8b5cf6;
+}
+
+html[data-theme="light"] {
+  --bg: #f1f5f9;
+  --panel: #ffffff;
+  --panel-2: #ffffff;
+  --text: #0f172a;
+  --muted: #475569;
+  --border: rgba(15,23,42,.12);
+  --accent: #4f46e5;
+  --accent-2: #7c3aed;
+}
+
+body { background: var(--bg); color: var(--text); }
+.panel-navbar { background: linear-gradient(90deg, #0f172a, #1e1b4b); border-bottom: 1px solid var(--border); }
+.navbar-brand { color: #fff !important; }
+
+.container, .container-fluid, .card, .table, .form-control, .form-select, .btn { color: var(--text); }
+.card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; }
+.table { --bs-table-bg: var(--panel); --bs-table-color: var(--text); --bs-table-border-color: var(--border); }
+.table thead th { position: sticky; top: 0; background: var(--panel-2); color: var(--text); z-index: 1; }
+.table-light { --bs-table-bg: var(--panel-2); --bs-table-color: var(--text); }
+.form-control, .form-select { background: var(--panel-2); border-color: var(--border); color: var(--text); }
+.form-control:focus, .form-select:focus { border-color: var(--accent); box-shadow: 0 0 0 .2rem rgba(99,102,241,.25); background: var(--panel-2); color: var(--text); }
+.text-muted, .small, .form-text { color: var(--muted) !important; }
+.btn-primary { background: var(--accent); border-color: var(--accent); }
+.btn-outline-secondary, .btn-secondary { border-color: var(--border); color: var(--text); background: transparent; }
+.btn-outline-secondary:hover, .btn-secondary:hover { background: rgba(99,102,241,.15); border-color: var(--accent); color: #fff; }
+.slot-disabled { background: rgba(148,163,184,.12); }
+.slot-disabled input, .slot-disabled select { background: rgba(148,163,184,.18); }
