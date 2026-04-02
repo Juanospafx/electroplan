@@ -143,7 +143,7 @@ class PdfService
         $filename = 'Panel_' . preg_replace('/[^a-zA-Z0-9]/', '_', $panel['panel_name'] ?? 'Schedule') . '.pdf';
         $pdfBinary = $pdf->Output($filename, 'S');
 
-        $electroplanProjectId = isset($_GET['project_id']) ? (int)$_GET['project_id'] : (int)($panel['project_id'] ?? 0);
+        $electroplanProjectId = isset($_GET['project_id']) ? (int)$_GET['project_id'] : (int)($_SESSION['electroplan_project_id'] ?? 0);
         if ($electroplanProjectId > 0 && is_string($pdfBinary) && $pdfBinary !== '') {
             $this->saveExportToElectroplan($electroplanProjectId, 'panel_schedule', $filename, $pdfBinary);
         }

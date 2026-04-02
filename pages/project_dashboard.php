@@ -62,7 +62,7 @@ $toolCatalog = [
         'desc' => 'Build and manage panel schedules per project.',
         'active' => true,
         'slug' => 'panel_schedule',
-        'url' => '/electroplan/panel_schedule/public_html/public/'
+        'url' => '/electroplan/panel_schedule/public_html/public/projects'
     ],
     'workflow' => [
         'name' => 'Workflow',
