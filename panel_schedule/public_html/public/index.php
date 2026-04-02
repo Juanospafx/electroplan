@@ -3,6 +3,12 @@ declare(strict_types=1);
 
 session_start();
 
+
+if (isset($_GET['project_id']) && (int)$_GET['project_id'] > 0) {
+    $_SESSION['electroplan_project_id'] = (int)$_GET['project_id'];
+}
+
+
 define('BASE_PATH', dirname(__DIR__));
 
 if (file_exists(BASE_PATH . '/vendor/autoload.php')) {

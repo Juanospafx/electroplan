@@ -467,6 +467,12 @@ function rd_exportReport() {
 
     printArea.innerHTML = reportHTML;
     window.print();
+
+    autoSaveCurrentToolExport('room_designer', `Room Designer export with ${appState.roomDesigner.walls.filter(w => w.active).length} active walls`);
+}
+
+
+
 }
 
 /* --- MOTOR DE CÁLCULO (RD) --- */
@@ -945,7 +951,14 @@ function wc_exportReport() {
         </div>`;
     printArea.innerHTML = reportHTML;
     window.print();
+
+    autoSaveCurrentToolExport('wireway', `Wireway total: ${totalVal} in (${totalFt})`);
 }
+
+
+
+}
+
 
 /* --- MOTOR DE CÁLCULO (WC) --- */
 function wc_calculateAndRender() {
@@ -1088,3 +1101,55 @@ function wc_drawVisualizer(feederWidth, calcLoads, totalWidth) {
     svgContent += '</svg>';
     container.innerHTML = svgContent;
 }
+
+
+
+function getToolIntegrationConfig() {
+    const params = new URLSearchParams(window.location.search);
+    return {
+        projectId: parseInt(params.get('project_id') || '0', 10) || 0,
+        apiUrl: params.get('ep_api') || '/electroplan/api/api.php',
+        action: params.get('ep_export_action') || 'save_tool_export'
+    };
+}
+
+async function ensureJsPdf() {
+    if (window.jspdf && window.jspdf.jsPDF) return window.jspdf.jsPDF;
+    await new Promise((resolve, reject) => {
+        const sc = document.createElement('script');
+        sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+        sc.onload = resolve;
+        sc.onerror = reject;
+        document.head.appendChild(sc);
+    });
+    return window.jspdf && window.jspdf.jsPDF;
+}
+
+async function autoSaveCurrentToolExport(toolName, summaryText) {
+    try {
+        const cfg = getToolIntegrationConfig();
+        if (!cfg.projectId) return;
+        const JsPDF = await ensureJsPdf();
+        if (!JsPDF) return;
+
+        const doc = new JsPDF('p', 'pt', 'letter');
+        doc.setFontSize(16);
+        doc.text(toolName === 'room_designer' ? 'Electrical Room Designer Report' : 'Wireway Calculation Report', 40, 50);
+        doc.setFontSize(11);
+        doc.text('Project ID: ' + cfg.projectId, 40, 75);
+        doc.text('Generated: ' + new Date().toISOString(), 40, 92);
+        doc.text(summaryText || '', 40, 110);
+
+        const blob = doc.output('blob');
+        const fd = new FormData();
+        fd.append('action', cfg.action);
+        fd.append('project_id', String(cfg.projectId));
+        fd.append('tool_name', toolName);
+        fd.append('filename', 'export_' + new Date().toISOString().slice(0,10) + '.pdf');
+        fd.append('pdf_file', blob, 'export.pdf');
+        await fetch(cfg.apiUrl, { method: 'POST', body: fd, credentials: 'include' });
+    } catch (e) {
+        console.warn('Auto-save export failed', e);
+    }
+}
+

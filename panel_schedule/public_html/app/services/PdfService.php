@@ -139,9 +139,78 @@ class PdfService
         $pdf->Cell(60, 7, 'Total Connected KVA: ' . ($panel['connected_kva'] ?? '0.00'), 0, 1);
         $pdf->Cell(60, 7, 'Total Connected Amps: ' . ($panel['connected_amps'] ?? '0.00'), 0, 1);
 
+
+        // Output + save copy into Electroplan project Tools folder
+        $filename = 'Panel_' . preg_replace('/[^a-zA-Z0-9]/', '_', $panel['panel_name'] ?? 'Schedule') . '.pdf';
+        $pdfBinary = $pdf->Output($filename, 'S');
+
+        $electroplanProjectId = isset($_GET['project_id']) ? (int)$_GET['project_id'] : (int)($_SESSION['electroplan_project_id'] ?? 0);
+        if ($electroplanProjectId > 0 && is_string($pdfBinary) && $pdfBinary !== '') {
+            $this->saveExportToElectroplan($electroplanProjectId, 'panel_schedule', $filename, $pdfBinary);
+        }
+
+        header('Content-Type: application/pdf');
+        header('Content-Disposition: attachment; filename="' . $filename . '"');
+        header('Content-Length: ' . strlen($pdfBinary));
+        echo $pdfBinary;
+        exit;
+    }
+
+    private function saveExportToElectroplan(int $projectId, string $toolSlug, string $downloadFilename, string $pdfBinary): void
+    {
+        try {
+            $electroplanDb = dirname(__DIR__, 4) . '/core/db/connection.php';
+            if (!file_exists($electroplanDb)) return;
+            require $electroplanDb;
+            if (!isset($pdo) || !($pdo instanceof \PDO)) return;
+
+            $stmtFolder = $pdo->prepare("SELECT id FROM folders WHERE project_id = ? AND name = 'Tools' AND deleted_at IS NULL LIMIT 1");
+            $stmtFolder->execute([$projectId]);
+            $toolsFolderId = (int)$stmtFolder->fetchColumn();
+            if ($toolsFolderId <= 0) {
+                $pdo->prepare("INSERT INTO folders (project_id, name) VALUES (?, 'Tools')")->execute([$projectId]);
+                $toolsFolderId = (int)$pdo->lastInsertId();
+            }
+
+            $safeName = preg_replace('/[^a-zA-Z0-9._-]/', '_', $downloadFilename) ?: ('export_' . gmdate('Y-m-d') . '.pdf');
+            $diskDir = dirname(__DIR__, 4) . '/uploads/tool/' . $toolSlug . '/' . $projectId . '/';
+            if (!is_dir($diskDir) && !mkdir($diskDir, 0775, true) && !is_dir($diskDir)) return;
+
+            $diskName = time() . '_' . $safeName;
+            $diskPath = $diskDir . $diskName;
+            if (file_put_contents($diskPath, $pdfBinary) === false) return;
+
+            $publicPath = 'uploads/tool/' . $toolSlug . '/' . $projectId . '/' . $diskName;
+
+            $stmtCheck = $pdo->prepare("SELECT id, version_group_id, version_number FROM files
+                WHERE project_id = ? AND folder_id = ? AND sub_folder_id IS NULL AND filename = ? AND deleted_at IS NULL
+                ORDER BY version_number DESC LIMIT 1");
+            $stmtCheck->execute([$projectId, $toolsFolderId, $safeName]);
+            $existing = $stmtCheck->fetch(\PDO::FETCH_ASSOC);
+
+            $versionGroup = uniqid('vgroup_');
+            $versionNum = 1;
+            if ($existing) {
+                $versionGroup = $existing['version_group_id'] ?: uniqid('vgroup_');
+                $versionNum = (int)$existing['version_number'] + 1;
+                if (empty($existing['version_group_id'])) {
+                    $pdo->prepare("UPDATE files SET version_group_id = ? WHERE id = ?")->execute([$versionGroup, (int)$existing['id']]);
+                }
+            }
+
+            $uploadedBy = 1;
+            $stmtIns = $pdo->prepare("INSERT INTO files (project_id, folder_id, sub_folder_id, filename, filepath, file_type, uploaded_by, version_group_id, version_number)
+                                      VALUES (?, ?, NULL, ?, ?, 'pdf', ?, ?, ?)");
+            $stmtIns->execute([$projectId, $toolsFolderId, $safeName, $publicPath, $uploadedBy, $versionGroup, $versionNum]);
+        } catch (\Throwable $e) {
+            // Silent fail: download still succeeds.
+        }
+    }
+
         // Output
         $filename = 'Panel_' . preg_replace('/[^a-zA-Z0-9]/', '_', $panel['panel_name'] ?? 'Schedule') . '.pdf';
         $pdf->Output($filename, 'D');
         exit;
     }
+
 }

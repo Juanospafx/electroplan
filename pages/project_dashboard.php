@@ -39,29 +39,30 @@ if (($_SESSION['role'] ?? '') === 'admin') {
 $pageTitle = $project['name'];
 $currentView = $_GET['view'] ?? 'summary'; // summary, desc, files, clockin, etc.
 $currentFolderId = $_GET['folder_id'] ?? null;
-$currentTool = $_GET['tool'] ?? '';
-
 $toolCatalog = [
     'room_designer' => [
         'name' => 'Room Designer',
         'icon' => 'fa-drafting-compass',
         'desc' => 'Design room layouts and electrical placement.',
         'active' => true,
-        'path' => '../wireway-electrical%20room/room_designer/index.php'
+        'slug' => 'room_designer',
+        'url' => '/electroplan/wireway-electrical%20room/electrical-room.html'
     ],
     'wireway_calculator' => [
         'name' => 'Wireway Calculator',
         'icon' => 'fa-ruler-combined',
         'desc' => 'Calculate wireway lengths and load routing.',
         'active' => true,
-        'path' => '../wireway-electrical%20room/index.php'
+        'slug' => 'wireway',
+        'url' => '/electroplan/wireway-electrical%20room/wireway.html'
     ],
     'panel_schedule' => [
         'name' => 'Panel Schedule',
         'icon' => 'fa-table-columns',
         'desc' => 'Build and manage panel schedules per project.',
         'active' => true,
-        'path' => '../panel_schedule/index.php'
+        'slug' => 'panel_schedule',
+        'url' => '/electroplan/panel_schedule/public_html/public/projects'
     ],
     'workflow' => [
         'name' => 'Workflow',
@@ -82,14 +83,6 @@ $toolCatalog = [
         'active' => false,
     ],
 ];
-
-$activeTool = null;
-$activeToolEmbedUrl = null;
-if ($currentView === 'tool' && isset($toolCatalog[$currentTool]) && !empty($toolCatalog[$currentTool]['active'])) {
-    $activeTool = $toolCatalog[$currentTool];
-    $separator = (strpos($activeTool['path'], '?') !== false) ? '&' : '?';
-    $activeToolEmbedUrl = $activeTool['path'] . $separator . 'project_id=' . urlencode((string)$projectId);
-}
 
 // 2. Consulta de Carpetas (Para el menú lateral y la vista de archivos)
 $foldersStmt = $pdo->prepare("SELECT * FROM folders WHERE project_id = ? AND deleted_at IS NULL ORDER BY name ASC");
@@ -263,28 +256,6 @@ include __DIR__ . '/../views/header.php';
                             <p class="text-white"><?= htmlspecialchars($project['company_name']) ?> <br> <?= htmlspecialchars($project['company_phone']) ?></p>
                         </div>
                     </div>
-                </div>
-
-            <?php elseif($currentView === 'tool' && $activeTool): ?>
-                <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
-                    <div>
-                        <h4 class="fw-bold mb-1"><i class="fas <?= htmlspecialchars($activeTool['icon']) ?> text-accent me-2"></i><?= htmlspecialchars($activeTool['name']) ?></h4>
-                        <p class="text-gray mb-0"><?= htmlspecialchars($activeTool['desc']) ?></p>
-                    </div>
-                    <div class="d-flex gap-2">
-                        <button class="btn btn-outline-primary btn-sm rounded-pill" onclick="openToolsModal()"><i class="fas fa-toolbox me-2"></i>Switch Tool</button>
-                        <a class="btn btn-outline-light btn-sm rounded-pill" href="?id=<?= (int)$projectId ?>&view=summary"><i class="fas fa-arrow-left me-2"></i>Back to Summary</a>
-                    </div>
-                </div>
-                <div class="tool-host-card">
-                    <iframe src="<?= htmlspecialchars($activeToolEmbedUrl) ?>" class="tool-embed-frame" title="<?= htmlspecialchars($activeTool['name']) ?>"></iframe>
-                </div>
-
-            <?php elseif($currentView === 'tool'): ?>
-                <div class="text-center py-5">
-                    <i class="fas fa-toolbox fa-3x text-gray mb-3 opacity-25"></i>
-                    <p class="text-gray mb-3">Tool not available.</p>
-                    <button class="btn btn-outline-primary btn-sm rounded-pill" onclick="openToolsModal()">Open Tools</button>
                 </div>
 
             <?php elseif($currentView === 'files'): 
@@ -482,19 +453,6 @@ include __DIR__ . '/../views/header.php';
         flex-shrink: 0;
     }
 
-    .tool-host-card {
-        border: 1px solid rgba(255,255,255,0.08);
-        border-radius: 12px;
-        overflow: hidden;
-        background: #0f172a;
-        min-height: 72vh;
-    }
-    .tool-embed-frame {
-        width: 100%;
-        min-height: 72vh;
-        border: 0;
-        background: #0b1220;
-    }
     @media (max-width: 768px) {
         .recent-upload-card { flex-wrap: wrap; }
         .recent-upload-actions { width: 100%; justify-content: flex-end; }
@@ -688,6 +646,14 @@ include __DIR__ . '/../views/header.php';
     const pId = <?= $projectId ?>;
     const fId = <?= $currentFolderId ?? 'null' ?>;
 
+    window.projectToolsMap = <?= json_encode(array_map(function($t){
+        return [
+            'url' => $t['url'] ?? null,
+            'slug' => $t['slug'] ?? null,
+            'active' => !empty($t['active'])
+        ];
+    }, $toolCatalog), JSON_UNESCAPED_SLASHES) ?>;
+
     function applyProjectSidebarState(collapsed) {
         const layout = document.getElementById('projectLayout');
         const text = document.getElementById('toggleProjectSidebarText');
@@ -722,7 +688,12 @@ include __DIR__ . '/../views/header.php';
             const inst = bootstrap.Modal.getInstance(modalEl);
             if (inst) inst.hide();
         }
-        window.location.href = `?id=${encodeURIComponent(pId)}&view=tool&tool=${encodeURIComponent(toolKey)}`;
+        const toolMap = window.projectToolsMap || {};
+        const tool = toolMap[toolKey];
+        if (!tool || !tool.url) return;
+        const sep = tool.url.includes('?') ? '&' : '?';
+        const fullUrl = `${tool.url}${sep}project_id=${encodeURIComponent(pId)}&tool=${encodeURIComponent(tool.slug || toolKey)}&ep_api=${encodeURIComponent('/electroplan/api/api.php')}&ep_export_action=save_tool_export`;
+        window.open(fullUrl, '_blank', 'noopener');
     }
 
     function openUploadModal() {

@@ -7,8 +7,13 @@
           <?= csrf_field() ?>
           <button class="btn btn-primary btn-sm">Save Panel</button>
           <button type="submit" formaction="<?= htmlspecialchars(base_url('/panels/' . $panel['id'] . '/delete')) ?>" onclick="return confirm('Are you sure you want to delete this panel? This cannot be undone.');" class="btn btn-danger btn-sm">Delete Panel</button>
+
+          <a class="btn btn-outline-success btn-sm" href="<?= htmlspecialchars(base_url('/panels/' . $panel['id'] . '/export.xlsx' . (!empty($_SESSION['electroplan_project_id']) ? ('?project_id=' . (int)$_SESSION['electroplan_project_id']) : ''))) ?>">Export Excel</a>
+          <a class="btn btn-outline-danger btn-sm" href="<?= htmlspecialchars(base_url('/panels/' . $panel['id'] . '/export.pdf' . (!empty($_SESSION['electroplan_project_id']) ? ('?project_id=' . (int)$_SESSION['electroplan_project_id']) : ''))) ?>">Export PDF</a>
+
           <a class="btn btn-outline-success btn-sm" href="<?= htmlspecialchars(base_url('/panels/' . $panel['id'] . '/export.xlsx')) ?>">Export Excel</a>
           <a class="btn btn-outline-danger btn-sm" href="<?= htmlspecialchars(base_url('/panels/' . $panel['id'] . '/export.pdf')) ?>">Export PDF</a>
+
       </div>
     </div>
 

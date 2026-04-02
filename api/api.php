@@ -869,6 +869,100 @@ switch($action) {
         }
         break;    
 
+
+    // --- 12.2 GUARDAR EXPORT DE TOOL COMO ARCHIVO DE PROYECTO ---
+    case 'save_tool_export':
+        if($userRole === 'viewer') { echo json_encode(['status'=>'error', 'msg'=>'Access Denied']); exit; }
+
+        $projectId = (int)($_POST['project_id'] ?? 0);
+        $toolNameRaw = trim((string)($_POST['tool_name'] ?? ''));
+        $filenameRaw = trim((string)($_POST['filename'] ?? ''));
+
+        $toolMap = [
+            'panel_schedule' => 'panel_schedule',
+            'wireway' => 'wireway',
+            'wireway_calculator' => 'wireway',
+            'room_designer' => 'room_designer'
+        ];
+
+        if ($projectId <= 0) { echo json_encode(['status'=>'error', 'msg'=>'Invalid project_id']); exit; }
+        if (!isset($_FILES['pdf_file'])) { echo json_encode(['status'=>'error', 'msg'=>'Missing pdf_file']); exit; }
+
+        $toolKey = strtolower(preg_replace('/[^a-z0-9_\-]/i', '', $toolNameRaw));
+        $toolSlug = $toolMap[$toolKey] ?? null;
+        if (!$toolSlug) { echo json_encode(['status'=>'error', 'msg'=>'Invalid tool_name']); exit; }
+
+        $origName = $_FILES['pdf_file']['name'] ?? '';
+        $ext = strtolower(pathinfo($origName ?: $filenameRaw, PATHINFO_EXTENSION));
+        if ($ext !== 'pdf') { echo json_encode(['status'=>'error', 'msg'=>'Only PDF allowed']); exit; }
+
+        if ($_FILES['pdf_file']['error'] !== UPLOAD_ERR_OK) {
+            echo json_encode(['status'=>'error', 'msg'=>'Upload error']); exit;
+        }
+
+        try {
+            $stmtFolder = $pdo->prepare("SELECT id FROM folders WHERE project_id = ? AND name = 'Tools' AND deleted_at IS NULL LIMIT 1");
+            $stmtFolder->execute([$projectId]);
+            $toolsFolderId = (int)$stmtFolder->fetchColumn();
+
+            if ($toolsFolderId <= 0) {
+                $pdo->prepare("INSERT INTO folders (project_id, name) VALUES (?, 'Tools')")->execute([$projectId]);
+                $toolsFolderId = (int)$pdo->lastInsertId();
+            }
+
+            $datePart = gmdate('Y-m-d');
+            $baseFile = $filenameRaw !== '' ? cleanName($filenameRaw) : ('export_' . $datePart . '.pdf');
+            if (strtolower(pathinfo($baseFile, PATHINFO_EXTENSION)) !== 'pdf') {
+                $baseFile .= '.pdf';
+            }
+
+            $targetDir = __DIR__ . '/../uploads/tool/' . $toolSlug . '/' . $projectId . '/';
+            if (!is_dir($targetDir) && !mkdir($targetDir, 0775, true) && !is_dir($targetDir)) {
+                throw new Exception('Failed creating target directory');
+            }
+
+            $diskName = time() . '_' . cleanName($baseFile);
+            $targetPath = $targetDir . $diskName;
+
+            if (!move_uploaded_file($_FILES['pdf_file']['tmp_name'], $targetPath)) {
+                throw new Exception('Failed moving uploaded file');
+            }
+
+            $publicPath = 'uploads/tool/' . $toolSlug . '/' . $projectId . '/' . $diskName;
+
+            $sqlCheck = "SELECT id, version_group_id, version_number FROM files
+                         WHERE project_id = ? AND filename = ? AND deleted_at IS NULL AND folder_id = ? AND sub_folder_id IS NULL
+                         ORDER BY version_number DESC LIMIT 1";
+            $stmtCheck = $pdo->prepare($sqlCheck);
+            $stmtCheck->execute([$projectId, $baseFile, $toolsFolderId]);
+            $existing = $stmtCheck->fetch(PDO::FETCH_ASSOC);
+
+            $versionGroup = uniqid('vgroup_');
+            $versionNum = 1;
+            if ($existing) {
+                $versionGroup = $existing['version_group_id'] ?: uniqid('vgroup_');
+                $versionNum = (int)$existing['version_number'] + 1;
+                if (!$existing['version_group_id']) {
+                    $pdo->prepare("UPDATE files SET version_group_id = ? WHERE id = ?")->execute([$versionGroup, $existing['id']]);
+                }
+            }
+
+            $stmt = $pdo->prepare("INSERT INTO files (project_id, folder_id, sub_folder_id, filename, filepath, file_type, uploaded_by, version_group_id, version_number)
+                                   VALUES (?, ?, NULL, ?, ?, 'pdf', ?, ?, ?)");
+            $stmt->execute([$projectId, $toolsFolderId, $baseFile, $publicPath, $userId, $versionGroup, $versionNum]);
+
+            echo json_encode([
+                'status' => 'success',
+                'path' => $publicPath,
+                'folder_id' => $toolsFolderId,
+                'filename' => $baseFile,
+                'version' => $versionNum
+            ]);
+        } catch(Exception $e) {
+            echo json_encode(['status'=>'error', 'msg'=>$e->getMessage()]);
+        }
+        break;
+
     default: echo json_encode(['status'=>'error', 'msg'=>'Invalid action']);
 }
 ?>
