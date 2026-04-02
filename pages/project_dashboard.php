@@ -46,7 +46,7 @@ $toolCatalog = [
         'desc' => 'Design room layouts and electrical placement.',
         'active' => true,
         'slug' => 'room_designer',
-        'url' => '/electroplan/wireway-electrical%20room/room_designer/index.php'
+        'url' => '/electroplan/wireway-electrical%20room/electrical-room.html'
     ],
     'wireway_calculator' => [
         'name' => 'Wireway Calculator',
@@ -54,7 +54,7 @@ $toolCatalog = [
         'desc' => 'Calculate wireway lengths and load routing.',
         'active' => true,
         'slug' => 'wireway',
-        'url' => '/electroplan/wireway-electrical%20room/index.php'
+        'url' => '/electroplan/wireway-electrical%20room/wireway.html'
     ],
     'panel_schedule' => [
         'name' => 'Panel Schedule',
@@ -62,7 +62,7 @@ $toolCatalog = [
         'desc' => 'Build and manage panel schedules per project.',
         'active' => true,
         'slug' => 'panel_schedule',
-        'url' => '/electroplan/panel_schedule/index.php'
+        'url' => '/electroplan/panel_schedule/public_html/public/'
     ],
     'workflow' => [
         'name' => 'Workflow',
