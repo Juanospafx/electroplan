@@ -52,3 +52,23 @@ function bindServiceTotals() {
 }
 
 document.addEventListener('DOMContentLoaded', bindServiceTotals);
+
+
+function applyTheme(theme) {
+  const root = document.documentElement;
+  root.setAttribute('data-theme', theme);
+  try { localStorage.setItem('panelScheduleTheme', theme); } catch(e) {}
+  const btn = document.getElementById('themeToggleBtn');
+  if (btn) btn.innerHTML = theme === 'light' ? '<i class="fa-solid fa-moon"></i>' : '<i class="fa-solid fa-sun"></i>';
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  let t = 'dark';
+  try { t = localStorage.getItem('panelScheduleTheme') || 'dark'; } catch(e) {}
+  applyTheme(t);
+  const btn = document.getElementById('themeToggleBtn');
+  if (btn) btn.addEventListener('click', () => {
+    const curr = document.documentElement.getAttribute('data-theme') || 'dark';
+    applyTheme(curr === 'dark' ? 'light' : 'dark');
+  });
+});
