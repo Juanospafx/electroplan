@@ -207,10 +207,4 @@ class PdfService
         }
     }
 
-        // Output
-        $filename = 'Panel_' . preg_replace('/[^a-zA-Z0-9]/', '_', $panel['panel_name'] ?? 'Schedule') . '.pdf';
-        $pdf->Output($filename, 'D');
-        exit;
-    }
-
 }
