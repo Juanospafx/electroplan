@@ -39,6 +39,57 @@ if (($_SESSION['role'] ?? '') === 'admin') {
 $pageTitle = $project['name'];
 $currentView = $_GET['view'] ?? 'summary'; // summary, desc, files, clockin, etc.
 $currentFolderId = $_GET['folder_id'] ?? null;
+$currentTool = $_GET['tool'] ?? '';
+
+$toolCatalog = [
+    'room_designer' => [
+        'name' => 'Room Designer',
+        'icon' => 'fa-drafting-compass',
+        'desc' => 'Design room layouts and electrical placement.',
+        'active' => true,
+        'path' => '../wireway-electrical%20room/room_designer/index.php'
+    ],
+    'wireway_calculator' => [
+        'name' => 'Wireway Calculator',
+        'icon' => 'fa-ruler-combined',
+        'desc' => 'Calculate wireway lengths and load routing.',
+        'active' => true,
+        'path' => '../wireway-electrical%20room/index.php'
+    ],
+    'panel_schedule' => [
+        'name' => 'Panel Schedule',
+        'icon' => 'fa-table-columns',
+        'desc' => 'Build and manage panel schedules per project.',
+        'active' => true,
+        'path' => '../panel_schedule/index.php'
+    ],
+    'workflow' => [
+        'name' => 'Workflow',
+        'icon' => 'fa-diagram-project',
+        'desc' => 'Automate task routing and project approvals.',
+        'active' => false,
+    ],
+    'invoice_payapp' => [
+        'name' => 'Invoice-Payapp',
+        'icon' => 'fa-file-invoice-dollar',
+        'desc' => 'Generate and track invoices and pay applications.',
+        'active' => false,
+    ],
+    'afc_calculator' => [
+        'name' => 'AFC Calculator',
+        'icon' => 'fa-bolt',
+        'desc' => 'Estimate AFC loads and electrical constraints.',
+        'active' => false,
+    ],
+];
+
+$activeTool = null;
+$activeToolEmbedUrl = null;
+if ($currentView === 'tool' && isset($toolCatalog[$currentTool]) && !empty($toolCatalog[$currentTool]['active'])) {
+    $activeTool = $toolCatalog[$currentTool];
+    $separator = (strpos($activeTool['path'], '?') !== false) ? '&' : '?';
+    $activeToolEmbedUrl = $activeTool['path'] . $separator . 'project_id=' . urlencode((string)$projectId);
+}
 
 // 2. Consulta de Carpetas (Para el menú lateral y la vista de archivos)
 $foldersStmt = $pdo->prepare("SELECT * FROM folders WHERE project_id = ? AND deleted_at IS NULL ORDER BY name ASC");
@@ -79,7 +130,10 @@ include __DIR__ . '/../views/header.php';
             <?php if($_SESSION['role'] === 'admin'): ?>
                 <a href="project_create.php?id=<?= (int)$projectId ?>" class="btn btn-outline-secondary btn-sm rounded-pill"><i class="fas fa-edit me-2"></i>Edit Info</a>
                 <button class="btn btn-outline-info btn-sm rounded-pill" onclick="openAssignUsersModal()"><i class="fas fa-user-plus me-2"></i>Assign Users</button>
+                <button class="btn btn-outline-primary btn-sm rounded-pill" onclick="openToolsModal()"><i class="fas fa-toolbox me-2"></i>Tools</button>
                 <button class="btn btn-outline-light btn-sm rounded-pill" onclick="openNewFolderModal()"><i class="fas fa-folder-plus me-2"></i>Add Folder</button>
+            <?php else: ?>
+                <button class="btn btn-outline-primary btn-sm rounded-pill" onclick="openToolsModal()"><i class="fas fa-toolbox me-2"></i>Tools</button>
             <?php endif; ?>
             <button class="btn btn-primary rounded-pill btn-sm px-4" onclick="openUploadModal()"><i class="fas fa-cloud-upload-alt me-2"></i> Upload File</button>
         </div>
@@ -209,6 +263,28 @@ include __DIR__ . '/../views/header.php';
                             <p class="text-white"><?= htmlspecialchars($project['company_name']) ?> <br> <?= htmlspecialchars($project['company_phone']) ?></p>
                         </div>
                     </div>
+                </div>
+
+            <?php elseif($currentView === 'tool' && $activeTool): ?>
+                <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
+                    <div>
+                        <h4 class="fw-bold mb-1"><i class="fas <?= htmlspecialchars($activeTool['icon']) ?> text-accent me-2"></i><?= htmlspecialchars($activeTool['name']) ?></h4>
+                        <p class="text-gray mb-0"><?= htmlspecialchars($activeTool['desc']) ?></p>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-outline-primary btn-sm rounded-pill" onclick="openToolsModal()"><i class="fas fa-toolbox me-2"></i>Switch Tool</button>
+                        <a class="btn btn-outline-light btn-sm rounded-pill" href="?id=<?= (int)$projectId ?>&view=summary"><i class="fas fa-arrow-left me-2"></i>Back to Summary</a>
+                    </div>
+                </div>
+                <div class="tool-host-card">
+                    <iframe src="<?= htmlspecialchars($activeToolEmbedUrl) ?>" class="tool-embed-frame" title="<?= htmlspecialchars($activeTool['name']) ?>"></iframe>
+                </div>
+
+            <?php elseif($currentView === 'tool'): ?>
+                <div class="text-center py-5">
+                    <i class="fas fa-toolbox fa-3x text-gray mb-3 opacity-25"></i>
+                    <p class="text-gray mb-3">Tool not available.</p>
+                    <button class="btn btn-outline-primary btn-sm rounded-pill" onclick="openToolsModal()">Open Tools</button>
                 </div>
 
             <?php elseif($currentView === 'files'): 
@@ -365,6 +441,60 @@ include __DIR__ . '/../views/header.php';
     .recent-upload-card { gap: 12px; }
     .recent-upload-info { min-width: 0; }
     .recent-upload-actions { flex-shrink: 0; }
+
+    .tools-modal-content {
+        background: #111827;
+        border: 1px solid rgba(255,255,255,0.08);
+    }
+    .tools-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        gap: 12px;
+    }
+    .tool-card-btn {
+        border-radius: 12px;
+        border: 1px solid rgba(255,255,255,0.1);
+        padding: 14px;
+        text-align: left;
+        background: rgba(255,255,255,0.02);
+        transition: all .2s ease;
+    }
+    .tool-card-btn.is-active:hover {
+        border-color: rgba(99,102,241,.6);
+        box-shadow: 0 0 0 1px rgba(99,102,241,.3), 0 8px 24px rgba(0,0,0,.35);
+        transform: translateY(-1px);
+    }
+    .tool-card-btn.is-disabled {
+        opacity: .55;
+        filter: grayscale(35%);
+        cursor: not-allowed;
+    }
+    .tool-icon {
+        width: 38px;
+        height: 38px;
+        border-radius: 10px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: #c4b5fd;
+        background: rgba(99,102,241,.18);
+        border: 1px solid rgba(99,102,241,.35);
+        flex-shrink: 0;
+    }
+
+    .tool-host-card {
+        border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 12px;
+        overflow: hidden;
+        background: #0f172a;
+        min-height: 72vh;
+    }
+    .tool-embed-frame {
+        width: 100%;
+        min-height: 72vh;
+        border: 0;
+        background: #0b1220;
+    }
     @media (max-width: 768px) {
         .recent-upload-card { flex-wrap: wrap; }
         .recent-upload-actions { width: 100%; justify-content: flex-end; }
@@ -389,6 +519,42 @@ include __DIR__ . '/../views/header.php';
 </style>
 
 <?php include __DIR__ . '/../views/modals.php'; ?>
+
+<div class="modal fade" id="toolsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content p-3 tools-modal-content">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title fw-bold"><i class="fas fa-toolbox me-2 text-accent"></i>Project Tools</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="tools-grid">
+                    <?php foreach($toolCatalog as $toolKey => $tool): ?>
+                        <?php $isActiveTool = !empty($tool['active']); ?>
+                        <button
+                            type="button"
+                            class="tool-card-btn <?= $isActiveTool ? 'is-active' : 'is-disabled' ?>"
+                            <?= $isActiveTool ? 'onclick="openToolView(' . "'" . htmlspecialchars($toolKey, ENT_QUOTES) . "'" . ')"' : 'disabled' ?>
+                        >
+                            <div class="d-flex align-items-start justify-content-between gap-2 w-100">
+                                <div class="d-flex align-items-start gap-3">
+                                    <div class="tool-icon"><i class="fas <?= htmlspecialchars($tool['icon']) ?>"></i></div>
+                                    <div class="text-start">
+                                        <div class="fw-bold text-white"><?= htmlspecialchars($tool['name']) ?></div>
+                                        <div class="small text-gray"><?= htmlspecialchars($tool['desc']) ?></div>
+                                    </div>
+                                </div>
+                                <?php if(!$isActiveTool): ?>
+                                    <span class="badge bg-secondary">Coming Soon</span>
+                                <?php endif; ?>
+                            </div>
+                        </button>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
 
 <div class="modal fade" id="uploadFileModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
@@ -543,6 +709,21 @@ include __DIR__ . '/../views/header.php';
         try { collapsed = localStorage.getItem('projectSidebarCollapsed') === '1'; } catch (e) {}
         applyProjectSidebarState(collapsed);
     });
+
+    function openToolsModal() {
+        const modalEl = document.getElementById('toolsModal');
+        if (!modalEl) return;
+        new bootstrap.Modal(modalEl).show();
+    }
+
+    function openToolView(toolKey) {
+        const modalEl = document.getElementById('toolsModal');
+        if (modalEl) {
+            const inst = bootstrap.Modal.getInstance(modalEl);
+            if (inst) inst.hide();
+        }
+        window.location.href = `?id=${encodeURIComponent(pId)}&view=tool&tool=${encodeURIComponent(toolKey)}`;
+    }
 
     function openUploadModal() {
         if (fId) {
