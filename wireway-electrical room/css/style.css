@@ -170,8 +170,9 @@ h2 { font-size: 0.8rem; font-weight: 800; text-transform: uppercase; letter-spac
 }
 
 .view-switcher {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
+    display: flex;
+    justify-content: center;
+    align-items: center;
     gap: 0.5rem;
     margin-bottom: 2rem;
     border: 1px solid var(--border-subtle);
