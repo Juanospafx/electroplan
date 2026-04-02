@@ -139,6 +139,7 @@ class PdfService
         $pdf->Cell(60, 7, 'Total Connected KVA: ' . ($panel['connected_kva'] ?? '0.00'), 0, 1);
         $pdf->Cell(60, 7, 'Total Connected Amps: ' . ($panel['connected_amps'] ?? '0.00'), 0, 1);
 
+
         // Output + save copy into Electroplan project Tools folder
         $filename = 'Panel_' . preg_replace('/[^a-zA-Z0-9]/', '_', $panel['panel_name'] ?? 'Schedule') . '.pdf';
         $pdfBinary = $pdf->Output($filename, 'S');
@@ -205,4 +206,11 @@ class PdfService
             // Silent fail: download still succeeds.
         }
     }
+
+        // Output
+        $filename = 'Panel_' . preg_replace('/[^a-zA-Z0-9]/', '_', $panel['panel_name'] ?? 'Schedule') . '.pdf';
+        $pdf->Output($filename, 'D');
+        exit;
+    }
+
 }

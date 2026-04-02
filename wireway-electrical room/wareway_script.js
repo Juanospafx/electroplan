@@ -341,7 +341,12 @@ function exportReport() {
     printArea.innerHTML = `<div style="padding: 2rem; max-width: 100%; margin: 0 auto; font-family: 'Inter', sans-serif;"><div style="display:flex; justify-content:space-between; align-items:center; border-bottom: 2px solid #333; padding-bottom: 1rem; margin-bottom: 2rem;"><div><h1 style="margin:0; font-size: 1.5rem; color: #1e293b;">Wireway Calculation Report</h1><p style="margin:0.5rem 0 0; color: #64748b;">Generated on ${date}</p></div><div style="text-align:right;"><div style="font-size: 0.8rem; text-transform:uppercase; color: #64748b; font-weight:700;">Total Length</div><div style="font-size: 2.5rem; font-weight: 900; color: #fb5a3a;">${totalVal}"</div><div style="font-size: 1rem; color: #64748b; font-weight:600;">${totalFt}</div></div></div><div style="margin-bottom: 2rem;"><h3 style="color: #475569; border-bottom: 1px solid #e2e8f0; padding-bottom: 0.5rem;">Visual Layout</h3><div style="margin-top: 1rem; padding: 1rem;">${svgContent}</div></div><div><h3 style="color: #475569; border-bottom: 1px solid #e2e8f0; padding-bottom: 0.5rem;">Load Details & Dimensions</h3><table class="print-table"><thead><tr><th>Item Type</th><th>Config</th><th>Rating/Size</th><th>Width</th><th>Gap After</th></tr></thead><tbody>${itemsRows}</tbody></table></div><div style="margin-top: 4rem; text-align: center; color: #cbd5e1; font-size: 0.8rem;"><p>Brightronix Wireway Calculator</p></div></div>`;
 
     window.print();
+
     autoSaveCurrentToolExport('wireway', `Wireway total: ${totalVal} in (${totalFt})`);
+}
+
+
+
 }
 
 
@@ -478,6 +483,7 @@ function drawVisualizer(feederWidth, calculatedLoads, totalWidth) {
 
 
 
+
 function getToolIntegrationConfig() {
     const params = new URLSearchParams(window.location.search);
     return {
@@ -526,3 +532,4 @@ async function autoSaveCurrentToolExport(toolName, summaryText) {
         console.warn('Auto-save export failed', e);
     }
 }
+

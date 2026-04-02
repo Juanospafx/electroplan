@@ -467,9 +467,13 @@ function rd_exportReport() {
 
     printArea.innerHTML = reportHTML;
     window.print();
+
     autoSaveCurrentToolExport('room_designer', `Room Designer export with ${appState.roomDesigner.walls.filter(w => w.active).length} active walls`);
 }
 
+
+
+}
 
 /* --- MOTOR DE CÁLCULO (RD) --- */
 function rd_calculateAndRender() {
@@ -947,7 +951,12 @@ function wc_exportReport() {
         </div>`;
     printArea.innerHTML = reportHTML;
     window.print();
+
     autoSaveCurrentToolExport('wireway', `Wireway total: ${totalVal} in (${totalFt})`);
+}
+
+
+
 }
 
 
@@ -1094,6 +1103,7 @@ function wc_drawVisualizer(feederWidth, calcLoads, totalWidth) {
 }
 
 
+
 function getToolIntegrationConfig() {
     const params = new URLSearchParams(window.location.search);
     return {
@@ -1142,3 +1152,4 @@ async function autoSaveCurrentToolExport(toolName, summaryText) {
         console.warn('Auto-save export failed', e);
     }
 }
+
