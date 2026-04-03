@@ -468,11 +468,7 @@ function rd_exportReport() {
     printArea.innerHTML = reportHTML;
     window.print();
 
-    autoSaveCurrentToolExport('room_designer', `Room Designer export with ${appState.roomDesigner.walls.filter(w => w.active).length} active walls`);
-}
-
-
-
+    autoSaveCurrentToolExport('room_designer', reportHTML, `room_designer_export_${new Date().toISOString().slice(0,10)}.pdf`);
 }
 
 /* --- MOTOR DE CÁLCULO (RD) --- */
@@ -952,11 +948,7 @@ function wc_exportReport() {
     printArea.innerHTML = reportHTML;
     window.print();
 
-    autoSaveCurrentToolExport('wireway', `Wireway total: ${totalVal} in (${totalFt})`);
-}
-
-
-
+    autoSaveCurrentToolExport('wireway', reportHTML, `wireway_export_${new Date().toISOString().slice(0,10)}.pdf`);
 }
 
 
@@ -1113,40 +1105,51 @@ function getToolIntegrationConfig() {
     };
 }
 
-async function ensureJsPdf() {
-    if (window.jspdf && window.jspdf.jsPDF) return window.jspdf.jsPDF;
+async function ensureHtml2Pdf() {
+    if (window.html2pdf) return window.html2pdf;
     await new Promise((resolve, reject) => {
         const sc = document.createElement('script');
-        sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+        sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
         sc.onload = resolve;
         sc.onerror = reject;
         document.head.appendChild(sc);
     });
-    return window.jspdf && window.jspdf.jsPDF;
+    return window.html2pdf;
 }
 
-async function autoSaveCurrentToolExport(toolName, summaryText) {
+async function autoSaveCurrentToolExport(toolName, reportHtml, filename) {
     try {
         const cfg = getToolIntegrationConfig();
-        if (!cfg.projectId) return;
-        const JsPDF = await ensureJsPdf();
-        if (!JsPDF) return;
+        if (!cfg.projectId || !reportHtml) return;
+        const html2pdf = await ensureHtml2Pdf();
+        if (!html2pdf) return;
 
-        const doc = new JsPDF('p', 'pt', 'letter');
-        doc.setFontSize(16);
-        doc.text(toolName === 'room_designer' ? 'Electrical Room Designer Report' : 'Wireway Calculation Report', 40, 50);
-        doc.setFontSize(11);
-        doc.text('Project ID: ' + cfg.projectId, 40, 75);
-        doc.text('Generated: ' + new Date().toISOString(), 40, 92);
-        doc.text(summaryText || '', 40, 110);
+        const tmp = document.createElement('div');
+        tmp.style.position = 'fixed';
+        tmp.style.left = '-100000px';
+        tmp.style.top = '0';
+        tmp.style.width = '816px';
+        tmp.style.background = '#ffffff';
+        tmp.innerHTML = reportHtml;
+        document.body.appendChild(tmp);
 
-        const blob = doc.output('blob');
+        const worker = html2pdf().set({
+            margin: 0,
+            filename: filename || ('export_' + new Date().toISOString().slice(0,10) + '.pdf'),
+            image: { type: 'jpeg', quality: 1 },
+            html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
+            jsPDF: { unit: 'pt', format: 'letter', orientation: 'portrait' }
+        }).from(tmp);
+
+        const pdfBlob = await worker.outputPdf('blob');
+        document.body.removeChild(tmp);
+
         const fd = new FormData();
         fd.append('action', cfg.action);
         fd.append('project_id', String(cfg.projectId));
         fd.append('tool_name', toolName);
-        fd.append('filename', 'export_' + new Date().toISOString().slice(0,10) + '.pdf');
-        fd.append('pdf_file', blob, 'export.pdf');
+        fd.append('filename', filename || ('export_' + new Date().toISOString().slice(0,10) + '.pdf'));
+        fd.append('pdf_file', pdfBlob, 'export.pdf');
         await fetch(cfg.apiUrl, { method: 'POST', body: fd, credentials: 'include' });
     } catch (e) {
         console.warn('Auto-save export failed', e);
