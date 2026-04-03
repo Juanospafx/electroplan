@@ -6,8 +6,8 @@
   --text: #e5e7eb;
   --muted: #94a3b8;
   --border: rgba(148,163,184,.22);
-  --accent: #6366f1;
-  --accent-2: #8b5cf6;
+  --accent: #fb5a3a;
+  --accent-2: #ff7a5f;
 }
 
 html[data-theme="light"] {
@@ -17,13 +17,14 @@ html[data-theme="light"] {
   --text: #0f172a;
   --muted: #475569;
   --border: rgba(15,23,42,.12);
-  --accent: #4f46e5;
-  --accent-2: #7c3aed;
+  --accent: #fb5a3a;
+  --accent-2: #ff7a5f;
 }
 
 body { background: var(--bg); color: var(--text); }
 .panel-navbar { background: linear-gradient(90deg, #0f172a, #1e1b4b); border-bottom: 1px solid var(--border); }
 .navbar-brand { color: #fff !important; }
+.panel-context { color: #93c5fd; margin-top: -2px; }
 
 .container, .container-fluid, .card, .table, .form-control, .form-select, .btn { color: var(--text); }
 .card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; }
@@ -31,9 +32,18 @@ body { background: var(--bg); color: var(--text); }
 .table thead th { position: sticky; top: 0; background: var(--panel-2); color: var(--text); z-index: 1; }
 .table-light { --bs-table-bg: var(--panel-2); --bs-table-color: var(--text); }
 .form-control, .form-select { background: var(--panel-2); border-color: var(--border); color: var(--text); }
-.form-control:focus, .form-select:focus { border-color: var(--accent); box-shadow: 0 0 0 .2rem rgba(99,102,241,.25); background: var(--panel-2); color: var(--text); }
+.form-control:focus, .form-select:focus { border-color: var(--accent); box-shadow: 0 0 0 .2rem rgba(251,90,58,.25); background: var(--panel-2); color: var(--text); }
 .text-muted, .small, .form-text { color: var(--muted) !important; }
-.btn-primary { background: var(--accent); border-color: var(--accent); }
+.btn-primary {
+  background: #fb6a52 !important;
+  border-color: #fb6a52 !important;
+  color: #fff !important;
+}
+.btn-primary:hover {
+  background: #f95a3f !important;
+  border-color: #f95a3f !important;
+  color: #fff !important;
+}
 .btn-outline-secondary, .btn-secondary { border-color: var(--border); color: var(--text); background: transparent; }
 .btn-outline-secondary:hover, .btn-secondary:hover { background: rgba(99,102,241,.15); border-color: var(--accent); color: #fff; }
 .slot-disabled { background: rgba(148,163,184,.12); }

@@ -1,5 +1,23 @@
 <?php
 use App\Lib\Csrf;
+
+$electroplanProjectName = '';
+$electroplanProjectId = (int)($_SESSION['electroplan_project_id'] ?? 0);
+if ($electroplanProjectId > 0) {
+  try {
+    $epDb = dirname(__DIR__, 6) . '/core/db/connection.php';
+    if (file_exists($epDb)) {
+      require $epDb;
+      if (isset($pdo) && $pdo instanceof PDO) {
+        $stmt = $pdo->prepare("SELECT name FROM projects WHERE id = ? AND deleted_at IS NULL LIMIT 1");
+        $stmt->execute([$electroplanProjectId]);
+        $electroplanProjectName = (string)($stmt->fetchColumn() ?: '');
+      }
+    }
+  } catch (Throwable $e) {
+    $electroplanProjectName = '';
+  }
+}
 ?>
 <!doctype html>
 <html lang="en" data-theme="dark">
@@ -16,10 +34,15 @@ use App\Lib\Csrf;
 <body>
 <nav class="navbar navbar-expand-lg panel-navbar">
   <div class="container-fluid">
-    <a class="navbar-brand fw-bold" href="<?= htmlspecialchars(base_url('/projects')) ?>">Panel Schedule</a>
+    <div class="d-flex flex-column">
+      <a class="navbar-brand fw-bold" href="<?= htmlspecialchars(base_url('/projects')) ?>">Panel Schedule</a>
+      <?php if ($electroplanProjectName !== ''): ?>
+        <small class="panel-context">Project: <?= htmlspecialchars($electroplanProjectName) ?> (ID #<?= (int)$electroplanProjectId ?>)</small>
+      <?php endif; ?>
+    </div>
     <div class="d-flex gap-2 align-items-center">
       <button id="themeToggleBtn" class="btn btn-outline-light btn-sm" type="button" title="Toggle theme"><i class="fa-solid fa-moon"></i></button>
-      <a class="btn btn-outline-light btn-sm" href="<?= htmlspecialchars(base_url('/projects/new')) ?>">New Project</a>
+      <a class="btn btn-primary btn-sm" href="<?= htmlspecialchars(base_url('/projects/new')) ?>">Create Project</a>
     </div>
   </div>
 </nav>
