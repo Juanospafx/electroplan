@@ -7,6 +7,9 @@ session_start();
 if (isset($_GET['project_id']) && (int)$_GET['project_id'] > 0) {
     $_SESSION['electroplan_project_id'] = (int)$_GET['project_id'];
 }
+if (isset($_GET['folder_id']) && (int)$_GET['folder_id'] > 0) {
+    $_SESSION['electroplan_folder_id'] = (int)$_GET['folder_id'];
+}
 
 
 define('BASE_PATH', dirname(__DIR__));

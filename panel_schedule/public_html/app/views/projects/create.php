@@ -1,17 +1,38 @@
+<?php
+$context = $context ?? [];
+$ctxProjectId = (int)($context['project_id'] ?? 0);
+$ctxFolderId = (int)($context['folder_id'] ?? 0);
+$ctxProjectName = (string)($context['project_name'] ?? '');
+$ctxProjectNumber = (string)($context['project_number'] ?? '');
+$ctxFolderName = (string)($context['folder_name'] ?? '');
+?>
 <div class="card shadow-sm">
   <div class="card-body">
     <h5 class="mb-3">Create Project</h5>
+
+    <?php if ($ctxProjectId > 0 || $ctxFolderId > 0): ?>
+      <div class="alert alert-info py-2 px-3 small" role="alert">
+        Context detected from Electroplan:
+        <?php if ($ctxProjectName !== ''): ?><strong>Project <?= htmlspecialchars($ctxProjectName) ?></strong><?php endif; ?>
+        <?php if ($ctxProjectId > 0): ?>(ID #<?= (int)$ctxProjectId ?>)<?php endif; ?>
+        <?php if ($ctxFolderName !== ''): ?> · Folder <strong><?= htmlspecialchars($ctxFolderName) ?></strong><?php endif; ?>
+        <?php if ($ctxFolderId > 0): ?>(ID #<?= (int)$ctxFolderId ?>)<?php endif; ?>
+      </div>
+    <?php endif; ?>
+
     <form method="post" action="<?= htmlspecialchars(base_url('/projects')) ?>">
       <?= csrf_field() ?>
+      <input type="hidden" name="electroplan_project_id" value="<?= (int)$ctxProjectId ?>">
+      <input type="hidden" name="electroplan_folder_id" value="<?= (int)$ctxFolderId ?>">
 
       <div class="row g-3">
         <div class="col-md-4">
           <label class="form-label">Project Name</label>
-          <input name="project_name" class="form-control" required>
+          <input name="project_name" class="form-control" required value="<?= htmlspecialchars($ctxProjectName) ?>">
         </div>
         <div class="col-md-3">
           <label class="form-label">Project Number</label>
-          <input name="project_number" class="form-control" required>
+          <input name="project_number" class="form-control" required value="<?= htmlspecialchars($ctxProjectNumber) ?>">
         </div>
         <div class="col-md-3">
           <label class="form-label">Basis of Design</label>

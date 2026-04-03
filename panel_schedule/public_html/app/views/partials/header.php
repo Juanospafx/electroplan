@@ -3,19 +3,39 @@ use App\Lib\Csrf;
 
 $electroplanProjectName = '';
 $electroplanProjectId = (int)($_SESSION['electroplan_project_id'] ?? 0);
+$electroplanFolderId = (int)($_SESSION['electroplan_folder_id'] ?? 0);
+$electroplanFolderName = '';
+$contextQuery = [];
 if ($electroplanProjectId > 0) {
+  $contextQuery['project_id'] = $electroplanProjectId;
+}
+if ($electroplanFolderId > 0) {
+  $contextQuery['folder_id'] = $electroplanFolderId;
+}
+$contextSuffix = $contextQuery ? ('?' . http_build_query($contextQuery)) : '';
+
+if ($electroplanProjectId > 0 || $electroplanFolderId > 0) {
   try {
     $epDb = dirname(__DIR__, 6) . '/core/db/connection.php';
     if (file_exists($epDb)) {
       require $epDb;
       if (isset($pdo) && $pdo instanceof PDO) {
-        $stmt = $pdo->prepare("SELECT name FROM projects WHERE id = ? AND deleted_at IS NULL LIMIT 1");
-        $stmt->execute([$electroplanProjectId]);
-        $electroplanProjectName = (string)($stmt->fetchColumn() ?: '');
+        if ($electroplanProjectId > 0) {
+          $stmt = $pdo->prepare("SELECT name FROM projects WHERE id = ? AND deleted_at IS NULL LIMIT 1");
+          $stmt->execute([$electroplanProjectId]);
+          $electroplanProjectName = (string)($stmt->fetchColumn() ?: '');
+        }
+
+        if ($electroplanFolderId > 0) {
+          $stmt = $pdo->prepare("SELECT name FROM folders WHERE id = ? AND deleted_at IS NULL LIMIT 1");
+          $stmt->execute([$electroplanFolderId]);
+          $electroplanFolderName = (string)($stmt->fetchColumn() ?: '');
+        }
       }
     }
   } catch (Throwable $e) {
     $electroplanProjectName = '';
+    $electroplanFolderName = '';
   }
 }
 ?>
@@ -36,13 +56,16 @@ if ($electroplanProjectId > 0) {
   <div class="container-fluid">
     <div class="d-flex flex-column">
       <a class="navbar-brand fw-bold" href="<?= htmlspecialchars(base_url('/projects')) ?>">Panel Schedule</a>
-      <?php if ($electroplanProjectName !== ''): ?>
-        <small class="panel-context">Project: <?= htmlspecialchars($electroplanProjectName) ?> (ID #<?= (int)$electroplanProjectId ?>)</small>
+      <?php if ($electroplanProjectName !== '' || $electroplanFolderName !== ''): ?>
+        <small class="panel-context">
+          <?php if ($electroplanProjectName !== ''): ?>Project: <?= htmlspecialchars($electroplanProjectName) ?> (ID #<?= (int)$electroplanProjectId ?>)<?php endif; ?>
+          <?php if ($electroplanFolderName !== ''): ?> · Folder: <?= htmlspecialchars($electroplanFolderName) ?> (ID #<?= (int)$electroplanFolderId ?>)<?php endif; ?>
+        </small>
       <?php endif; ?>
     </div>
     <div class="d-flex gap-2 align-items-center">
       <button id="themeToggleBtn" class="btn btn-outline-light btn-sm" type="button" title="Toggle theme"><i class="fa-solid fa-moon"></i></button>
-      <a class="btn btn-primary btn-sm" href="<?= htmlspecialchars(base_url('/projects/new')) ?>">Create Project</a>
+      <a class="btn btn-primary btn-sm" href="<?= htmlspecialchars(base_url('/projects/new') . $contextSuffix) ?>">Create Project</a>
     </div>
   </div>
 </nav>
