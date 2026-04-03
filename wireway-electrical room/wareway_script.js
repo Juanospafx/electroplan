@@ -489,44 +489,77 @@ function getToolIntegrationConfig() {
     };
 }
 
-async function ensureHtml2Pdf() {
-    if (window.html2pdf) return window.html2pdf;
-    await new Promise((resolve, reject) => {
-        const sc = document.createElement('script');
-        sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
-        sc.onload = resolve;
-        sc.onerror = reject;
-        document.head.appendChild(sc);
-    });
-    return window.html2pdf;
+async function ensureExportLibs() {
+    if (!window.html2canvas) {
+        await new Promise((resolve, reject) => {
+            const sc = document.createElement('script');
+            sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+            sc.onload = resolve;
+            sc.onerror = reject;
+            document.head.appendChild(sc);
+        });
+    }
+    if (!(window.jspdf && window.jspdf.jsPDF)) {
+        await new Promise((resolve, reject) => {
+            const sc = document.createElement('script');
+            sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+            sc.onload = resolve;
+            sc.onerror = reject;
+            document.head.appendChild(sc);
+        });
+    }
+    return !!(window.html2canvas && window.jspdf && window.jspdf.jsPDF);
 }
 
 async function autoSaveCurrentToolExport(toolName, reportHtml, filename) {
+    let tmp = null;
     try {
         const cfg = getToolIntegrationConfig();
         if (!cfg.projectId || !reportHtml) return;
-        const html2pdf = await ensureHtml2Pdf();
-        if (!html2pdf) return;
+        const ok = await ensureExportLibs();
+        if (!ok) return;
 
-        const tmp = document.createElement('div');
+        tmp = document.createElement('div');
         tmp.style.position = 'fixed';
         tmp.style.left = '-100000px';
         tmp.style.top = '0';
         tmp.style.width = '816px';
         tmp.style.background = '#ffffff';
+        tmp.style.zIndex = '-1';
         tmp.innerHTML = reportHtml;
         document.body.appendChild(tmp);
 
-        const worker = html2pdf().set({
-            margin: 0,
-            filename: filename || ('export_' + new Date().toISOString().slice(0,10) + '.pdf'),
-            image: { type: 'jpeg', quality: 1 },
-            html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
-            jsPDF: { unit: 'pt', format: 'letter', orientation: 'portrait' }
-        }).from(tmp);
+        await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
 
-        const pdfBlob = await worker.outputPdf('blob');
-        document.body.removeChild(tmp);
+        const canvas = await window.html2canvas(tmp, {
+            scale: 2,
+            useCORS: true,
+            backgroundColor: '#ffffff'
+        });
+
+        const { jsPDF } = window.jspdf;
+        const pdf = new jsPDF('p', 'pt', 'letter');
+        const pageWidth = pdf.internal.pageSize.getWidth();
+        const pageHeight = pdf.internal.pageSize.getHeight();
+
+        const imgWidth = pageWidth;
+        const imgHeight = canvas.height * imgWidth / canvas.width;
+
+        let heightLeft = imgHeight;
+        let position = 0;
+
+        const imgData = canvas.toDataURL('image/jpeg', 0.98);
+        pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
+
+        while (heightLeft > 0) {
+            position = heightLeft - imgHeight;
+            pdf.addPage();
+            pdf.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
+            heightLeft -= pageHeight;
+        }
+
+        const pdfBlob = pdf.output('blob');
 
         const fd = new FormData();
         fd.append('action', cfg.action);
@@ -537,6 +570,8 @@ async function autoSaveCurrentToolExport(toolName, reportHtml, filename) {
         await fetch(cfg.apiUrl, { method: 'POST', body: fd, credentials: 'include' });
     } catch (e) {
         console.warn('Auto-save export failed', e);
+    } finally {
+        if (tmp && tmp.parentNode) tmp.parentNode.removeChild(tmp);
     }
 }
 
