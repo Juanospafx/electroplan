@@ -879,18 +879,20 @@ switch($action) {
         $filenameRaw = trim((string)($_POST['filename'] ?? ''));
 
         $toolMap = [
-            'panel_schedule' => 'panel_schedule',
-            'wireway' => 'wireway',
-            'wireway_calculator' => 'wireway',
-            'room_designer' => 'room_designer'
+            'panel_schedule' => ['slug' => 'panel_schedule', 'folder' => 'Panel Schedule'],
+            'wireway' => ['slug' => 'wireway', 'folder' => 'Wireway'],
+            'wireway_calculator' => ['slug' => 'wireway', 'folder' => 'Wireway'],
+            'room_designer' => ['slug' => 'room_designer', 'folder' => 'Room Designer']
         ];
 
         if ($projectId <= 0) { echo json_encode(['status'=>'error', 'msg'=>'Invalid project_id']); exit; }
         if (!isset($_FILES['pdf_file'])) { echo json_encode(['status'=>'error', 'msg'=>'Missing pdf_file']); exit; }
 
         $toolKey = strtolower(preg_replace('/[^a-z0-9_\-]/i', '', $toolNameRaw));
-        $toolSlug = $toolMap[$toolKey] ?? null;
-        if (!$toolSlug) { echo json_encode(['status'=>'error', 'msg'=>'Invalid tool_name']); exit; }
+        $toolCfg = $toolMap[$toolKey] ?? null;
+        if (!$toolCfg) { echo json_encode(['status'=>'error', 'msg'=>'Invalid tool_name']); exit; }
+        $toolSlug = $toolCfg['slug'];
+        $toolFolderName = $toolCfg['folder'];
 
         $origName = $_FILES['pdf_file']['name'] ?? '';
         $ext = strtolower(pathinfo($origName ?: $filenameRaw, PATHINFO_EXTENSION));
@@ -908,6 +910,14 @@ switch($action) {
             if ($toolsFolderId <= 0) {
                 $pdo->prepare("INSERT INTO folders (project_id, name) VALUES (?, 'Tools')")->execute([$projectId]);
                 $toolsFolderId = (int)$pdo->lastInsertId();
+            }
+
+            $stmtSub = $pdo->prepare("SELECT id FROM sub_folders WHERE folder_id = ? AND name = ? AND deleted_at IS NULL LIMIT 1");
+            $stmtSub->execute([$toolsFolderId, $toolFolderName]);
+            $toolSubFolderId = (int)$stmtSub->fetchColumn();
+            if ($toolSubFolderId <= 0) {
+                $pdo->prepare("INSERT INTO sub_folders (folder_id, name) VALUES (?, ?)")->execute([$toolsFolderId, $toolFolderName]);
+                $toolSubFolderId = (int)$pdo->lastInsertId();
             }
 
             $datePart = gmdate('Y-m-d');
@@ -931,10 +941,10 @@ switch($action) {
             $publicPath = 'uploads/tool/' . $toolSlug . '/' . $projectId . '/' . $diskName;
 
             $sqlCheck = "SELECT id, version_group_id, version_number FROM files
-                         WHERE project_id = ? AND filename = ? AND deleted_at IS NULL AND folder_id = ? AND sub_folder_id IS NULL
+                         WHERE project_id = ? AND filename = ? AND deleted_at IS NULL AND folder_id = ? AND sub_folder_id = ?
                          ORDER BY version_number DESC LIMIT 1";
             $stmtCheck = $pdo->prepare($sqlCheck);
-            $stmtCheck->execute([$projectId, $baseFile, $toolsFolderId]);
+            $stmtCheck->execute([$projectId, $baseFile, $toolsFolderId, $toolSubFolderId]);
             $existing = $stmtCheck->fetch(PDO::FETCH_ASSOC);
 
             $versionGroup = uniqid('vgroup_');
@@ -948,13 +958,15 @@ switch($action) {
             }
 
             $stmt = $pdo->prepare("INSERT INTO files (project_id, folder_id, sub_folder_id, filename, filepath, file_type, uploaded_by, version_group_id, version_number)
-                                   VALUES (?, ?, NULL, ?, ?, 'pdf', ?, ?, ?)");
-            $stmt->execute([$projectId, $toolsFolderId, $baseFile, $publicPath, $userId, $versionGroup, $versionNum]);
+                                   VALUES (?, ?, ?, ?, ?, 'pdf', ?, ?, ?)");
+            $stmt->execute([$projectId, $toolsFolderId, $toolSubFolderId, $baseFile, $publicPath, $userId, $versionGroup, $versionNum]);
 
             echo json_encode([
                 'status' => 'success',
                 'path' => $publicPath,
                 'folder_id' => $toolsFolderId,
+                'sub_folder_id' => $toolSubFolderId,
+                'sub_folder_name' => $toolFolderName,
                 'filename' => $baseFile,
                 'version' => $versionNum
             ]);

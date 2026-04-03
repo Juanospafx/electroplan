@@ -338,11 +338,12 @@ function exportReport() {
         itemsRows += `<tr><td>${index + 1}. ${l.type}</td><td>${l.isCustom ? 'Custom' : 'Standard'}</td><td>${desc}</td><td>${parseFloat(widthDisplay).toFixed(1)}"</td><td>${l.gapAfter.toFixed(1)}"</td></tr>`;
     });
 
-    printArea.innerHTML = `<div style="padding: 2rem; max-width: 100%; margin: 0 auto; font-family: 'Inter', sans-serif;"><div style="display:flex; justify-content:space-between; align-items:center; border-bottom: 2px solid #333; padding-bottom: 1rem; margin-bottom: 2rem;"><div><h1 style="margin:0; font-size: 1.5rem; color: #1e293b;">Wireway Calculation Report</h1><p style="margin:0.5rem 0 0; color: #64748b;">Generated on ${date}</p></div><div style="text-align:right;"><div style="font-size: 0.8rem; text-transform:uppercase; color: #64748b; font-weight:700;">Total Length</div><div style="font-size: 2.5rem; font-weight: 900; color: #fb5a3a;">${totalVal}"</div><div style="font-size: 1rem; color: #64748b; font-weight:600;">${totalFt}</div></div></div><div style="margin-bottom: 2rem;"><h3 style="color: #475569; border-bottom: 1px solid #e2e8f0; padding-bottom: 0.5rem;">Visual Layout</h3><div style="margin-top: 1rem; padding: 1rem;">${svgContent}</div></div><div><h3 style="color: #475569; border-bottom: 1px solid #e2e8f0; padding-bottom: 0.5rem;">Load Details & Dimensions</h3><table class="print-table"><thead><tr><th>Item Type</th><th>Config</th><th>Rating/Size</th><th>Width</th><th>Gap After</th></tr></thead><tbody>${itemsRows}</tbody></table></div><div style="margin-top: 4rem; text-align: center; color: #cbd5e1; font-size: 0.8rem;"><p>Brightronix Wireway Calculator</p></div></div>`;
+    const reportHTML = `<div style="padding: 2rem; max-width: 100%; margin: 0 auto; font-family: 'Inter', sans-serif;"><div style="display:flex; justify-content:space-between; align-items:center; border-bottom: 2px solid #333; padding-bottom: 1rem; margin-bottom: 2rem;"><div><h1 style="margin:0; font-size: 1.5rem; color: #1e293b;">Wireway Calculation Report</h1><p style="margin:0.5rem 0 0; color: #64748b;">Generated on ${date}</p></div><div style="text-align:right;"><div style="font-size: 0.8rem; text-transform:uppercase; color: #64748b; font-weight:700;">Total Length</div><div style="font-size: 2.5rem; font-weight: 900; color: #fb5a3a;">${totalVal}"</div><div style="font-size: 1rem; color: #64748b; font-weight:600;">${totalFt}</div></div></div><div style="margin-bottom: 2rem;"><h3 style="color: #475569; border-bottom: 1px solid #e2e8f0; padding-bottom: 0.5rem;">Visual Layout</h3><div style="margin-top: 1rem; padding: 1rem;">${svgContent}</div></div><div><h3 style="color: #475569; border-bottom: 1px solid #e2e8f0; padding-bottom: 0.5rem;">Load Details & Dimensions</h3><table class="print-table"><thead><tr><th>Item Type</th><th>Config</th><th>Rating/Size</th><th>Width</th><th>Gap After</th></tr></thead><tbody>${itemsRows}</tbody></table></div><div style="margin-top: 4rem; text-align: center; color: #cbd5e1; font-size: 0.8rem;"><p>Brightronix Wireway Calculator</p></div></div>`;
 
+    printArea.innerHTML = reportHTML;
     window.print();
 
-    autoSaveCurrentToolExport('wireway', `Wireway total: ${totalVal} in (${totalFt})`);
+    autoSaveCurrentToolExport('wireway', reportHTML, `wireway_export_${new Date().toISOString().slice(0,10)}.pdf`);
 }
 
 /* --- CALCULO --- */
@@ -488,40 +489,51 @@ function getToolIntegrationConfig() {
     };
 }
 
-async function ensureJsPdf() {
-    if (window.jspdf && window.jspdf.jsPDF) return window.jspdf.jsPDF;
+async function ensureHtml2Pdf() {
+    if (window.html2pdf) return window.html2pdf;
     await new Promise((resolve, reject) => {
         const sc = document.createElement('script');
-        sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+        sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js';
         sc.onload = resolve;
         sc.onerror = reject;
         document.head.appendChild(sc);
     });
-    return window.jspdf && window.jspdf.jsPDF;
+    return window.html2pdf;
 }
 
-async function autoSaveCurrentToolExport(toolName, summaryText) {
+async function autoSaveCurrentToolExport(toolName, reportHtml, filename) {
     try {
         const cfg = getToolIntegrationConfig();
-        if (!cfg.projectId) return;
-        const JsPDF = await ensureJsPdf();
-        if (!JsPDF) return;
+        if (!cfg.projectId || !reportHtml) return;
+        const html2pdf = await ensureHtml2Pdf();
+        if (!html2pdf) return;
 
-        const doc = new JsPDF('p', 'pt', 'letter');
-        doc.setFontSize(16);
-        doc.text('Wireway Calculation Report', 40, 50);
-        doc.setFontSize(11);
-        doc.text('Project ID: ' + cfg.projectId, 40, 75);
-        doc.text('Generated: ' + new Date().toISOString(), 40, 92);
-        doc.text(summaryText || '', 40, 110);
+        const tmp = document.createElement('div');
+        tmp.style.position = 'fixed';
+        tmp.style.left = '-100000px';
+        tmp.style.top = '0';
+        tmp.style.width = '816px';
+        tmp.style.background = '#ffffff';
+        tmp.innerHTML = reportHtml;
+        document.body.appendChild(tmp);
 
-        const blob = doc.output('blob');
+        const worker = html2pdf().set({
+            margin: 0,
+            filename: filename || ('export_' + new Date().toISOString().slice(0,10) + '.pdf'),
+            image: { type: 'jpeg', quality: 1 },
+            html2canvas: { scale: 2, useCORS: true, backgroundColor: '#ffffff' },
+            jsPDF: { unit: 'pt', format: 'letter', orientation: 'portrait' }
+        }).from(tmp);
+
+        const pdfBlob = await worker.outputPdf('blob');
+        document.body.removeChild(tmp);
+
         const fd = new FormData();
         fd.append('action', cfg.action);
         fd.append('project_id', String(cfg.projectId));
         fd.append('tool_name', toolName);
-        fd.append('filename', 'export_' + new Date().toISOString().slice(0,10) + '.pdf');
-        fd.append('pdf_file', blob, 'export.pdf');
+        fd.append('filename', filename || ('export_' + new Date().toISOString().slice(0,10) + '.pdf'));
+        fd.append('pdf_file', pdfBlob, 'export.pdf');
         await fetch(cfg.apiUrl, { method: 'POST', body: fd, credentials: 'include' });
     } catch (e) {
         console.warn('Auto-save export failed', e);
