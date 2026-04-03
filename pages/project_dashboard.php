@@ -692,7 +692,8 @@ include __DIR__ . '/../views/header.php';
         const tool = toolMap[toolKey];
         if (!tool || !tool.url) return;
         const sep = tool.url.includes('?') ? '&' : '?';
-        const fullUrl = `${tool.url}${sep}project_id=${encodeURIComponent(pId)}&tool=${encodeURIComponent(tool.slug || toolKey)}&ep_api=${encodeURIComponent('/electroplan/api/api.php')}&ep_export_action=save_tool_export`;
+        const folderQuery = fId ? `&folder_id=${encodeURIComponent(fId)}` : '';
+        const fullUrl = `${tool.url}${sep}project_id=${encodeURIComponent(pId)}${folderQuery}&tool=${encodeURIComponent(tool.slug || toolKey)}&ep_api=${encodeURIComponent('/electroplan/api/api.php')}&ep_export_action=save_tool_export`;
         window.open(fullUrl, '_blank', 'noopener');
     }
 

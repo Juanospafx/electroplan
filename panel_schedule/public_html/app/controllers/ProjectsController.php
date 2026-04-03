@@ -169,9 +169,15 @@ class ProjectsController
             }
 
             if ($ctx['project_id'] > 0) {
-                $stmt = $pdo->prepare("SELECT name, COALESCE(project_number, '') AS project_number FROM projects WHERE id = ? AND deleted_at IS NULL LIMIT 1");
-                $stmt->execute([$ctx['project_id']]);
-                $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+                try {
+                    $stmt = $pdo->prepare("SELECT name, COALESCE(project_number, '') AS project_number FROM projects WHERE id = ? AND deleted_at IS NULL LIMIT 1");
+                    $stmt->execute([$ctx['project_id']]);
+                    $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+                } catch (\Throwable $e) {
+                    $stmt = $pdo->prepare("SELECT name, '' AS project_number FROM projects WHERE id = ? LIMIT 1");
+                    $stmt->execute([$ctx['project_id']]);
+                    $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+                }
                 if (is_array($row)) {
                     $ctx['project_name'] = (string)($row['name'] ?? '');
                     $ctx['project_number'] = (string)($row['project_number'] ?? '');
@@ -179,9 +185,15 @@ class ProjectsController
             }
 
             if ($ctx['folder_id'] > 0) {
-                $stmt = $pdo->prepare("SELECT name, project_id FROM folders WHERE id = ? AND deleted_at IS NULL LIMIT 1");
-                $stmt->execute([$ctx['folder_id']]);
-                $folder = $stmt->fetch(\PDO::FETCH_ASSOC);
+                try {
+                    $stmt = $pdo->prepare("SELECT name, project_id FROM folders WHERE id = ? AND deleted_at IS NULL LIMIT 1");
+                    $stmt->execute([$ctx['folder_id']]);
+                    $folder = $stmt->fetch(\PDO::FETCH_ASSOC);
+                } catch (\Throwable $e) {
+                    $stmt = $pdo->prepare("SELECT name, project_id FROM folders WHERE id = ? LIMIT 1");
+                    $stmt->execute([$ctx['folder_id']]);
+                    $folder = $stmt->fetch(\PDO::FETCH_ASSOC);
+                }
                 if (is_array($folder)) {
                     $ctx['folder_name'] = (string)($folder['name'] ?? '');
                     if ($ctx['project_id'] <= 0 && !empty($folder['project_id'])) {
@@ -191,9 +203,15 @@ class ProjectsController
             }
 
             if ($ctx['project_id'] > 0 && $ctx['project_name'] === '') {
-                $stmt = $pdo->prepare("SELECT name, COALESCE(project_number, '') AS project_number FROM projects WHERE id = ? AND deleted_at IS NULL LIMIT 1");
-                $stmt->execute([$ctx['project_id']]);
-                $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+                try {
+                    $stmt = $pdo->prepare("SELECT name, COALESCE(project_number, '') AS project_number FROM projects WHERE id = ? AND deleted_at IS NULL LIMIT 1");
+                    $stmt->execute([$ctx['project_id']]);
+                    $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+                } catch (\Throwable $e) {
+                    $stmt = $pdo->prepare("SELECT name, '' AS project_number FROM projects WHERE id = ? LIMIT 1");
+                    $stmt->execute([$ctx['project_id']]);
+                    $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+                }
                 if (is_array($row)) {
                     $ctx['project_name'] = (string)($row['name'] ?? '');
                     $ctx['project_number'] = (string)($row['project_number'] ?? '');

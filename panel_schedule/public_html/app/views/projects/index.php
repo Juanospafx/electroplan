@@ -15,7 +15,7 @@ $ctxSuffix = $ctx ? ('?' . http_build_query($ctx)) : '';
         <h5 class="mb-1">Projects</h5>
         <small class="text-muted">Project summary list</small>
       </div>
-      <a class="btn btn-primary" href="<?= htmlspecialchars(base_url('/projects/new') . $ctxSuffix) ?>">Create Project</a>
+      <a class="btn btn-accent" href="<?= htmlspecialchars(base_url('/projects/new') . $ctxSuffix) ?>">Create Project</a>
     </div>
 
     <div class="table-responsive">

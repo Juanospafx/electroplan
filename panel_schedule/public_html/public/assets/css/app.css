@@ -53,6 +53,19 @@ body { background: var(--bg); color: var(--text); }
   border-color: #f95a3f !important;
   color: #fff !important;
 }
+
+.btn-accent {
+  background: #fb6a52 !important;
+  border-color: #fb6a52 !important;
+  color: #fff !important;
+}
+.btn-accent:hover,
+.btn-accent:focus,
+.btn-accent:active {
+  background: #f95a3f !important;
+  border-color: #f95a3f !important;
+  color: #fff !important;
+}
 .btn-outline-secondary, .btn-secondary { border-color: var(--border); color: var(--text); background: transparent; }
 .btn-outline-secondary:hover, .btn-secondary:hover { background: rgba(99,102,241,.15); border-color: var(--accent); color: #fff; }
 .slot-disabled { background: rgba(148,163,184,.12); }
