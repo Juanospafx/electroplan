@@ -345,11 +345,6 @@ function exportReport() {
     autoSaveCurrentToolExport('wireway', `Wireway total: ${totalVal} in (${totalFt})`);
 }
 
-
-
-}
-
-
 /* --- CALCULO --- */
 function calculateAndRender() {
     renderLoadList();

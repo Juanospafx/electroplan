@@ -28,7 +28,8 @@ class ProjectsController
 
     public function create(): void
     {
-        View::render('projects/create', []);
+        $context = $this->getElectroplanContext();
+        View::render('projects/create', ['context' => $context]);
     }
 
     public function store(): void
@@ -140,6 +141,69 @@ class ProjectsController
 
         header('Location: ' . base_url('/'));
         exit;
+    }
+
+    private function getElectroplanContext(): array
+    {
+        $ctx = [
+            'project_id' => (int)($_SESSION['electroplan_project_id'] ?? 0),
+            'folder_id' => (int)($_SESSION['electroplan_folder_id'] ?? 0),
+            'project_name' => '',
+            'project_number' => '',
+            'folder_name' => '',
+        ];
+
+        if ($ctx['project_id'] <= 0 && $ctx['folder_id'] <= 0) {
+            return $ctx;
+        }
+
+        try {
+            $epDb = dirname(__DIR__, 5) . '/core/db/connection.php';
+            if (!file_exists($epDb)) {
+                return $ctx;
+            }
+
+            require $epDb;
+            if (!isset($pdo) || !($pdo instanceof \PDO)) {
+                return $ctx;
+            }
+
+            if ($ctx['project_id'] > 0) {
+                $stmt = $pdo->prepare("SELECT name, COALESCE(project_number, '') AS project_number FROM projects WHERE id = ? AND deleted_at IS NULL LIMIT 1");
+                $stmt->execute([$ctx['project_id']]);
+                $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+                if (is_array($row)) {
+                    $ctx['project_name'] = (string)($row['name'] ?? '');
+                    $ctx['project_number'] = (string)($row['project_number'] ?? '');
+                }
+            }
+
+            if ($ctx['folder_id'] > 0) {
+                $stmt = $pdo->prepare("SELECT name, project_id FROM folders WHERE id = ? AND deleted_at IS NULL LIMIT 1");
+                $stmt->execute([$ctx['folder_id']]);
+                $folder = $stmt->fetch(\PDO::FETCH_ASSOC);
+                if (is_array($folder)) {
+                    $ctx['folder_name'] = (string)($folder['name'] ?? '');
+                    if ($ctx['project_id'] <= 0 && !empty($folder['project_id'])) {
+                        $ctx['project_id'] = (int)$folder['project_id'];
+                    }
+                }
+            }
+
+            if ($ctx['project_id'] > 0 && $ctx['project_name'] === '') {
+                $stmt = $pdo->prepare("SELECT name, COALESCE(project_number, '') AS project_number FROM projects WHERE id = ? AND deleted_at IS NULL LIMIT 1");
+                $stmt->execute([$ctx['project_id']]);
+                $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+                if (is_array($row)) {
+                    $ctx['project_name'] = (string)($row['name'] ?? '');
+                    $ctx['project_number'] = (string)($row['project_number'] ?? '');
+                }
+            }
+        } catch (\Throwable $e) {
+            // Keep context empty when Electroplan DB is unavailable.
+        }
+
+        return $ctx;
     }
 
     private function toFloat($value): ?float

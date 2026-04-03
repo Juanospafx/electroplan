@@ -1,3 +1,13 @@
+<?php
+$ctx = [];
+if (!empty($_SESSION['electroplan_project_id'])) {
+  $ctx['project_id'] = (int)$_SESSION['electroplan_project_id'];
+}
+if (!empty($_SESSION['electroplan_folder_id'])) {
+  $ctx['folder_id'] = (int)$_SESSION['electroplan_folder_id'];
+}
+$ctxSuffix = $ctx ? ('?' . http_build_query($ctx)) : '';
+?>
 <div class="card shadow-sm">
   <div class="card-body">
     <div class="d-flex justify-content-between align-items-center mb-3">
@@ -5,7 +15,7 @@
         <h5 class="mb-1">Projects</h5>
         <small class="text-muted">Project summary list</small>
       </div>
-      <a class="btn btn-primary" href="<?= htmlspecialchars(base_url('/projects/new')) ?>">Create Project</a>
+      <a class="btn btn-primary" href="<?= htmlspecialchars(base_url('/projects/new') . $ctxSuffix) ?>">Create Project</a>
     </div>
 
     <div class="table-responsive">

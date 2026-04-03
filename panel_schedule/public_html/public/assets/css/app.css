@@ -35,11 +35,20 @@ body { background: var(--bg); color: var(--text); }
 .form-control:focus, .form-select:focus { border-color: var(--accent); box-shadow: 0 0 0 .2rem rgba(251,90,58,.25); background: var(--panel-2); color: var(--text); }
 .text-muted, .small, .form-text { color: var(--muted) !important; }
 .btn-primary {
+  --bs-btn-bg: #fb6a52;
+  --bs-btn-border-color: #fb6a52;
+  --bs-btn-hover-bg: #f95a3f;
+  --bs-btn-hover-border-color: #f95a3f;
+  --bs-btn-active-bg: #ef4b2f;
+  --bs-btn-active-border-color: #ef4b2f;
+  --bs-btn-focus-shadow-rgb: 251,90,58;
   background: #fb6a52 !important;
   border-color: #fb6a52 !important;
   color: #fff !important;
 }
-.btn-primary:hover {
+.btn-primary:hover,
+.btn-primary:focus,
+.btn-primary:active {
   background: #f95a3f !important;
   border-color: #f95a3f !important;
   color: #fff !important;
