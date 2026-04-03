@@ -83,37 +83,155 @@ include __DIR__ . '/../views/header.php';
 
     <main class="main-content">
         <style>
+            :root {
+                /* Paleta Dark Mode (Deep Matte) */
+                --bg-body: #1b212d;
+                --bg-card: #242a38;
+                --bg-input: #151a23;
+                --primary: #fb5a3a;
+                --primary-hover: #e14e32;
+                --text-white: #ffffff;
+                --text-gray: #94a3b8;
+                --text-muted: #58657a;
+                --border-subtle: #2f384a;
+                --radius-box: 20px;
+            }
+
              /* ESTILOS TIMELINE */
             .timeline-container { position: relative; max-width: 800px; margin-left: 10px; }
-            .timeline-container::before { content: ''; position: absolute; top: 0; bottom: 0; left: 24px; width: 2px; background: rgba(255,255,255,0.05); border-radius: 2px; }
+            .timeline-container::before { content: ''; position: absolute; top: 0; bottom: 0; left: 24px; width: 2px; background: var(--border-subtle); border-radius: 2px; }
             .timeline-item { position: relative; padding-left: 60px; margin-bottom: 30px; }
-            .timeline-icon { position: absolute; left: 0; top: 0; width: 50px; height: 50px; border-radius: 50%; background: #0b1120; border: 2px solid rgba(255,255,255,0.05); display: flex; align-items: center; justify-content: center; z-index: 2; color: #94a3b8; font-size: 1.1rem; }
-            .timeline-item:hover .timeline-icon { border-color: #6366f1; color: white; background: #6366f1; box-shadow: 0 0 15px rgba(99, 102, 241, 0.4); }
-            .timeline-card { background: #1e293b; border-radius: 20px; padding: 20px 25px; border: 1px solid rgba(255,255,255,0.05); transition: 0.3s; }
-            .timeline-card:hover { transform: translateY(-3px); border-color: rgba(255,255,255,0.1); background: #252f44; }
-            .time-badge { font-size: 0.75rem; color: #94a3b8; margin-bottom: 8px; display: block; text-transform: uppercase; letter-spacing: 0.5px; }
-            .activity-title { font-size: 1.1rem; font-weight: 600; margin-bottom: 5px; color: white; }
-            .activity-desc { color: #94a3b8; font-size: 0.9rem; }
-            .user-mini { display: flex; align-items: center; gap: 8px; margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.05); }
-            .user-mini img, .user-mini div.av { width: 24px; height: 24px; border-radius: 50%; background: #6366f1; display: flex; align-items: center; justify-content: center; font-size: 0.6rem; font-weight: bold; }
-            .user-role-badge { background: rgba(255,255,255,0.1); padding: 2px 8px; border-radius: 10px; font-size: 0.65rem; margin-left: auto; color: #94a3b8; }
+            .timeline-icon { position: absolute; left: 0; top: 0; width: 50px; height: 50px; border-radius: 50%; background: var(--bg-body); border: 2px solid var(--border-subtle); display: flex; align-items: center; justify-content: center; z-index: 2; color: var(--text-gray); font-size: 1.1rem; transition: 0.3s; }
+            .timeline-item:hover .timeline-icon { border-color: var(--primary); color: white; background: var(--primary); box-shadow: 0 0 15px rgba(251, 90, 58, 0.4); }
+            .timeline-card { background: var(--bg-card); border-radius: var(--radius-box); padding: 20px 25px; border: 1px solid var(--border-subtle); transition: 0.3s; }
+            .timeline-card:hover { transform: translateY(-3px); border-color: var(--primary); background: var(--bg-input); }
+            .time-badge { font-size: 0.75rem; color: var(--text-gray); margin-bottom: 8px; display: block; text-transform: uppercase; letter-spacing: 0.5px; }
+            .activity-title { font-size: 1.1rem; font-weight: 600; margin-bottom: 5px; color: var(--text-white); }
+            .activity-desc { color: var(--text-gray); font-size: 0.9rem; }
+            .user-mini { display: flex; align-items: center; gap: 8px; margin-top: 15px; padding-top: 15px; border-top: 1px solid var(--border-subtle); }
+            .user-mini div.av { width: 24px; height: 24px; border-radius: 50%; background: var(--primary); color: white; display: flex; align-items: center; justify-content: center; font-size: 0.6rem; font-weight: bold; }
+            .text-muted { color: var(--text-gray) !important; }
+            .user-role-badge { background: var(--bg-body); padding: 2px 8px; border-radius: 10px; font-size: 0.65rem; margin-left: auto; color: var(--text-gray); border: 1px solid var(--border-subtle); }
             /* ESTILO PARA SEPARADOR DE FECHAS */
             .date-separator { position: relative; margin: 40px 0 30px 0; padding-left: 60px; }
-            .date-separator::before { content: ''; position: absolute; left: 19px; top: 50%; width: 12px; height: 12px; background: #6366f1; border-radius: 50%; border: 3px solid #0b1120; z-index: 3; transform: translateY(-50%); }
-            .date-label { display: inline-block; background: rgba(99, 102, 241, 0.1); color: #6366f1; padding: 5px 15px; border-radius: 20px; font-weight: 700; font-size: 0.85rem; border: 1px solid rgba(99, 102, 241, 0.2); }
+            .date-separator::before { content: ''; position: absolute; left: 19px; top: 50%; width: 12px; height: 12px; background: var(--primary); border-radius: 50%; border: 3px solid var(--bg-body); z-index: 3; transform: translateY(-50%); }
+            .date-label { display: inline-block; background: rgba(251, 90, 58, 0.1); color: var(--primary); padding: 5px 15px; border-radius: 20px; font-weight: 700; font-size: 0.85rem; border: 1px solid rgba(251, 90, 58, 0.2); }
 
-            body.theme-light .timeline-container::before { background: rgba(15,23,42,0.15); }
-            body.theme-light .timeline-icon { background: #ffffff; border-color: rgba(15,23,42,0.18); color: #475569; }
-            body.theme-light .timeline-card { background: #ffffff; border-color: rgba(15,23,42,0.12); }
-            body.theme-light .timeline-card:hover { background: #f8fafc; border-color: rgba(15,23,42,0.2); }
-            body.theme-light .activity-title { color: #0f172a; }
-            body.theme-light .activity-desc,
-            body.theme-light .time-badge,
-            body.theme-light .user-role-badge { color: #475569; }
-            body.theme-light .user-mini { border-top-color: rgba(15,23,42,0.12); }
-            body.theme-light .date-separator::before { border-color: #f3f6fb; }
-            body.theme-light .bg-dark { background-color: #ffffff !important; color: #0f172a !important; }
+            .form-control {
+                background: var(--bg-input) !important;
+                border: 1px solid var(--border-subtle) !important;
+                color: var(--text-white) !important;
+                border-radius: 10px;
+            }
+            .form-control::placeholder {
+                color: var(--text-gray) !important;
+                opacity: 1; /* Soporte para Firefox */
+            }
+            .form-control:focus {
+                border-color: var(--primary) !important;
+                box-shadow: 0 0 0 3px rgba(251, 90, 58, 0.2) !important;
+            }
+            /* Estilo para el icono del calendario nativo */
+            .form-control::-webkit-calendar-picker-indicator {
+                filter: invert(0.8);
+                cursor: pointer;
+            }
+
+            .btn-primary {
+                background-color: var(--primary) !important;
+                border-color: var(--primary) !important;
+            }
+            .btn-primary:hover {
+                background-color: var(--primary-hover) !important;
+                border-color: var(--primary-hover) !important;
+            }
+
+            body.theme-light {
+                --bg-body: #e2e8f0;
+                --bg-card: #ffffff;
+                --bg-input: #f8fafc;
+                --text-white: #0f172a;
+                --text-gray: #64748b;
+                --text-muted: #94a3b8;
+                --border-subtle: #ffffff;
+            }
+            body.theme-light .form-control::-webkit-calendar-picker-indicator { filter: none; }
+            body.theme-light .bg-dark { background-color: var(--bg-card) !important; color: var(--text-white) !important; border-color: var(--border-subtle) !important; }
+
+            /* ESTILOS COMPACTOS PARA EL CALENDARIO (FLATPICKR) */
+            .flatpickr-calendar {
+                width: 280px !important;
+                background: var(--bg-card) !important;
+                border: 1px solid var(--border-subtle) !important;
+                box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.5) !important;
+                border-radius: 12px !important;
+                font-family: 'Poppins', sans-serif !important;
+                padding: 5px;
+            }
+            .flatpickr-months .flatpickr-month, 
+            .flatpickr-current-month .flatpickr-monthDropdown-months,
+            .flatpickr-current-month input.cur-year,
+            .flatpickr-months .flatpickr-prev-month, .flatpickr-months .flatpickr-next-month {
+                color: var(--text-white) !important;
+                fill: var(--text-white) !important;
+            }
+            /* Ajuste dinámico de la lista de meses */
+            .flatpickr-monthDropdown-months {
+                background: var(--bg-card) !important;
+                color: var(--text-white) !important;
+                font-size: 0.85rem !important;
+                font-weight: 600 !important;
+            }
+            .flatpickr-monthDropdown-month {
+                background: var(--bg-card);
+                color: var(--text-white);
+            }
+            .flatpickr-current-month {
+                display: flex !important;
+                align-items: center;
+                justify-content: center;
+                gap: 4px;
+            }
+            .flatpickr-current-month input.cur-year {
+                font-size: 0.85rem !important;
+                font-weight: 600 !important;
+                text-align: center;
+            }
+            .flatpickr-weekdays, span.flatpickr-weekday {
+                color: var(--text-gray) !important;
+                font-size: 0.75rem !important;
+            }
+            .dayContainer { width: 270px !important; min-width: 270px !important; max-width: 270px !important; }
+            .flatpickr-day {
+                color: var(--text-white) !important;
+                font-size: 0.85rem !important; /* Ajustado para que coincida con el tamaño del mes */
+                border-radius: 6px !important;
+                max-width: 36px !important;
+                height: 36px !important;
+                line-height: 36px !important;
+            }
+            .flatpickr-day:hover {
+                background: var(--bg-input) !important;
+                border-color: var(--border-subtle) !important;
+            }
+            .flatpickr-day.selected, 
+            .flatpickr-day.selected:hover, 
+            .flatpickr-day.selected:focus {
+                background: var(--primary) !important;
+                border-color: var(--primary) !important;
+                color: white !important;
+            }
+            .flatpickr-day.today { border-color: var(--primary) !important; }
+            .flatpickr-day.flatpickr-disabled { color: var(--text-muted) !important; }
+
+            /* Opacidad para días que no corresponden al mes actual */
+            .flatpickr-day.prevMonthDay,
+            .flatpickr-day.nextMonthDay {
+                opacity: 0.3 !important;
+            }
         </style>
+        <!-- Flatpickr CSS -->
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
 
         <header class="header">
             <div class="d-flex align-items-center gap-3">
@@ -140,7 +258,7 @@ include __DIR__ . '/../views/header.php';
             </div>
             
             <form method="GET" class="d-flex align-items-center gap-2">
-                <input type="date" name="filter_date" class="form-control form-control-sm bg-dark text-white border-secondary" value="<?= htmlspecialchars($filterDate) ?>">
+                <input type="text" name="filter_date" id="activityDatePicker" class="form-control form-control-sm" placeholder="Select date..." value="<?= htmlspecialchars($filterDate) ?>">
                 <button type="submit" class="btn btn-sm btn-primary"><i class="fas fa-filter"></i></button>
                 <?php if(!empty($filterDate)): ?>
                     <a href="timeline.php" class="btn btn-sm btn-outline-secondary" title="Clear"><i class="fas fa-times"></i></a>
@@ -200,5 +318,20 @@ include __DIR__ . '/../views/header.php';
             <?php endif; ?>
         </div>
     </main>
+    
+    <!-- Flatpickr JS -->
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            flatpickr("#activityDatePicker", {
+                dateFormat: "Y-m-d",
+                altInput: true,
+                altFormat: "F j, Y",
+                disableMobile: true, // Forza el uso del calendario custom en móviles
+                minDate: "2025-01-01", // Solo permite seleccionar fechas desde 2025 en adelante
+                position: "below center" // Centra el calendario horizontalmente bajo el input
+            });
+        });
+    </script>
 
 <?php include __DIR__ . '/../views/footer.php'; ?>
