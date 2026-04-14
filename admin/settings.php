@@ -197,10 +197,13 @@ include __DIR__ . '/../views/header.php';
                 </div>
             </div>
 
-            <div class="user-pill">
+            <a href="settings.php?tab=users" class="user-pill text-decoration-none">
                 <div class="avatar"><?= strtoupper(substr($userName,0,1)) ?></div>
-                <span class="small fw-bold"><?= htmlspecialchars($userName) ?></span>
-            </div>
+                <div class="user-pill-info">
+                    <span class="user-pill-name"><?= htmlspecialchars($userName) ?></span>
+                    <span class="user-pill-role"><?= ucfirst($userRole) ?></span>
+                </div>
+            </a>
         </header>
 
         <div class="mb-4">
@@ -245,7 +248,7 @@ include __DIR__ . '/../views/header.php';
                         <tr>
                             <td>
                                 <div class="d-flex align-items-center gap-3">
-                                    <div class="avatar" style="background: <?= $u['role']=='admin'?'#ef4444':'#fb5a3a' ?>">
+                                    <div class="avatar" style="background: <?= $u['role']=='admin'?'#f59e0b':($u['role']=='technician'?'#10b981':'#8b5cf6') ?>">
                                         <?= strtoupper(substr($u['username'],0,1)) ?>
                                     </div>
                                     <div>

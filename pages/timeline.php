@@ -109,7 +109,7 @@ include __DIR__ . '/../views/header.php';
             .activity-title { font-size: 1.1rem; font-weight: 600; margin-bottom: 5px; color: var(--text-white); }
             .activity-desc { color: var(--text-gray); font-size: 0.9rem; }
             .user-mini { display: flex; align-items: center; gap: 8px; margin-top: 15px; padding-top: 15px; border-top: 1px solid var(--border-subtle); }
-            .user-mini div.av { width: 24px; height: 24px; border-radius: 50%; background: var(--primary); color: white; display: flex; align-items: center; justify-content: center; font-size: 0.6rem; font-weight: bold; }
+            .user-mini div.av { width: 24px; height: 24px; border-radius: 50%; color: white; display: flex; align-items: center; justify-content: center; font-size: 0.6rem; font-weight: bold; }
             .text-muted { color: var(--text-gray) !important; }
             .user-role-badge { background: var(--bg-body); padding: 2px 8px; border-radius: 10px; font-size: 0.65rem; margin-left: auto; color: var(--text-gray); border: 1px solid var(--border-subtle); }
             /* ESTILO PARA SEPARADOR DE FECHAS */
@@ -245,10 +245,13 @@ include __DIR__ . '/../views/header.php';
                 </div>
             </div>
 
-            <div class="user-pill">
+            <a href="../admin/settings.php?tab=users" class="user-pill text-decoration-none">
                 <div class="avatar"><?= strtoupper(substr($userName,0,1)) ?></div>
-                <span class="small fw-bold"><?= htmlspecialchars($userName) ?></span>
-            </div>
+                <div class="user-pill-info">
+                    <span class="user-pill-name"><?= htmlspecialchars($userName) ?></span>
+                    <span class="user-pill-role"><?= ucfirst($_SESSION['role'] ?? 'Viewer') ?></span>
+                </div>
+            </a>
         </header>
 
         <div class="d-flex justify-content-between align-items-end mb-5">
@@ -300,7 +303,13 @@ include __DIR__ . '/../views/header.php';
                     <div class="activity-title"><?= htmlspecialchars($act['title']) ?></div>
                     <div class="activity-desc"><?= $act['type'] == 'file' ? 'Uploaded to: ' : '' ?><?= htmlspecialchars($act['subtitle'] ?: 'No additional details.') ?></div>
                     <div class="user-mini">
-                        <div class="av"><?= strtoupper(substr($act['user_name'] ?? 'U', 0, 1)) ?></div>
+                        <?php
+                            $rCol = '#3b82f6';
+                            if(($act['user_role'] ?? '') == 'admin') $rCol = '#f59e0b';
+                            elseif(($act['user_role'] ?? '') == 'technician') $rCol = '#10b981';
+                            elseif(($act['user_role'] ?? '') == 'viewer') $rCol = '#8b5cf6';
+                        ?>
+                        <div class="av" style="background: <?= $rCol ?>"><?= strtoupper(substr($act['user_name'] ?? 'U', 0, 1)) ?></div>
                         <div class="small fw-bold text-white"><?= htmlspecialchars($act['user_name'] ?? 'System') ?></div>
                         <div class="small text-muted ms-1">performed action: <span class="<?= $colorClass ?>"><?= $actionText ?></span></div>
                         <div class="user-role-badge"><?= strtoupper($act['user_role'] ?? '') ?></div>

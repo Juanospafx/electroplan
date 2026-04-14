@@ -124,10 +124,13 @@ include __DIR__ . '/../views/header.php';
             </div>
         </div>
 
-        <div class="user-pill">
+        <a href="../admin/settings.php?tab=users" class="user-pill text-decoration-none">
             <div class="avatar"><?= strtoupper(substr($userName,0,1)) ?></div>
-            <span class="small fw-bold"><?= htmlspecialchars($userName) ?></span>
-        </div>
+            <div class="user-pill-info">
+                <span class="user-pill-name"><?= htmlspecialchars($userName) ?></span>
+                <span class="user-pill-role"><?= ucfirst($_SESSION['role'] ?? 'Viewer') ?></span>
+            </div>
+        </a>
     </header>
 
     <div class="d-flex justify-content-between align-items-end mb-4">
