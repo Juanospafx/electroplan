@@ -100,41 +100,84 @@ include __DIR__ . '/../views/header.php';
 ?>
 
     <style>
-        .settings-nav { display: flex; gap: 10px; margin-bottom: 30px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 20px; }
-        .nav-pill { padding: 10px 25px; border-radius: 50px; font-weight: 600; font-size: 0.9rem; color: #94a3b8; transition: 0.2s; border: 1px solid transparent; }
-        .nav-pill:hover { background: #334155; color: white; }
-        .nav-pill.active { background: #6366f1; color: white; box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3); }
+        :root {
+            /* Paleta Dark Mode (Deep Matte) */
+            --bg-body: #1b212d;
+            --bg-card: #242a38;
+            --bg-input: #151a23;
+            --primary: #fb5a3a;
+            --primary-hover: #e14e32;
+            --text-white: #ffffff;
+            --text-gray: #94a3b8;
+            --text-muted: #58657a;
+            --border-subtle: #2f384a;
+            --radius-box: 20px;
+        }
 
-        .card-box { background: #1e293b; border-radius: 20px; padding: 30px; border: 1px solid rgba(255,255,255,0.05); }
-        .form-label { color: #94a3b8; font-size: 0.85rem; font-weight: 600; margin-bottom: 8px; }
+        body.theme-light {
+            --bg-body: #e2e8f0;
+            --bg-card: #ffffff;
+            --bg-input: #f8fafc;
+            --text-white: #0f172a;
+            --text-gray: #64748b;
+            --text-muted: #94a3b8;
+            --border-subtle: #cbd5e1;
+        }
+
+        body.theme-light .bg-dark { background-color: var(--bg-input) !important; color: var(--text-white) !important; border-color: var(--border-subtle) !important; }
+
+        .settings-nav { display: flex; gap: 10px; margin-bottom: 30px; border-bottom: 1px solid var(--border-subtle); padding-bottom: 20px; }
+        .nav-pill { padding: 10px 25px; border-radius: 50px; font-weight: 600; font-size: 0.9rem; color: var(--text-gray); transition: 0.2s; border: 1px solid transparent; }
+        .nav-pill:hover { background: var(--bg-input); color: var(--text-white); border-color: var(--border-subtle); }
+        .nav-pill.active { background: var(--primary); color: white; box-shadow: 0 4px 15px rgba(251, 90, 58, 0.3); }
+
+        .card-box { background: var(--bg-card); border-radius: var(--radius-box); padding: 30px; border: 1px solid var(--border-subtle); }
+        .form-label { color: var(--text-gray); font-size: 0.85rem; font-weight: 600; margin-bottom: 8px; }
         
-        .table-responsive { border-radius: 20px; overflow: hidden; border: 1px solid rgba(255,255,255,0.05); }
-        .table-rounded { width: 100%; border-collapse: separate; border-spacing: 0; background: #1e293b; }
-        .table-rounded th { background: rgba(0,0,0,0.2); color: #94a3b8; font-weight: 600; text-transform: uppercase; font-size: 0.75rem; padding: 15px 20px; border-bottom: 1px solid rgba(255,255,255,0.05); }
-        .table-rounded td { padding: 15px 20px; color: white; vertical-align: middle; border-bottom: 1px solid rgba(255,255,255,0.02); }
+        .table-responsive { border-radius: var(--radius-box); overflow: hidden; border: 1px solid var(--border-subtle); }
+        .table-rounded { width: 100%; border-collapse: separate; border-spacing: 0; background: var(--bg-card); }
+        .table-rounded th { background: var(--bg-input); color: var(--text-gray); font-weight: 600; text-transform: uppercase; font-size: 0.75rem; padding: 15px 20px; border-bottom: 1px solid var(--border-subtle); }
+        .table-rounded td { padding: 15px 20px; color: var(--text-white); vertical-align: middle; border-bottom: 1px solid var(--border-subtle); }
         .table-rounded tr:last-child td { border-bottom: none; }
+        .table-rounded tr:hover td { background: var(--bg-body); }
 
         .alert-custom { background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.2); color: #34d399; border-radius: 12px; padding: 15px; display: flex; align-items: center; gap: 10px; margin-bottom: 20px; }
-        .btn-action { width: 32px; height: 32px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid rgba(255,255,255,0.05); color: #94a3b8; background: transparent; transition: 0.2s; }
-        .btn-action:hover { background: white; color: #0b1120; }
+        .btn-action { width: 32px; height: 32px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--border-subtle); color: var(--text-gray); background: var(--bg-card); transition: 0.2s; }
+        .btn-action:hover { background: var(--primary); color: white; border-color: var(--primary); }
         .btn-action.delete:hover { background: #ef4444; color: white; border-color: #ef4444; }
+
+        /* Form Controls & Modals Integration */
+        .form-control, .form-select { background: var(--bg-input) !important; border: 1px solid var(--border-subtle) !important; color: var(--text-white) !important; border-radius: 10px; }
+        .form-control::placeholder { color: var(--text-gray) !important; opacity: 1; }
+        .form-control:focus, .form-select:focus { border-color: var(--primary) !important; box-shadow: 0 0 0 3px rgba(251, 90, 58, 0.2) !important; }
+
+        .btn-main { background-color: var(--primary) !important; border-color: var(--primary) !important; color: white !important; border-radius: 8px; padding: 8px 16px; border: 1px solid transparent; transition: 0.2s; }
+        .btn-main:hover { background-color: var(--primary-hover) !important; border-color: var(--primary-hover) !important; }
+
+        .modal-content { background-color: var(--bg-card); border: 1px solid var(--border-subtle); color: var(--text-white); border-radius: var(--radius-box); }
+        .modal-header { border-bottom: 1px solid var(--border-subtle); }
+        .modal-footer { border-top: 1px solid var(--border-subtle); }
+        .modal-content .border-top { border-color: var(--border-subtle) !important; }
+        
+        .btn-close { filter: invert(1) grayscale(100%) brightness(200%); }
+        body.theme-light .btn-close { filter: none; }
 
         /* Estilos para botón ojo en Settings */
         .btn-eye-settings {
-            background: transparent;
-            border: 1px solid rgba(255,255,255,0.1);
+            background: var(--bg-input);
+            border: 1px solid var(--border-subtle);
             border-left: 0;
-            color: #94a3b8;
+            color: var(--text-gray);
             transition: 0.2s;
         }
         .btn-eye-settings:hover {
-            background: rgba(255,255,255,0.05);
-            color: white;
-            border-color: rgba(255,255,255,0.2);
+            background: var(--bg-body);
+            color: var(--primary);
+            border-color: var(--border-subtle);
         }
         /* Ajuste de form-control en input-group para esquinas */
         .input-group .form-control:first-child { border-top-right-radius: 0; border-bottom-right-radius: 0; }
-        .input-group .btn:last-child { border-top-left-radius: 0; border-bottom-left-radius: 0; }
+        .input-group .btn:last-child { border-top-left-radius: 0; border-bottom-left-radius: 0; border-top-right-radius: 10px; border-bottom-right-radius: 10px; }
 
     </style>
 
@@ -202,7 +245,7 @@ include __DIR__ . '/../views/header.php';
                         <tr>
                             <td>
                                 <div class="d-flex align-items-center gap-3">
-                                    <div class="avatar" style="background: <?= $u['role']=='admin'?'#ef4444':'#6366f1' ?>">
+                                    <div class="avatar" style="background: <?= $u['role']=='admin'?'#ef4444':'#fb5a3a' ?>">
                                         <?= strtoupper(substr($u['username'],0,1)) ?>
                                     </div>
                                     <div>

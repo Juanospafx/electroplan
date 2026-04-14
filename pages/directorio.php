@@ -58,14 +58,48 @@ include __DIR__ . '/../views/header.php';
 ?>
 
 <style>
-    .table-responsive { border-radius: var(--radius-box); overflow: auto; border: 1px solid rgba(255,255,255,0.05); }
+    :root {
+        /* Paleta Dark Mode (Deep Matte) */
+        --bg-body: #1b212d;
+        --bg-card: #242a38;
+        --bg-input: #151a23;
+        --primary: #fb5a3a;
+        --primary-hover: #e14e32;
+        --text-white: #ffffff;
+        --text-gray: #94a3b8;
+        --text-muted: #58657a;
+        --border-subtle: #2f384a;
+        --radius-box: 20px;
+    }
+
+    body.theme-light {
+        --bg-body: #e2e8f0;
+        --bg-card: #ffffff;
+        --bg-input: #f8fafc;
+        --text-white: #0f172a;
+        --text-gray: #64748b;
+        --text-muted: #94a3b8;
+        --border-subtle: #cbd5e1;
+    }
+
+    body.theme-light .bg-dark { background-color: var(--bg-input) !important; color: var(--text-white) !important; border-color: var(--border-subtle) !important; }
+    body.theme-light .btn-outline-light { border-color: var(--border-subtle); color: var(--text-white); }
+    body.theme-light .btn-outline-light:hover { background: var(--bg-input); color: var(--primary); border-color: var(--primary); }
+
+    .table-responsive { border-radius: var(--radius-box); overflow-x: auto; border: 1px solid var(--border-subtle); }
     .table-rounded { width: 100%; border-collapse: separate; border-spacing: 0; background: var(--bg-card); }
-    .table-rounded th { background: rgba(0,0,0,0.2); color: var(--text-gray); font-weight: 600; text-transform: uppercase; font-size: 0.75rem; padding: 18px 25px; border-bottom: 1px solid rgba(255,255,255,0.05); }
-    .table-rounded td { padding: 20px 25px; color: white; vertical-align: middle; border-bottom: 1px solid rgba(255,255,255,0.02); }
+    .table-rounded th { background: var(--bg-input); color: var(--text-gray); font-weight: 600; text-transform: uppercase; font-size: 0.75rem; padding: 18px 25px; border-bottom: 1px solid var(--border-subtle); white-space: nowrap; }
+    .table-rounded td { padding: 20px 25px; color: var(--text-white); vertical-align: middle; border-bottom: 1px solid var(--border-subtle); }
     .table-rounded tr:last-child td { border-bottom: none; }
-    .table-rounded tr:hover td { background: rgba(255,255,255,0.02); }
-    .user-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px; border-radius: 8px; background: rgba(255,255,255,0.08); margin-right: 6px; margin-bottom: 6px; font-size: 0.75rem; }
-    .user-role { opacity: 0.7; font-size: 0.7rem; }
+    .table-rounded tr:hover td { background: var(--bg-body); }
+
+    .user-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px; border-radius: 8px; background: var(--bg-input); border: 1px solid var(--border-subtle); margin-right: 6px; margin-bottom: 6px; font-size: 0.75rem; color: var(--text-white); }
+    .user-role { opacity: 0.7; font-size: 0.7rem; color: var(--text-gray); }
+
+    /* Form Controls */
+    .form-control { background: var(--bg-input) !important; border: 1px solid var(--border-subtle) !important; color: var(--text-white) !important; border-radius: 10px; }
+    .form-control::placeholder { color: var(--text-gray) !important; opacity: 1; }
+    .form-control:focus { border-color: var(--primary) !important; box-shadow: 0 0 0 3px rgba(251, 90, 58, 0.2) !important; }
 
     @media (max-width: 768px) {
         .header { flex-direction: column; align-items: flex-start; gap: 12px; }
