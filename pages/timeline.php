@@ -157,81 +157,7 @@ include __DIR__ . '/../views/header.php';
             }
             body.theme-light .form-control::-webkit-calendar-picker-indicator { filter: none; }
             body.theme-light .bg-dark { background-color: var(--bg-card) !important; color: var(--text-white) !important; border-color: var(--border-subtle) !important; }
-
-            /* ESTILOS COMPACTOS PARA EL CALENDARIO (FLATPICKR) */
-            .flatpickr-calendar {
-                width: 280px !important;
-                background: var(--bg-card) !important;
-                border: 1px solid var(--border-subtle) !important;
-                box-shadow: 0 10px 30px -5px rgba(0, 0, 0, 0.5) !important;
-                border-radius: 12px !important;
-                font-family: 'Poppins', sans-serif !important;
-                padding: 5px;
-            }
-            .flatpickr-months .flatpickr-month, 
-            .flatpickr-current-month .flatpickr-monthDropdown-months,
-            .flatpickr-current-month input.cur-year,
-            .flatpickr-months .flatpickr-prev-month, .flatpickr-months .flatpickr-next-month {
-                color: var(--text-white) !important;
-                fill: var(--text-white) !important;
-            }
-            /* Ajuste dinámico de la lista de meses */
-            .flatpickr-monthDropdown-months {
-                background: var(--bg-card) !important;
-                color: var(--text-white) !important;
-                font-size: 0.85rem !important;
-                font-weight: 600 !important;
-            }
-            .flatpickr-monthDropdown-month {
-                background: var(--bg-card);
-                color: var(--text-white);
-            }
-            .flatpickr-current-month {
-                display: flex !important;
-                align-items: center;
-                justify-content: center;
-                gap: 4px;
-            }
-            .flatpickr-current-month input.cur-year {
-                font-size: 0.85rem !important;
-                font-weight: 600 !important;
-                text-align: center;
-            }
-            .flatpickr-weekdays, span.flatpickr-weekday {
-                color: var(--text-gray) !important;
-                font-size: 0.75rem !important;
-            }
-            .dayContainer { width: 270px !important; min-width: 270px !important; max-width: 270px !important; }
-            .flatpickr-day {
-                color: var(--text-white) !important;
-                font-size: 0.85rem !important; /* Ajustado para que coincida con el tamaño del mes */
-                border-radius: 6px !important;
-                max-width: 36px !important;
-                height: 36px !important;
-                line-height: 36px !important;
-            }
-            .flatpickr-day:hover {
-                background: var(--bg-input) !important;
-                border-color: var(--border-subtle) !important;
-            }
-            .flatpickr-day.selected, 
-            .flatpickr-day.selected:hover, 
-            .flatpickr-day.selected:focus {
-                background: var(--primary) !important;
-                border-color: var(--primary) !important;
-                color: white !important;
-            }
-            .flatpickr-day.today { border-color: var(--primary) !important; }
-            .flatpickr-day.flatpickr-disabled { color: var(--text-muted) !important; }
-
-            /* Opacidad para días que no corresponden al mes actual */
-            .flatpickr-day.prevMonthDay,
-            .flatpickr-day.nextMonthDay {
-                opacity: 0.3 !important;
-            }
         </style>
-        <!-- Flatpickr CSS -->
-        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
 
         <header class="header">
             <div class="d-flex align-items-center gap-3">
@@ -261,7 +187,7 @@ include __DIR__ . '/../views/header.php';
             </div>
             
             <form method="GET" class="d-flex align-items-center gap-2">
-                <input type="text" name="filter_date" id="activityDatePicker" class="form-control form-control-sm" placeholder="Select date..." value="<?= htmlspecialchars($filterDate) ?>">
+                <input type="text" name="filter_date" class="form-control form-control-sm app-datepicker" data-min-date="2025-01-01" placeholder="Select date..." value="<?= htmlspecialchars($filterDate) ?>">
                 <button type="submit" class="btn btn-sm btn-primary"><i class="fas fa-filter"></i></button>
                 <?php if(!empty($filterDate)): ?>
                     <a href="timeline.php" class="btn btn-sm btn-outline-secondary" title="Clear"><i class="fas fa-times"></i></a>
@@ -328,19 +254,6 @@ include __DIR__ . '/../views/header.php';
         </div>
     </main>
     
-    <!-- Flatpickr JS -->
-    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            flatpickr("#activityDatePicker", {
-                dateFormat: "Y-m-d",
-                altInput: true,
-                altFormat: "F j, Y",
-                disableMobile: true, // Forza el uso del calendario custom en móviles
-                minDate: "2025-01-01", // Solo permite seleccionar fechas desde 2025 en adelante
-                position: "below center" // Centra el calendario horizontalmente bajo el input
-            });
-        });
-    </script>
+    <?php include_once __DIR__ . '/../funciones/calendar.php'; ?>
 
 <?php include __DIR__ . '/../views/footer.php'; ?>

@@ -348,24 +348,24 @@ include __DIR__ . '/../views/header.php';
                 <div class="row g-4">
                     <div class="col-md-6">
                         <label class="form-label">Bid Sent Date</label>
-                        <input type="date" name="date_bid_send" class="form-control" value="<?= htmlspecialchars($project['date_bid_sent'] ?? '') ?>">
+                        <input type="text" name="date_bid_send" class="form-control app-datepicker" value="<?= htmlspecialchars($project['date_bid_sent'] ?? '') ?>">
                     </div>
                     <div class="col-md-6">
                         <label class="form-label">Bid Awarded</label>
-                        <input type="date" name="date_bid_awarded" class="form-control" value="<?= htmlspecialchars($project['date_bid_awarded'] ?? '') ?>">
+                        <input type="text" name="date_bid_awarded" class="form-control app-datepicker" value="<?= htmlspecialchars($project['date_bid_awarded'] ?? '') ?>">
                     </div>
                     <div class="col-12"><div style="border-top:1px dashed var(--border-subtle); margin: 5px 0;"></div></div>
                     <div class="col-md-4">
                         <label class="form-label">Project Start Date</label>
-                        <input type="date" name="date_started" class="form-control" value="<?= htmlspecialchars($project['date_started'] ?? '') ?>">
+                        <input type="text" name="date_started" class="form-control app-datepicker" value="<?= htmlspecialchars($project['date_started'] ?? '') ?>">
                     </div>
                     <div class="col-md-4">
                         <label class="form-label">Target Finish</label>
-                        <input type="date" name="date_finished" class="form-control" value="<?= htmlspecialchars($project['date_finished'] ?? '') ?>">
+                        <input type="text" name="date_finished" class="form-control app-datepicker" value="<?= htmlspecialchars($project['date_finished'] ?? '') ?>">
                     </div>
                     <div class="col-md-4">
                         <label class="form-label">Warranty End</label>
-                        <input type="date" name="date_warranty_end" class="form-control" value="<?= htmlspecialchars($project['date_warranty_end'] ?? '') ?>">
+                        <input type="text" name="date_warranty_end" class="form-control app-datepicker" value="<?= htmlspecialchars($project['date_warranty_end'] ?? '') ?>">
                     </div>
                 </div>
             </div>
@@ -616,5 +616,7 @@ document.getElementById('createProjectForm').addEventListener('submit', function
         });
 });
 </script>
+
+<?php include_once __DIR__ . '/../funciones/calendar.php'; ?>
 
 <?php include __DIR__ . '/../views/footer.php'; ?>
