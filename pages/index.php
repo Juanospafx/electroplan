@@ -437,7 +437,7 @@ include __DIR__ . '/../views/header.php';
                             <span class="fw-bold fs-5 text-white"><?= htmlspecialchars($item['name']) ?></span>
                         </a>
                         <?php if(!$isRep && $canDelete): ?>
-                            <a href="index.php?action=delete_folder&id=<?= $item['id'] ?>" class="text-danger opacity-25 hover-opacity-100 ms-2" onclick="return confirm('Delete folder?')"><i class="fas fa-trash"></i></a>
+                            <a href="index.php?action=delete_folder&id=<?= $item['id'] ?>" class="text-danger opacity-25 hover-opacity-100 ms-2" onclick="event.preventDefault(); let url=this.href; appConfirm('Delete folder?', 'Confirm Deletion', () => { window.location.href = url; });"><i class="fas fa-trash"></i></a>
                         <?php endif; ?>
                     </div>
                 </div>
@@ -584,7 +584,7 @@ include __DIR__ . '/../views/header.php';
     // Procesador de Subida
     async function handleFiles(fileList) {
         if(fileList.length === 0) return;
-        if(!pId) { alert("Error: No project selected."); return; }
+        if(!pId) { appAlert("Error: No project selected.", "Missing Project", "error"); return; }
 
         const btnUp = document.querySelector('.btn-main'); 
         if(btnUp) { btnUp.disabled = true; btnUp.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Uploading...'; }
@@ -596,12 +596,12 @@ include __DIR__ . '/../views/header.php';
             const file = fileList[i];
             
             if (file.size > MAX_SIZE) {
-                alert(`Error: El archivo "${file.name}" supera el límite de 1GB.`);
+                appAlert(`Error: File "${file.name}" exceeds the 1GB limit.`, "Size Limit", "warning");
                 continue; 
             }
 
             if (!ALLOWED_TYPES.includes(file.type) && !file.name.match(/\.(jpg|jpeg|png|gif|webp|pdf|bmp|tiff)$/i)) {
-                 alert(`Error: El archivo "${file.name}" no es válido. Solo se permiten PDF e Imágenes.`);
+                 appAlert(`Error: File "${file.name}" is invalid. Only PDF and Images allowed.`, "Invalid Format", "error");
                  continue; 
             }
 
@@ -613,11 +613,11 @@ include __DIR__ . '/../views/header.php';
                 let response = await fetch('../api/api.php', { method: 'POST', body: fd }); 
                 let data = await response.json();
                 if(data.status === 'error') {
-                    alert(`Error subiendo ${file.name}: ${data.msg}`);
+                    appAlert(`Error uploading ${file.name}: ${data.msg}`, "Upload Error", "error");
                 }
             } catch (e) { 
                 console.error(e); 
-                alert(`Error de conexión subiendo ${file.name}`);
+                appAlert(`Connection error uploading ${file.name}`, "Error", "error");
             }
         }
         location.reload();
@@ -679,9 +679,9 @@ include __DIR__ . '/../views/header.php';
                 .then(r => r.json())
                 .then(d => {
                     if(d.status === 'success') location.reload();
-                    else { alert("Error moving item: " + d.msg); btn.innerHTML = originalText; btn.disabled = false; }
+                    else { appAlert("Error moving item: " + d.msg, "Error", "error"); btn.innerHTML = originalText; btn.disabled = false; }
                 })
-                .catch(e => { alert("Connection error"); btn.innerHTML = originalText; btn.disabled = false; });
+                .catch(e => { appAlert("Connection error", "Error", "error"); btn.innerHTML = originalText; btn.disabled = false; });
         });
     }
 
@@ -713,17 +713,18 @@ include __DIR__ . '/../views/header.php';
     }
     
     function deleteBulk() {
-        if(!confirm(`Move ${selectedIds.size} files to Recycle Bin?`)) return;
-        const ids = Array.from(selectedIds); 
-        const fd = new FormData(); fd.append('action', 'delete_bulk'); fd.append('ids', JSON.stringify(ids));
-        fetch('../api/api.php', { method: 'POST', body: fd }).then(r=>r.json()).then(d => { if(d.status === 'success') location.reload(); });
+        appConfirm(`Move ${selectedIds.size} files to Recycle Bin?`, "Move to Trash", () => {
+            const ids = Array.from(selectedIds); 
+            const fd = new FormData(); fd.append('action', 'delete_bulk'); fd.append('ids', JSON.stringify(ids));
+            fetch('../api/api.php', { method: 'POST', body: fd }).then(r=>r.json()).then(d => { if(d.status === 'success') location.reload(); });
+        });
     }
 
     function deleteFile(id) {
-        if(confirm("Move to Recycle Bin?")) {
+        appConfirm("Move to Recycle Bin?", "Delete File", () => {
             const fd = new FormData(); fd.append('action', 'delete_entity'); fd.append('type', 'file'); fd.append('id', id);
             fetch('../api/api.php', { method:'POST', body:fd }).then(r=>r.json()).then(d=>{ if(d.status==='success') location.reload(); });
-        }
+        });
     }
 
     // --- PAPELERA ---
@@ -771,15 +772,17 @@ include __DIR__ . '/../views/header.php';
     }
     
     async function restoreSelected() { 
-        if (!confirm(`Restore ${selectedTrash.size} items?`)) return; 
-        const promises = Array.from(selectedTrash).map(comp => { const [type, id] = comp.split('_'); const fd = new FormData(); fd.append('action', 'restore_entity'); fd.append('type', type); fd.append('id', id); return fetch('../api/api.php', { method: 'POST', body: fd }); }); 
-        try { await Promise.all(promises); location.reload(); } catch (e) { alert("Error processing request"); } 
+        appConfirm(`Restore ${selectedTrash.size} items?`, "Restore Items", async () => {
+            const promises = Array.from(selectedTrash).map(comp => { const [type, id] = comp.split('_'); const fd = new FormData(); fd.append('action', 'restore_entity'); fd.append('type', type); fd.append('id', id); return fetch('../api/api.php', { method: 'POST', body: fd }); }); 
+            try { await Promise.all(promises); location.reload(); } catch (e) { appAlert("Error processing request", "Error", "error"); } 
+        });
     }
     
     async function hardDeleteSelected() { 
-        if (!confirm(`WARNING: This will permanently delete ${selectedTrash.size} items.`)) return; 
-        const promises = Array.from(selectedTrash).map(comp => { const [type, id] = comp.split('_'); const fd = new FormData(); fd.append('action', 'hard_delete_entity'); fd.append('type', type); fd.append('id', id); return fetch('../api/api.php', { method: 'POST', body: fd }); }); 
-        try { await Promise.all(promises); location.reload(); } catch (e) { alert("Error processing request"); } 
+        appConfirm(`WARNING: This will permanently delete ${selectedTrash.size} items.`, "Delete Forever", async () => {
+            const promises = Array.from(selectedTrash).map(comp => { const [type, id] = comp.split('_'); const fd = new FormData(); fd.append('action', 'hard_delete_entity'); fd.append('type', type); fd.append('id', id); return fetch('../api/api.php', { method: 'POST', body: fd }); }); 
+            try { await Promise.all(promises); location.reload(); } catch (e) { appAlert("Error processing request", "Error", "error"); } 
+        });
     }
 
     // --- ASIGNAR USUARIOS A PROYECTO ---
@@ -795,7 +798,7 @@ include __DIR__ . '/../views/header.php';
             const checked = Array.from(this.querySelectorAll('input[name="user_ids[]"]:checked'));
             const hasAdmin = checked.some(i => i.dataset.role === 'admin');
             if (checked.length === 0 || !hasAdmin) {
-                alert('At least one admin must be assigned to the project.');
+                appAlert('At least one admin must be assigned to the project.', "Assignment Error", "warning");
                 return;
             }
             const fd = new FormData(this);
@@ -803,9 +806,9 @@ include __DIR__ . '/../views/header.php';
                 .then(r => r.json())
                 .then(d => {
                     if (d.status === 'success') location.reload();
-                    else alert('Error assigning users: ' + (d.msg || 'Unknown'));
+                    else appAlert('Error assigning users: ' + (d.msg || 'Unknown'), "Error", "error");
                 })
-                .catch(() => alert('Connection error'));
+                .catch(() => appAlert('Connection error', "Error", "error"));
         });
     }
 </script>

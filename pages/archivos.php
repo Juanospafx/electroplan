@@ -208,17 +208,18 @@ include __DIR__ . '/../views/header.php';
 
 <script>
     function deleteFile(id) {
-        if(!confirm("Move file to Recycle Bin?")) return;
-        const fd = new FormData();
-        fd.append('action', 'delete_file');
-        fd.append('id', id);
-        fetch('../api/api.php', { method:'POST', body: fd })
-            .then(r => r.json())
-            .then(d => {
-                if(d.status === 'success') location.reload();
-                else alert('Error deleting file: ' + (d.msg || 'Unknown'));
-            })
-            .catch(() => alert('Connection error'));
+        appConfirm("Move file to Recycle Bin?", "Delete File", () => {
+            const fd = new FormData();
+            fd.append('action', 'delete_file');
+            fd.append('id', id);
+            fetch('../api/api.php', { method:'POST', body: fd })
+                .then(r => r.json())
+                .then(d => {
+                    if(d.status === 'success') location.reload();
+                    else appAlert('Error deleting file: ' + (d.msg || 'Unknown'), "Delete Error", "error");
+                })
+                .catch(() => appAlert('Connection error', "Error", "error"));
+        });
     }
 </script>
 

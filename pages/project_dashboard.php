@@ -836,9 +836,9 @@ include __DIR__ . '/../views/header.php';
                 .then(r => r.json())
                 .then(d => {
                     if (d.status === 'success') location.reload();
-                    else alert('Error uploading file: ' + (d.msg || 'Unknown'));
+                    else appAlert('Error uploading file: ' + (d.msg || 'Unknown'), "Upload Error", "error");
                 })
-                .catch(() => alert('Connection error'));
+                .catch(() => appAlert('Connection error', "Connection Error", "error"));
         });
     }
 
@@ -898,11 +898,11 @@ include __DIR__ . '/../views/header.php';
             const fileInput = document.getElementById('upload_file_input');
             const folderSelect = document.getElementById('upload_folder_select');
             if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
-                alert('Please select a file.');
+                appAlert('Please select a file.', "Missing Info", "warning");
                 return;
             }
             if (!folderSelect || !folderSelect.value) {
-                alert('Please select a folder.');
+                appAlert('Please select a folder.', "Missing Info", "warning");
                 return;
             }
             const fd = new FormData();
@@ -922,12 +922,12 @@ include __DIR__ . '/../views/header.php';
                         location.reload();
                     } else {
                         hideUploadProgress(1500);
-                        alert('Error uploading file: ' + (d.msg || 'Unknown'));
+                        appAlert('Error uploading file: ' + (d.msg || 'Unknown'), "Upload Error", "error");
                     }
                 })
                 .catch(() => {
                     hideUploadProgress(1500);
-                    alert('Upload failed. The file may still finish uploading in the background.');
+                    appAlert('Upload failed. The file may still finish uploading in the background.', "Upload Warning", "warning");
                 });
         });
     }
@@ -945,7 +945,7 @@ include __DIR__ . '/../views/header.php';
             const checked = Array.from(this.querySelectorAll('input[name="user_ids[]"]:checked'));
             const hasAdmin = checked.some(i => i.dataset.role === 'admin');
             if (checked.length === 0 || !hasAdmin) {
-                alert('At least one admin must be assigned to the project.');
+                appAlert('At least one admin must be assigned to the project.', "Assignment Error", "warning");
                 return;
             }
             const fd = new FormData(this);
@@ -953,40 +953,42 @@ include __DIR__ . '/../views/header.php';
                 .then(r => r.json())
                 .then(d => {
                     if (d.status === 'success') location.reload();
-                    else alert('Error assigning users: ' + (d.msg || 'Unknown'));
+                    else appAlert('Error assigning users: ' + (d.msg || 'Unknown'), "Error", "error");
                 })
-                .catch(() => alert('Connection error'));
+                .catch(() => appAlert('Connection error', "Error", "error"));
         });
     }
 
     function deleteFile(id) {
-        if(!confirm("Move file to Recycle Bin?")) return;
-        const fd = new FormData();
-        fd.append('action', 'delete_entity');
-        fd.append('type', 'file');
-        fd.append('id', id);
-        fetch('../api/api.php', { method:'POST', body: fd })
-            .then(r => r.json())
-            .then(d => {
-                if(d.status === 'success') location.reload();
-                else alert('Error deleting file: ' + (d.msg || 'Unknown'));
-            })
-            .catch(() => alert('Connection error'));
+        appConfirm("Move file to Recycle Bin?", "Delete File", () => {
+            const fd = new FormData();
+            fd.append('action', 'delete_entity');
+            fd.append('type', 'file');
+            fd.append('id', id);
+            fetch('../api/api.php', { method:'POST', body: fd })
+                .then(r => r.json())
+                .then(d => {
+                    if(d.status === 'success') location.reload();
+                    else appAlert('Error deleting file: ' + (d.msg || 'Unknown'), "Error", "error");
+                })
+                .catch(() => appAlert('Connection error', "Error", "error"));
+        });
     }
 
     function deleteFolder(id) {
-        if(!confirm("Move folder to Recycle Bin?")) return;
-        const fd = new FormData();
-        fd.append('action', 'delete_entity');
-        fd.append('type', 'folder');
-        fd.append('id', id);
-        fetch('../api/api.php', { method:'POST', body: fd })
-            .then(r => r.json())
-            .then(d => {
-                if(d.status === 'success') location.reload();
-                else alert('Error deleting folder: ' + (d.msg || 'Unknown'));
-            })
-            .catch(() => alert('Connection error'));
+        appConfirm("Move folder to Recycle Bin?", "Delete Folder", () => {
+            const fd = new FormData();
+            fd.append('action', 'delete_entity');
+            fd.append('type', 'folder');
+            fd.append('id', id);
+            fetch('../api/api.php', { method:'POST', body: fd })
+                .then(r => r.json())
+                .then(d => {
+                    if(d.status === 'success') location.reload();
+                    else appAlert('Error deleting folder: ' + (d.msg || 'Unknown'), "Error", "error");
+                })
+                .catch(() => appAlert('Connection error', "Error", "error"));
+        });
     }
 
     function openMoveModal(fileId) {
@@ -1048,9 +1050,9 @@ include __DIR__ . '/../views/header.php';
                 .then(r => r.json())
                 .then(d => {
                     if(d.status === 'success') location.reload();
-                    else alert('Error moving file: ' + (d.msg || 'Unknown'));
+                    else appAlert('Error moving file: ' + (d.msg || 'Unknown'), "Error", "error");
                 })
-                .catch(() => alert('Connection error'));
+                .catch(() => appAlert('Connection error', "Error", "error"));
         });
     }
 
@@ -1115,9 +1117,9 @@ include __DIR__ . '/../views/header.php';
                 .then(r => r.json())
                 .then(d => {
                     if(d.status === 'success') location.reload();
-                    else alert('Error moving folder: ' + (d.msg || 'Unknown'));
+                    else appAlert('Error moving folder: ' + (d.msg || 'Unknown'), "Error", "error");
                 })
-                .catch(() => alert('Connection error'));
+                .catch(() => appAlert('Connection error', "Error", "error"));
         });
     }
 

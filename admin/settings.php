@@ -268,7 +268,7 @@ include __DIR__ . '/../views/header.php';
                                     <i class="fas fa-pen"></i>
                                 </button>
                                 <?php if($u['id'] != 1 && $u['id'] != $userId): ?>
-                                <a href="settings.php?tab=users&delete_id=<?= $u['id'] ?>" class="btn-action delete" onclick="return confirm('Delete this user?');">
+                                <a href="settings.php?tab=users&delete_id=<?= $u['id'] ?>" class="btn-action delete" onclick="event.preventDefault(); let url=this.href; appConfirm('Delete this user?', 'Delete User', () => { window.location.href = url; });">
                                     <i class="fas fa-trash"></i>
                                 </a>
                                 <?php endif; ?>

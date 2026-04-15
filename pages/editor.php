@@ -1,4 +1,4 @@
-﻿<?php
+﻿﻿<?php
 // editor.php - Editor Profesional V9.6 (Fix: Removed Pan Tool & Added 2-Finger Nav)
 require_once __DIR__ . '/../core/auth/session.php';
 require_once __DIR__ . '/../core/db/connection.php';
@@ -3293,4 +3293,3 @@ if ($filePath !== '') {
 </script>
 </body>
 </html>
-

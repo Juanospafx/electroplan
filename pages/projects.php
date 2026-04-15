@@ -368,21 +368,23 @@ include __DIR__ . '/../views/header.php';
         fetch('../api/api.php', { method:'POST', body:fd })
         .then(r => r.json()).then(d => {
             if(d.status === 'success') location.reload();
-            else alert('Error updating project: ' + (d.msg || 'Unknown'));
-        });
+            else appAlert('Error updating project: ' + (d.msg || 'Unknown'), "Update Error", "error");
+        })
+        .catch(() => appAlert('Connection error', "Error", "error"));
     });
 
     // 2. Eliminar (SOFT DELETE)
     function deleteProject(id) {
-        if(confirm("Move project to Recycle Bin?")) {
+        appConfirm("Move project to Recycle Bin?", "Delete Project", () => {
             const fd = new FormData();
             fd.append('action', 'delete_entity'); fd.append('type', 'project'); fd.append('id', id);
             fetch('../api/api.php', { method:'POST', body:fd })
             .then(r => r.json()).then(d => {
                 if(d.status === 'success') location.reload();
-                else alert('Error deleting project');
-            });
-        }
+                else appAlert('Error deleting project', "Delete Error", "error");
+            })
+            .catch(() => appAlert('Connection error', "Error", "error"));
+        });
     }
 
     const assignedUsersByProject = <?= json_encode($assignedUsersByProject, JSON_UNESCAPED_UNICODE) ?>;
@@ -407,7 +409,7 @@ include __DIR__ . '/../views/header.php';
         const checked = Array.from(this.querySelectorAll('input[name="user_ids[]"]:checked'));
         const hasAdmin = checked.some(ch => (ch.dataset.role || '').toLowerCase() === 'admin');
         if (!hasAdmin) {
-            alert('At least one admin must be assigned to the project.');
+            appAlert('At least one admin must be assigned to the project.', "Assignment Error", "warning");
             return;
         }
 
@@ -415,8 +417,9 @@ include __DIR__ . '/../views/header.php';
         fetch('../api/api.php', { method:'POST', body:fd })
         .then(r => r.json()).then(d => {
             if(d.status === 'success') location.reload();
-            else alert('Error assigning user: ' + (d.msg || 'Unknown'));
-        });
+            else appAlert('Error assigning user: ' + (d.msg || 'Unknown'), "Assignment Error", "error");
+        })
+        .catch(() => appAlert('Connection error', "Error", "error"));
     });
 </script>
 <?php endif; ?>

@@ -453,7 +453,7 @@ function updateWizard() {
 function nextStep() {
     if (currentStep === 1) {
         const name = document.querySelector('input[name="project_name"]').value;
-        if (!name.trim()) { alert("Please provide a Project Name before continuing."); document.querySelector('input[name="project_name"]').focus(); return; }
+        if (!name.trim()) { appAlert("Please provide a Project Name before continuing.", "Missing Info", "warning"); document.querySelector('input[name="project_name"]').focus(); return; }
     }
     if (currentStep < totalSteps) { currentStep++; updateWizard(); }
 }
@@ -465,7 +465,7 @@ function prevStep() {
 function jumpToStep(step) {
     if (step > currentStep && currentStep === 1) {
         const name = document.querySelector('input[name="project_name"]').value;
-        if (!name.trim()) { alert("Please provide a Project Name first."); return; }
+        if (!name.trim()) { appAlert("Please provide a Project Name first.", "Missing Info", "warning"); return; }
     }
     currentStep = step;
     updateWizard();
@@ -544,7 +544,7 @@ document.getElementById('createProjectForm').addEventListener('submit', function
     const checked = Array.from(this.querySelectorAll('input[name="user_ids[]"]:checked'));
     const hasAdmin = checked.some(i => i.dataset.role === 'admin');
     if (checked.length > 0 && !hasAdmin) {
-        alert('At least one admin must be assigned to the project.');
+        appAlert('At least one admin must be assigned to the project.', "Assignment Error", "warning");
         return;
     }
     
@@ -560,7 +560,7 @@ document.getElementById('createProjectForm').addEventListener('submit', function
             .then(r => r.json())
             .then(res => {
                 if(res.status !== 'success') {
-                    alert('Error: ' + res.msg);
+                    appAlert('Error: ' + res.msg, "Update Error", "error");
                     btn.innerHTML = original;
                     btn.disabled = false;
                     return;
@@ -579,19 +579,19 @@ document.getElementById('createProjectForm').addEventListener('submit', function
                     .then(r2 => {
                         if(r2.status === 'success') window.location.href = 'project_dashboard.php?id=' + projectId;
                         else {
-                            alert('Error: ' + (r2.msg || 'Unknown'));
+                            appAlert('Error: ' + (r2.msg || 'Unknown'), "Update Error", "error");
                             btn.innerHTML = original;
                             btn.disabled = false;
                         }
                     })
                     .catch(() => {
-                        alert('Connection Error');
+                        appAlert('Connection Error', "Error", "error");
                         btn.innerHTML = original;
                         btn.disabled = false;
                     });
             })
             .catch(() => {
-                alert('Connection Error');
+                appAlert('Connection Error', "Error", "error");
                 btn.innerHTML = original;
                 btn.disabled = false;
             });
@@ -604,13 +604,13 @@ document.getElementById('createProjectForm').addEventListener('submit', function
             if(res.status === 'success') {
                 window.location.href = 'project_dashboard.php?id=' + res.id;
             } else {
-                alert('Error: ' + res.msg);
+                appAlert('Error: ' + res.msg, "Creation Error", "error");
                 btn.innerHTML = original;
                 btn.disabled = false;
             }
         })
         .catch(() => {
-            alert('Connection Error');
+            appAlert('Connection Error', "Error", "error");
             btn.innerHTML = original;
             btn.disabled = false;
         });
