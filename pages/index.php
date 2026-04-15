@@ -187,6 +187,55 @@ include __DIR__ . '/../views/header.php';
     .btn-close { filter: invert(1) grayscale(100%) brightness(200%); }
     body.theme-light .btn-close { filter: none; }
 
+    /* --- MODERN FILE CARDS (OVERLAY UI) --- */
+    .file-card-modern {
+        background: var(--bg-card);
+        border: 1px solid var(--border-subtle);
+        border-radius: 16px;
+        transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s;
+        position: relative;
+        overflow: hidden;
+    }
+    .file-card-modern:hover {
+        transform: translateY(-4px);
+        border-color: var(--border-subtle);
+        box-shadow: 0 12px 24px rgba(0,0,0,0.2);
+    }
+    
+    .file-icon-large {
+        font-size: 2.5rem;
+        margin: 0.5rem auto 1.2rem auto;
+        width: 70px;
+        height: 70px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 18px;
+    }
+
+    .file-overlay {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        opacity: 0;
+        z-index: 10;
+        transition: opacity 0.3s ease;
+        border-radius: 16px;
+        overflow: hidden;
+        outline: none;
+    }
+    .file-card-modern:hover .file-overlay,
+    .file-card-modern:focus-within .file-overlay { opacity: 1; }
+
+    .overlay-action { display: inline-flex; flex-direction: column; align-items: center; justify-content: center; text-decoration: none; color: white !important; transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), filter 0.2s; }
+    .overlay-view { background: rgba(245, 158, 11, 0.95); transform: translateX(-100%); }
+    .overlay-edit { background: rgba(59, 130, 246, 0.95); transform: translateX(100%); }
+    .overlay-action.w-100 { transform: translateY(100%); }
+    .file-card-modern:hover .overlay-action, .file-card-modern:focus-within .overlay-action { transform: translate(0, 0); }
+    .overlay-action:hover { filter: brightness(1.1); }
+    .overlay-action i { transition: transform 0.2s; }
+    .overlay-action:hover i { transform: scale(1.2); }
+
     @media (max-width: 992px) {
         .proj-actions { flex-wrap: wrap; gap: 8px; }
         .proj-actions .btn,
@@ -285,24 +334,29 @@ include __DIR__ . '/../views/header.php';
                 <?php foreach($recentFiles as $f): 
                     $ft = strtolower(pathinfo($f['filename'], PATHINFO_EXTENSION));
                     $isPdf = ($ft === 'pdf'); $isImg = in_array($ft, ['jpg', 'jpeg', 'png', 'webp', 'gif']);
-                    $tileClass = 'file-gen'; $iconClass = 'fa-file';
-                    if($isPdf) { $tileClass='pdf'; $iconClass='fa-file-pdf'; } elseif($isImg) { $tileClass='img'; $iconClass='fa-image'; }
+                    $iconClass = 'fa-file-alt'; $colorClass = 'primary';
+                    if($isPdf) { $iconClass='fa-file-pdf'; $colorClass='danger'; } elseif($isImg) { $iconClass='fa-image'; $colorClass='info'; }
                 ?>
                 <div class="col-md-3 col-xl-2">
-                    <div class="box-card text-center p-3">
-                        <div class="file-tile <?= $tileClass ?>" style="width:50px; height:60px;">
-                            <i class="fas <?= $iconClass ?>" style="font-size:1.5rem"></i>
-                            <?php if(isset($f['version_number']) && $f['version_number'] > 1): ?>
-                                <span class="version-badge" style="font-size:0.55rem; padding:1px 4px;">V<?= $f['version_number'] ?></span>
-                            <?php endif; ?>
-                        </div>
-                        <h6 class="fw-bold text-truncate w-100 mb-1" style="font-size:0.9rem"><?= htmlspecialchars($f['filename']) ?></h6>
-                        <small class="text-accent d-block mb-1 text-truncate" style="font-size:0.7rem"><i class="fas fa-layer-group me-1"></i> <?= htmlspecialchars($f['project_name']) ?></small>
-                        <small class="text-gray d-block mb-3" style="font-size:0.75rem"><?= date('M d, Y', strtotime($f['uploaded_at'])) ?></small>
+                    <div class="file-card-modern p-4 text-center h-100">
+                        <?php if(isset($f['version_number']) && $f['version_number'] > 1): ?>
+                            <div class="position-absolute top-0 start-0 m-2" style="z-index: 5;">
+                                <span class="badge bg-primary rounded-pill small">V<?= $f['version_number'] ?></span>
+                            </div>
+                        <?php endif; ?>
                         
-                        <div class="d-flex justify-content-center gap-2">
-                            <a href="preview.php?id=<?= $f['id'] ?>" class="btn-icon" style="width:30px;height:30px;font-size:0.8rem"><i class="fas fa-eye"></i></a>
-                            <?php if($userRole !== 'viewer'): ?><a href="editor.php?id=<?= $f['id'] ?>" class="btn-icon text-primary border-primary" style="width:30px;height:30px;font-size:0.8rem"><i class="fas fa-pen"></i></a><?php endif; ?>
+                        <div class="file-icon-large text-<?= $colorClass ?> bg-<?= $colorClass ?> bg-opacity-10">
+                            <i class="fas <?= $iconClass ?>"></i>
+                        </div>
+                        
+                        <div class="fw-bold text-truncate mb-1 text-white fs-6" title="<?= htmlspecialchars($f['filename']) ?>"><?= htmlspecialchars($f['filename']) ?></div>
+                        <small class="text-accent d-block mb-1 text-truncate" style="font-size:0.75rem"><i class="fas fa-layer-group me-1"></i> <?= htmlspecialchars($f['project_name']) ?></small>
+                        <div class="small text-gray fw-medium"><?= date('M d, Y', strtotime($f['uploaded_at'])) ?></div>
+                        
+                        <!-- OVERLAY INTERACTIVO -->
+                        <div class="file-overlay" tabindex="0">
+                            <a href="preview.php?id=<?= $f['id'] ?>" class="overlay-action overlay-view <?= ($userRole === 'viewer') ? 'w-100' : 'w-50' ?>"><i class="fas fa-eye fa-lg mb-1"></i><span class="small fw-bold">View</span></a>
+                            <?php if($userRole !== 'viewer'): ?><a href="editor.php?id=<?= $f['id'] ?>" class="overlay-action overlay-edit w-50"><i class="fas fa-pen-nib fa-lg mb-1"></i><span class="small fw-bold">Edit</span></a><?php endif; ?>
                         </div>
                     </div>
                 </div>

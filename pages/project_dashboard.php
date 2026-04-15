@@ -89,6 +89,18 @@ $foldersStmt = $pdo->prepare("SELECT * FROM folders WHERE project_id = ? AND del
 $foldersStmt->execute([$projectId]);
 $allFolders = $foldersStmt->fetchAll(PDO::FETCH_ASSOC);
 
+// Priorizar carpetas principales (con colores) al principio de la lista
+$specialFolders = ['bom', 'drawings', 'labor record', 'photos', 'rfi'];
+usort($allFolders, function($a, $b) use ($specialFolders) {
+    $aName = strtolower($a['name']);
+    $bName = strtolower($b['name']);
+    $aIsSpecial = 0; $bIsSpecial = 0;
+    foreach($specialFolders as $sf) { if(strpos($aName, $sf) !== false) { $aIsSpecial = 1; break; } }
+    foreach($specialFolders as $sf) { if(strpos($bName, $sf) !== false) { $bIsSpecial = 1; break; } }
+    if ($aIsSpecial !== $bIsSpecial) return $bIsSpecial - $aIsSpecial;
+    return strcmp($aName, $bName);
+});
+
 // 3. Consulta de Estadísticas Rápidas (Para el Summary)
 $fileCount = $pdo->query("SELECT COUNT(*) FROM files WHERE project_id = $projectId AND deleted_at IS NULL")->fetchColumn();
 $lastActivity = $pdo->query("SELECT uploaded_at FROM files WHERE project_id = $projectId ORDER BY uploaded_at DESC LIMIT 1")->fetchColumn();
@@ -96,229 +108,224 @@ $recentFiles = $pdo->prepare("SELECT id, filename, uploaded_at FROM files WHERE 
 $recentFiles->execute([$projectId]);
 $recentFiles = $recentFiles->fetchAll(PDO::FETCH_ASSOC);
 
-// CORRECCIÓN: Agregado "/.." para encontrar las vistas
+$userName = $_SESSION['username'] ?? 'User';
+$userRole = $_SESSION['role'] ?? 'viewer';
+
 include __DIR__ . '/../views/header.php'; 
 ?>
 
-<div class="main-content d-flex flex-column h-100">
-    
-    <div class="bg-header border-bottom border-secondary p-4 d-flex justify-content-between align-items-center">
-        <div>
-            <div class="d-flex align-items-center gap-3 mb-1">
-                <button class="mobile-toggle" onclick="toggleSidebar()">
-                    <i class="fas fa-bars"></i>
-                </button>
-                <a href="index.php" class="text-muted"><i class="fas fa-arrow-left"></i></a>
-                <h2 class="fw-bold mb-0 text-white"><?= htmlspecialchars($project['name']) ?></h2>
-                <span class="badge bg-success rounded-pill px-3"><?= $project['status'] ?></span>
-            </div>
-            <div class="d-flex gap-4 text-gray small mt-2">
-                <span><i class="fas fa-map-marker-alt me-1 text-accent"></i> <?= htmlspecialchars($project['address'] ?: 'No address') ?></span>
-                <span><i class="fas fa-building me-1 text-warning"></i> <?= htmlspecialchars($project['company_name'] ?: 'No Company') ?></span>
-                <span><i class="fas fa-calendar me-1"></i> Start: <?= $project['date_started'] ? date('M d, Y', strtotime($project['date_started'])) : 'TBD' ?></span>
+<div class="main-content p-4 pt-5">
+    <header class="header mb-4">
+        <div class="d-flex align-items-center gap-3">
+            <button class="mobile-toggle" onclick="toggleSidebar()">
+                <i class="fas fa-bars"></i>
+            </button>
+            <div class="breadcrumbs">
+                <a href="index.php">Home</a>
+                <i class="fas fa-chevron-right mx-2" style="font-size:0.7rem"></i>
+                <a href="projects.php">Projects</a>
+                <i class="fas fa-chevron-right mx-2" style="font-size:0.7rem"></i>
+                <?php if($currentView === 'files'): ?>
+                    <a href="?id=<?= $projectId ?>&view=summary"><?= htmlspecialchars($project['name']) ?></a>
+                <?php else: ?>
+                    <span class="text-primary fw-bold"><?= htmlspecialchars($project['name']) ?></span>
+                <?php endif; ?>
             </div>
         </div>
-        
-        <div class="d-flex gap-2">
-            <button id="toggleProjectSidebarBtn" class="btn btn-outline-light btn-sm rounded-pill" type="button" onclick="toggleProjectSidebar()">
-                <i class="fas fa-bars me-2"></i><span id="toggleProjectSidebarText">Hide Menu</span>
-            </button>
+        <a href="../admin/settings.php?tab=users" class="user-pill text-decoration-none d-none d-md-inline-flex">
+            <div class="avatar"><?= strtoupper(substr($userName,0,1)) ?></div>
+            <div class="user-pill-info">
+                <span class="user-pill-name"><?= htmlspecialchars($userName) ?></span>
+                <span class="user-pill-role"><?= ucfirst($userRole) ?></span>
+            </div>
+        </a>
+    </header>
+
+    <!-- PROJECT HERO / WORKSPACE -->
+    <div class="d-flex flex-column flex-xl-row justify-content-between align-items-xl-start gap-4 mb-5">
+        <div class="flex-grow-1">
+            <div class="d-flex align-items-center gap-3 mb-2">
+                <h1 class="project-title-large m-0"><?= htmlspecialchars($project['name']) ?></h1>
+                <span class="badge bg-success bg-opacity-25 text-success px-3 py-1 rounded-pill border border-success border-opacity-25"><?= $project['status'] ?></span>
+            </div>
+            <div class="d-flex flex-wrap gap-4 text-gray small mb-3">
+                <span><i class="fas fa-map-marker-alt me-1 text-accent"></i> <?= htmlspecialchars($projectAddress ?: 'No address specified') ?></span>
+                <span><i class="fas fa-building me-1 text-warning"></i> <?= htmlspecialchars($projectCompanyName ?: 'No Company') ?></span>
+                <span><i class="fas fa-user-hard-hat me-1 text-primary"></i> <?= htmlspecialchars($projectContactName ?: 'No Contact') ?></span>
+                <span><i class="fas fa-calendar-alt me-1 text-success"></i> <?= $project['date_started'] ? date('M d, Y', strtotime($project['date_started'])) : 'TBD' ?></span>
+            </div>
+            <p class="project-desc-expandable m-0" onclick="this.classList.toggle('expanded')" title="Click to read more">
+                <?= htmlspecialchars($projectNotes ?: 'No description provided for this project.') ?>
+            </p>
+        </div>
+        <div class="d-flex gap-2 flex-shrink-0 align-items-start">
+            <button class="btn btn-main rounded-pill px-4 shadow-sm" onclick="openUploadModal()"><i class="fas fa-cloud-upload-alt me-2"></i> Upload File</button>
+            
+            <button class="btn btn-tools rounded-pill px-4 py-2 shadow-sm" onclick="openToolsModal()"><i class="fas fa-toolbox me-2"></i> Tools</button>
             <?php if($_SESSION['role'] === 'admin'): ?>
-                <a href="project_create.php?id=<?= (int)$projectId ?>" class="btn btn-outline-secondary btn-sm rounded-pill"><i class="fas fa-edit me-2"></i>Edit Info</a>
-                <button class="btn btn-outline-info btn-sm rounded-pill" onclick="openAssignUsersModal()"><i class="fas fa-user-plus me-2"></i>Assign Users</button>
-                <button class="btn btn-outline-primary btn-sm rounded-pill" onclick="openToolsModal()"><i class="fas fa-toolbox me-2"></i>Tools</button>
-                <button class="btn btn-outline-light btn-sm rounded-pill" onclick="openNewFolderModal()"><i class="fas fa-folder-plus me-2"></i>Add Folder</button>
-            <?php else: ?>
-                <button class="btn btn-outline-primary btn-sm rounded-pill" onclick="openToolsModal()"><i class="fas fa-toolbox me-2"></i>Tools</button>
+            <div class="dropdown">
+                <button class="btn btn-outline-light d-flex align-items-center justify-content-center" data-bs-toggle="dropdown" aria-expanded="false" style="width: 42px; height: 42px; border-radius: 50%; padding: 0;"><i class="fas fa-ellipsis-v"></i></button>
+                <ul class="dropdown-menu dropdown-menu-end bg-card border-secondary shadow-lg rounded-3 py-2">
+                    <li><button class="dropdown-item text-white hover-bg-body py-2" onclick="openNewFolderModal()"><i class="fas fa-folder-plus me-3 text-warning"></i> Add Folder</button></li>
+                    <li><button class="dropdown-item text-white hover-bg-body py-2" onclick="openAssignUsersModal()"><i class="fas fa-users me-3 text-info"></i> Manage Team</button></li>
+                    <li><hr class="dropdown-divider border-secondary my-1"></li>
+                    <li><a class="dropdown-item text-white hover-bg-body py-2" href="project_create.php?id=<?= $projectId ?>"><i class="fas fa-cog me-3 text-gray"></i> Project Settings</a></li>
+                </ul>
+            </div>
             <?php endif; ?>
-            <button class="btn btn-primary rounded-pill btn-sm px-4" onclick="openUploadModal()"><i class="fas fa-cloud-upload-alt me-2"></i> Upload File</button>
         </div>
     </div>
 
-    <div id="projectLayout" class="flex-grow-1 d-flex overflow-hidden project-layout">
+    <!-- CONTENT AREA -->
+    <?php if($currentView === 'summary'): ?>
         
-        <aside id="projectSidebar" class="project-sidebar bg-panel border-end border-secondary" style="width: 320px; overflow-y: auto;">
-            <div class="p-3">
-                <p class="text-muted small fw-bold text-uppercase ls-1 mb-3 ps-2">Project Menu</p>
-                
-                <nav class="nav flex-column gap-1 nav-pills custom-pills">
-                    <a href="?id=<?= $projectId ?>&view=summary" class="nav-link <?= $currentView=='summary'?'active':'' ?>"><i class="fas fa-chart-pie me-2"></i> Summary</a>
-                    <a href="?id=<?= $projectId ?>&view=desc" class="nav-link <?= $currentView=='desc'?'active':'' ?>"><i class="fas fa-align-left me-2"></i> Description of Work</a>
-                    
-                    <div class="mt-3 mb-2 ps-2 text-muted small fw-bold text-uppercase ls-1">Files & Folders</div>
-                    
-                    <?php foreach($allFolders as $folder): ?>
-                        <div class="d-flex align-items-start justify-content-between folder-row gap-2">
-                            <a href="?id=<?= $projectId ?>&view=files&folder_id=<?= $folder['id'] ?>" class="nav-link folder-link <?= ($currentView=='files' && $currentFolderId==$folder['id'])?'active':'' ?>" title="<?= htmlspecialchars($folder['name']) ?>">
-                                <i class="fas fa-folder me-2 text-warning opacity-75"></i><span class="folder-link-text"><?= htmlspecialchars($folder['name']) ?></span>
+        <h5 class="fw-bold mb-3"><i class="fas fa-history text-accent me-2"></i> Recent Files</h5>
+        <div class="row g-3 mb-5">
+            <?php foreach(array_slice($recentFiles, 0, 4) as $rf): 
+                $ft = strtolower(pathinfo($rf['filename'], PATHINFO_EXTENSION));
+                $isPdf = ($ft === 'pdf'); $isImg = in_array($ft, ['jpg', 'jpeg', 'png', 'webp', 'gif']);
+                $iconClass = 'fa-file-alt'; $colorClass = 'primary';
+                if($isPdf) { $iconClass='fa-file-pdf'; $colorClass='danger'; } elseif($isImg) { $iconClass='fa-image'; $colorClass='info'; }
+            ?>
+                <div class="col-md-3 col-6">
+                    <div class="file-card-modern p-4 text-center h-100">
+                        
+                        <div class="file-icon-large text-<?= $colorClass ?> bg-<?= $colorClass ?> bg-opacity-10">
+                            <i class="fas <?= $iconClass ?>"></i>
+                        </div>
+                        
+                        <div class="fw-bold text-truncate mb-1 text-white fs-5" title="<?= htmlspecialchars($rf['filename']) ?>"><?= htmlspecialchars($rf['filename']) ?></div>
+                        <div class="small text-gray fw-medium"><?= date('M d, Y', strtotime($rf['uploaded_at'])) ?></div>
+                        
+                        <!-- OVERLAY INTERACTIVO -->
+                        <div class="file-overlay" tabindex="0">
+                            <?php if($_SESSION['role'] === 'admin'): ?>
+                            <div class="position-absolute top-0 end-0 p-2 d-flex gap-2" style="z-index: 20;">
+                                <button class="overlay-mini-btn move" onclick="event.stopPropagation(); event.preventDefault(); openMoveModal(<?= $rf['id'] ?>)" title="Move File"><i class="fas fa-exchange-alt"></i></button>
+                                <button class="overlay-mini-btn delete" onclick="event.stopPropagation(); event.preventDefault(); deleteFile(<?= $rf['id'] ?>)" title="Delete File"><i class="fas fa-trash"></i></button>
+                            </div>
+                            <?php endif; ?>
+                            
+                            <a href="preview.php?id=<?= $rf['id'] ?>" class="overlay-action overlay-view <?= ($_SESSION['role'] === 'viewer') ? 'w-100' : 'w-50' ?>">
+                                <i class="fas fa-eye fa-2x mb-2"></i><span class="fw-bold">View</span>
                             </a>
-                            <?php if(($_SESSION['role'] ?? '') === 'admin' && $folder['name'] !== 'Reports'): ?>
-                                <div class="d-flex gap-1 folder-actions">
-                                    <button class="btn btn-sm btn-outline-warning border-0" onclick="openMoveFolderModal(<?= (int)$folder['id'] ?>)" title="Move Folder"><i class="fas fa-exchange-alt"></i></button>
-                                    <button class="btn btn-sm btn-outline-danger border-0" onclick="deleteFolder(<?= (int)$folder['id'] ?>)" title="Delete Folder"><i class="fas fa-trash"></i></button>
-                                </div>
+                            <?php if($_SESSION['role'] !== 'viewer'): ?>
+                            <a href="editor.php?id=<?= $rf['id'] ?>" class="overlay-action overlay-edit w-50">
+                                <i class="fas fa-pen-nib fa-2x mb-2"></i><span class="fw-bold">Edit</span>
+                            </a>
                             <?php endif; ?>
                         </div>
-                    <?php endforeach; ?>
-
-                    <div class="mt-3 mb-2 ps-2 text-muted small fw-bold text-uppercase ls-1">Management</div>
-                    <?php
-                        $mgmtMap = [
-                            'Clock In' => 'fa-clock',
-                            'Labor Record' => 'fa-hard-hat',
-                            'Expenses' => 'fa-file-invoice-dollar',
-                            'Warranty Supplier' => 'fa-shield-alt'
-                        ];
-                        $folderByName = [];
-                        foreach($allFolders as $f) {
-                            $folderByName[strtolower($f['name'])] = $f;
-                        }
-                    ?>
-                    <?php foreach($mgmtMap as $fname => $icon): 
-                        $key = strtolower($fname);
-                        if (!isset($folderByName[$key])) continue;
-                        $f = $folderByName[$key];
-                    ?>
-                        <a href="?id=<?= $projectId ?>&view=files&folder_id=<?= $f['id'] ?>" class="nav-link <?= ($currentView=='files' && $currentFolderId==$f['id'])?'active':'' ?>">
-                            <i class="fas <?= $icon ?> me-2"></i> <?= htmlspecialchars($fname) ?>
-                        </a>
-                    <?php endforeach; ?>
-                </nav>
-            </div>
-        </aside>
-
-        <main class="project-content flex-grow-1 p-4 overflow-auto">
-            
-            <?php if($currentView === 'summary'): ?>
-                <h4 class="fw-bold mb-4">Project Summary</h4>
-                <div class="row g-4">
-                    <div class="col-md-3">
-                        <div class="box-card p-4 text-center">
-                            <h1 class="fw-bold text-primary mb-0"><?= $fileCount ?></h1>
-                            <p class="text-gray">Total Files</p>
-                        </div>
-                    </div>
-                    <div class="col-md-3">
-                        <div class="box-card p-4 text-center">
-                            <h1 class="fw-bold text-success mb-0"><?= count($allFolders) ?></h1>
-                            <p class="text-gray">Active Folders</p>
-                        </div>
-                    </div>
-                    <div class="col-md-6">
-                        <div class="box-card p-4">
-                            <h6 class="text-white mb-2">Last Activity</h6>
-                            <p class="text-gray mb-0"><?= $lastActivity ? date('F d, Y h:i A', strtotime($lastActivity)) : 'No activity yet' ?></p>
-                        </div>
                     </div>
                 </div>
-
-                <div class="mt-5">
-                    <h5 class="fw-bold mb-3">Recent Uploads</h5>
-                    <?php if(empty($recentFiles)): ?>
-                        <div class="text-gray">No files uploaded yet.</div>
-                    <?php else: ?>
-                        <div class="row g-3">
-                            <?php foreach($recentFiles as $rf): ?>
-                                <div class="col-md-4 col-xl-3">
-                                    <div class="box-card p-3 d-flex align-items-center justify-content-between recent-upload-card">
-                                        <div class="me-3 recent-upload-info">
-                                            <div class="fw-bold text-truncate"><?= htmlspecialchars($rf['filename']) ?></div>
-                                            <div class="small text-gray"><?= date('M d, Y', strtotime($rf['uploaded_at'])) ?></div>
-                                        </div>
-                                        <div class="d-flex gap-2 recent-upload-actions">
-                                            <a href="preview.php?id=<?= (int)$rf['id'] ?>" class="btn-icon" title="Preview"><i class="fas fa-eye"></i></a>
-                                            <?php if(($_SESSION['role'] ?? '') !== 'viewer'): ?>
-                                                <a href="editor.php?id=<?= (int)$rf['id'] ?>" class="btn-icon text-primary border-primary" title="Edit"><i class="fas fa-pen"></i></a>
-                                            <?php endif; ?>
-                                            <?php if(($_SESSION['role'] ?? '') === 'admin'): ?>
-                                                <button class="btn-icon text-danger border-danger" title="Delete" onclick="deleteFile(<?= (int)$rf['id'] ?>)"><i class="fas fa-trash"></i></button>
-                                            <?php endif; ?>
-                                        </div>
-                                    </div>
-                                </div>
-                            <?php endforeach; ?>
-                        </div>
-                    <?php endif; ?>
-                </div>
-
-            <?php elseif($currentView === 'desc'): ?>
-                <h4 class="fw-bold mb-4">Description of Work</h4>
-                <div class="box-card p-4">
-                    <p class="text-white mb-4"><?= nl2br(htmlspecialchars($project['notes'] ?: 'No detailed description available.')) ?></p>
-                    
-                    <hr class="border-secondary opacity-25 my-4">
-                    
-                    <h6 class="fw-bold text-accent mb-3">Contact Information</h6>
-                    <div class="row">
-                        <div class="col-md-6">
-                            <p class="small text-gray mb-1">Site Contact</p>
-                            <p class="text-white"><?= htmlspecialchars($project['contact_name']) ?> <br> <?= htmlspecialchars($project['contact_phone']) ?></p>
-                        </div>
-                        <div class="col-md-6">
-                            <p class="small text-gray mb-1">Company Contact</p>
-                            <p class="text-white"><?= htmlspecialchars($project['company_name']) ?> <br> <?= htmlspecialchars($project['company_phone']) ?></p>
-                        </div>
-                    </div>
-                </div>
-
-            <?php elseif($currentView === 'files'): 
-                // Lógica para obtener archivos de la carpeta seleccionada
-                $files = [];
-                $folderName = "Select a Folder";
-                if($currentFolderId) {
-                    $fStmt = $pdo->prepare("SELECT * FROM files WHERE folder_id = ? AND deleted_at IS NULL ORDER BY uploaded_at DESC");
-                    $fStmt->execute([$currentFolderId]);
-                    $files = $fStmt->fetchAll(PDO::FETCH_ASSOC);
-                    
-                    // Buscar nombre de la carpeta actual
-                    $currFolder = array_filter($allFolders, fn($f) => $f['id'] == $currentFolderId);
-                    $folderName = !empty($currFolder) ? reset($currFolder)['name'] : "Unknown Folder";
-                }
-            ?>
-                <div class="d-flex justify-content-between align-items-center mb-4">
-                    <h4 class="fw-bold mb-0"><i class="fas fa-folder-open text-warning me-2"></i> <?= htmlspecialchars($folderName) ?></h4>
-                    <span class="badge bg-secondary"><?= count($files) ?> files</span>
-                </div>
-
-                <?php if(empty($files)): ?>
-                    <div class="text-center py-5">
-                        <i class="fas fa-cloud-upload-alt fa-3x text-gray mb-3 opacity-25"></i>
-                        <p class="text-gray">This folder is empty.</p>
-                        <button class="btn btn-outline-primary btn-sm rounded-pill" onclick="openUploadModal()">Upload Here</button>
-                    </div>
-                <?php else: ?>
-                    <div class="row g-3">
-                        <?php foreach($files as $f): 
-                             $ft = strtolower(pathinfo($f['filename'], PATHINFO_EXTENSION));
-                             $icon = ($ft === 'pdf') ? 'fa-file-pdf text-danger' : 'fa-file-image text-primary';
-                        ?>
-                        <div class="col-md-3 col-xl-2">
-                            <div class="box-card p-3 text-center h-100 file-hover">
-                                <i class="fas <?= $icon ?> fa-3x mb-3"></i>
-                                <h6 class="text-truncate small mb-1"><?= htmlspecialchars($f['filename']) ?></h6>
-                                <small class="text-gray d-block mb-2"><?= date('M d', strtotime($f['uploaded_at'])) ?></small>
-                                <div class="d-flex justify-content-center gap-2 file-actions-row">
-                                    <a href="preview.php?id=<?= $f['id'] ?>" class="btn btn-sm btn-dark rounded-circle"><i class="fas fa-eye"></i></a>
-                                    <a href="editor.php?id=<?= $f['id'] ?>" class="btn btn-sm btn-dark rounded-circle text-primary"><i class="fas fa-pen"></i></a>
-                                    <?php if(($_SESSION['role'] ?? '') === 'admin'): ?>
-                                        <button class="btn btn-sm btn-dark rounded-circle text-warning" onclick="openMoveModal(<?= (int)$f['id'] ?>)" title="Move"><i class="fas fa-exchange-alt"></i></button>
-                                        <button class="btn btn-sm btn-dark rounded-circle text-danger" onclick="deleteFile(<?= (int)$f['id'] ?>)" title="Delete"><i class="fas fa-trash"></i></button>
-                                    <?php endif; ?>
-                                </div>
-                            </div>
-                        </div>
-                        <?php endforeach; ?>
-                    </div>
-                <?php endif; ?>
-
-            <?php else: ?>
-                <div class="text-center py-5">
-                    <p class="text-gray">Module under development.</p>
-                </div>
+            <?php endforeach; ?>
+            <?php if(empty($recentFiles)): ?>
+                <div class="col-12"><div class="text-gray small"><i class="fas fa-info-circle me-2"></i>No files have been uploaded yet.</div></div>
             <?php endif; ?>
+        </div>
 
-        </main>
-    </div>
+        <h5 class="fw-bold mb-3"><i class="fas fa-folder-tree text-warning me-2"></i> Project Folders</h5>
+        <div class="row g-3 mb-4">
+            <?php foreach($allFolders as $folder): 
+                $folderNameLower = strtolower($folder['name']);
+                $iconColorClass = 'warning'; // Por defecto amarillo
+                if (strpos($folderNameLower, 'bom') !== false) { $iconColorClass = 'success'; } 
+                elseif (strpos($folderNameLower, 'drawings') !== false) { $iconColorClass = 'primary'; } 
+                elseif (strpos($folderNameLower, 'labor record') !== false) { $iconColorClass = 'purple'; } 
+                elseif (strpos($folderNameLower, 'photos') !== false) { $iconColorClass = 'danger'; } 
+                elseif (strpos($folderNameLower, 'rfi') !== false) { $iconColorClass = 'success'; }
+            ?>
+                <div class="col-md-4 col-xl-3">
+                    <div class="folder-card-dash">
+                        <a href="?id=<?= $projectId ?>&view=files&folder_id=<?= $folder['id'] ?>" class="d-flex align-items-center gap-3 text-decoration-none w-100">
+                            <div class="bg-<?= $iconColorClass ?> bg-opacity-10 p-2 rounded text-<?= $iconColorClass ?>">
+                                <i class="fas fa-folder fa-lg"></i>
+                            </div>
+                            <div class="text-white fw-bold text-truncate fs-6"><?= htmlspecialchars($folder['name']) ?></div>
+                        </a>
+                        <?php if($_SESSION['role'] === 'admin' && $folder['name'] !== 'Reports'): ?>
+                            <div class="dropdown ms-2">
+                                <button class="btn btn-sm border-0 btn-folder-menu" data-bs-toggle="dropdown"><i class="fas fa-ellipsis-v fa-lg"></i></button>
+                                <ul class="dropdown-menu dropdown-menu-end bg-card border-secondary shadow-lg rounded-3 py-1">
+                                    <li><button class="dropdown-item text-white hover-bg-body small" onclick="openMoveFolderModal(<?= $folder['id'] ?>)"><i class="fas fa-exchange-alt me-2 text-warning"></i> Move Folder</button></li>
+                                    <li><button class="dropdown-item text-danger hover-bg-body small" onclick="deleteFolder(<?= $folder['id'] ?>)"><i class="fas fa-trash me-2"></i> Delete Folder</button></li>
+                                </ul>
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+            <?php endforeach; ?>
+            <?php if(empty($allFolders)): ?>
+                <div class="col-12"><div class="text-gray small"><i class="fas fa-info-circle me-2"></i>This project has no folders.</div></div>
+            <?php endif; ?>
+        </div>
+
+    <?php elseif($currentView === 'files'): 
+        $files = [];
+        $folderName = "Select a Folder";
+        if($currentFolderId) {
+            $fStmt = $pdo->prepare("SELECT * FROM files WHERE folder_id = ? AND deleted_at IS NULL ORDER BY uploaded_at DESC");
+            $fStmt->execute([$currentFolderId]);
+            $files = $fStmt->fetchAll(PDO::FETCH_ASSOC);
+            $currFolder = array_filter($allFolders, fn($f) => $f['id'] == $currentFolderId);
+            $folderName = !empty($currFolder) ? reset($currFolder)['name'] : "Unknown Folder";
+        }
+    ?>
+        <div class="d-flex align-items-center justify-content-between mb-4 pb-2 border-bottom border-secondary">
+            <div class="d-flex align-items-center gap-3">
+                <a href="?id=<?= $projectId ?>&view=summary" class="btn btn-icon rounded-circle"><i class="fas fa-arrow-left"></i></a>
+                <h4 class="fw-bold mb-0 text-white"><i class="fas fa-folder-open text-warning me-2"></i> <?= htmlspecialchars($folderName) ?></h4>
+            </div>
+            <span class="badge bg-secondary rounded-pill px-3"><?= count($files) ?> files</span>
+        </div>
+
+        <?php if(empty($files)): ?>
+            <div class="text-center py-5">
+                <i class="fas fa-cloud-upload-alt fa-3x text-gray mb-3 opacity-25"></i>
+                <p class="text-gray">This folder is empty.</p>
+                <button class="btn btn-outline-primary rounded-pill" onclick="openUploadModal()">Upload Here</button>
+            </div>
+        <?php else: ?>
+            <div class="row g-3">
+                <?php foreach($files as $f): 
+                     $ft = strtolower(pathinfo($f['filename'], PATHINFO_EXTENSION));
+                     $iconClass = 'fa-file-alt'; $colorClass = 'primary';
+                     if($ft === 'pdf') { $iconClass='fa-file-pdf'; $colorClass='danger'; } elseif(in_array($ft, ['jpg', 'jpeg', 'png', 'webp', 'gif'])) { $iconClass='fa-image'; $colorClass='info'; }
+                ?>
+                <div class="col-md-3 col-xl-2">
+                    <div class="file-card-modern p-4 text-center h-100">
+                        
+                        <div class="file-icon-large text-<?= $colorClass ?> bg-<?= $colorClass ?> bg-opacity-10">
+                            <i class="fas <?= $iconClass ?>"></i>
+                        </div>
+                        
+                        <div class="fw-bold text-truncate mb-1 text-white fs-6" title="<?= htmlspecialchars($f['filename']) ?>"><?= htmlspecialchars($f['filename']) ?></div>
+                        <div class="small text-gray fw-medium"><?= date('M d, Y', strtotime($f['uploaded_at'])) ?></div>
+                        
+                        <!-- OVERLAY INTERACTIVO -->
+                        <div class="file-overlay" tabindex="0">
+                            <?php if($_SESSION['role'] === 'admin'): ?>
+                            <div class="position-absolute top-0 end-0 p-2 d-flex gap-2" style="z-index: 20;">
+                                <button class="overlay-mini-btn move" onclick="event.stopPropagation(); event.preventDefault(); openMoveModal(<?= $f['id'] ?>)" title="Move File"><i class="fas fa-exchange-alt"></i></button>
+                                <button class="overlay-mini-btn delete" onclick="event.stopPropagation(); event.preventDefault(); deleteFile(<?= $f['id'] ?>)" title="Delete File"><i class="fas fa-trash"></i></button>
+                            </div>
+                            <?php endif; ?>
+                            
+                            <a href="preview.php?id=<?= $f['id'] ?>" class="overlay-action overlay-view <?= ($_SESSION['role'] === 'viewer') ? 'w-100' : 'w-50' ?>">
+                                <i class="fas fa-eye fa-lg mb-1"></i><span class="small fw-bold">View</span>
+                            </a>
+                            <?php if($_SESSION['role'] !== 'viewer'): ?>
+                            <a href="editor.php?id=<?= $f['id'] ?>" class="overlay-action overlay-edit w-50">
+                                <i class="fas fa-pen-nib fa-lg mb-1"></i><span class="small fw-bold">Edit</span>
+                            </a>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                </div>
+                <?php endforeach; ?>
+            </div>
+        <?php endif; ?>
+
+    <?php endif; ?>
 </div>
 
 <style>
@@ -334,6 +341,13 @@ include __DIR__ . '/../views/header.php';
         --text-muted: #58657a;
         --border-subtle: #2f384a;
         --radius-box: 20px;
+        
+        /* Custom Folder & Tool Colors */
+        --color-blue: #3b82f6;
+        --color-emerald: #10b981;
+        --color-amber: #f59e0b;
+        --color-purple: #8b5cf6;
+        --bs-info-rgb: 59, 130, 246; /* Permite que bg-info funcione con bg-opacity */
     }
 
     body.theme-light {
@@ -354,6 +368,14 @@ include __DIR__ . '/../views/header.php';
 
     .btn-main { background-color: var(--primary) !important; border-color: var(--primary) !important; color: white !important; transition: 0.2s; font-weight: 600; }
     .btn-main:hover { background-color: var(--primary-hover) !important; border-color: var(--primary-hover) !important; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(251, 90, 58, 0.3); }
+
+    .btn-tools { background-color: var(--color-blue) !important; border-color: var(--color-blue) !important; color: white !important; transition: 0.2s; font-weight: 600; }
+    .btn-tools:hover { filter: brightness(1.1); transform: translateY(-2px); box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3); color: white !important; }
+
+    .text-purple { color: var(--color-purple) !important; }
+    .bg-purple { background-color: rgba(139, 92, 246, var(--bs-bg-opacity, 1)) !important; }
+
+    .text-info { color: var(--color-blue) !important; }
 
     .btn-outline-light { border-color: var(--border-subtle); color: var(--text-gray); }
     .btn-outline-light:hover { background: var(--bg-input); color: var(--primary); border-color: var(--primary); }
@@ -380,99 +402,133 @@ include __DIR__ . '/../views/header.php';
     .bg-header { border-bottom-color: var(--border-subtle) !important; }
     .border-secondary { border-color: var(--border-subtle) !important; }
 
-    .project-sidebar .nav-link {
-        color: var(--text-muted);
-        border-radius: 8px;
-        padding: 10px 15px;
-        transition: 0.2s;
-        font-size: 0.95rem;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
+    /* --- DROPDOWN MENUS FIX --- */
+    .dropdown-menu.bg-card { background-color: var(--bg-card) !important; border-color: var(--border-subtle) !important; }
+    .dropdown-menu .dropdown-item:hover { background-color: var(--bg-body) !important; color: var(--text-white) !important; }
+
+    /* --- WORKSPACE LAYOUT STYLES --- */
+    .project-title-large {
+        font-size: 2.2rem;
+        font-weight: 800;
+        color: var(--text-white);
+        letter-spacing: -0.02em;
     }
-    .project-sidebar .nav-link:hover {
-        background: var(--bg-body);
+    
+    .project-desc-expandable {
+        font-size: 0.95rem;
+        color: var(--text-gray);
+        display: -webkit-box;
+        -webkit-line-clamp: 2; /* Truncado inicial a 2 líneas */
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+        cursor: pointer;
+        transition: color 0.2s ease;
+        max-width: 900px;
+        line-height: 1.6;
+    }
+    .project-desc-expandable.expanded {
+        -webkit-line-clamp: unset;
         color: var(--text-white);
     }
-    .project-sidebar .nav-link.active {
-        background: var(--primary);
-        color: white;
-        font-weight: 500;
-        box-shadow: 0 4px 10px rgba(251, 90, 58, 0.3);
-    }
-    .project-layout { min-width: 0; }
-    .project-sidebar { flex: 0 0 320px; min-width: 320px; transition: all .25s ease; background: var(--bg-card) !important; border-right-color: var(--border-subtle) !important; }
-    .project-content { min-width: 0; }
-    .project-layout.sidebar-collapsed .project-sidebar { display: none; }
+    .project-desc-expandable:hover { color: var(--text-white); }
 
-    .project-sidebar .p-3 { min-width: 0; }
-    .folder-row { min-width: 0; align-items: center !important; }
-    .folder-link {
-        min-width: 0;
-        max-width: calc(100% - 64px);
-        flex: 1 1 auto;
-        white-space: nowrap;
-        line-height: 1.35;
-        display: flex;
-        align-items: center;
-        overflow: hidden;
+    .folder-card-dash {
+        background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 16px;
+        padding: 16px 20px; display: flex; align-items: center; justify-content: space-between; transition: 0.3s;
     }
-    .folder-link-text {
-        min-width: 0;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
-        display: block;
-        max-width: 100%;
-    }
-    .folder-actions { flex: 0 0 56px; width: 56px; padding-top: 0; justify-content: flex-end; }
-    .file-hover {
+    .folder-card-dash:hover { border-color: var(--primary); transform: translateY(-3px); box-shadow: 0 10px 20px rgba(0,0,0,0.15); }
+    
+    .btn-folder-menu { color: var(--text-white); opacity: 0.5; transition: 0.2s; padding: 6px 12px; }
+    .btn-folder-menu:hover { opacity: 1; color: var(--primary); }
+    
+    .hover-bg-body:hover { background-color: var(--bg-body) !important; }
+
+    /* --- MODERN FILE CARDS (OVERLAY UI) --- */
+    .file-card-modern {
+        background: var(--bg-card);
+        border: 1px solid var(--border-subtle);
+        border-radius: 16px;
+        transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s;
         position: relative;
         overflow: hidden;
-        min-height: 214px;
-        padding-bottom: 54px !important;
     }
-    .file-actions-row {
+    .file-card-modern:hover {
+        transform: translateY(-4px);
+        border-color: var(--border-subtle);
+        box-shadow: 0 12px 24px rgba(0,0,0,0.2);
+    }
+    
+    .file-icon-large {
+        font-size: 2.5rem;
+        margin: 0.5rem auto 1.2rem auto;
+        width: 70px;
+        height: 70px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 18px;
+    }
+
+    .file-overlay {
         position: absolute;
-        left: 0;
-        right: 0;
-        bottom: 10px;
-        min-height: 34px;
-        align-items: center;
-        justify-content: center;
-        flex-wrap: nowrap;
-        z-index: 2;
+        inset: 0;
+        display: flex;
+        opacity: 0;
+        z-index: 10;
+        transition: opacity 0.3s ease;
+        border-radius: 16px;
+        overflow: hidden;
+        outline: none; /* Quita el borde azul al tocar en móvil */
     }
-    .file-actions-row .btn {
+    /* Soporte para Mobile: focus-within se activa al dar el primer toque */
+    .file-card-modern:hover .file-overlay,
+    .file-card-modern:focus-within .file-overlay {
+        opacity: 1;
+    }
+
+    .overlay-action {
         display: inline-flex;
+        flex-direction: column;
         align-items: center;
         justify-content: center;
-        width: 32px;
-        height: 32px;
-        padding: 0;
-        line-height: 1;
+        text-decoration: none;
+        color: white !important;
+        transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), filter 0.2s;
     }
-    .file-hover:hover {
-        background: var(--bg-body);
-        transform: translateY(-2px);
+    
+    .overlay-view {
+        background: rgba(245, 158, 11, 0.95); /* Warning/Amber */
+        transform: translateX(-100%);
     }
+    .overlay-edit {
+        background: rgba(59, 130, 246, 0.95); /* Info/Blue */
+        transform: translateX(100%);
+    }
+    .overlay-action.w-100 {
+        transform: translateY(100%);
+    }
+
+    .file-card-modern:hover .overlay-action,
+    .file-card-modern:focus-within .overlay-action {
+        transform: translate(0, 0);
+    }
+    
+    .overlay-action:hover { filter: brightness(1.1); }
+    .overlay-action i { transition: transform 0.2s; }
+    .overlay-action:hover i { transform: scale(1.2); }
+
+    .overlay-mini-btn {
+        width: 32px; height: 32px; border-radius: 50%;
+        background: rgba(0,0,0,0.5); color: white;
+        border: none; display: inline-flex; align-items: center; justify-content: center;
+        transition: 0.2s; backdrop-filter: blur(2px);
+    }
+    .overlay-mini-btn.move:hover { background: var(--color-amber); transform: scale(1.1); }
+    .overlay-mini-btn.delete:hover { background: #ef4444; transform: scale(1.1); }
 
     @media (max-width: 992px) {
-        .bg-header { flex-direction: column; align-items: flex-start; gap: 12px; }
-        .bg-header .d-flex.gap-2 { width: 100%; flex-wrap: wrap; }
-        .project-sidebar {
-            width: 100% !important;
-            min-width: 100%;
-            border-right: 0;
-            border-bottom: 1px solid var(--border-subtle);
-        }
-        .project-content { padding: 20px !important; }
-        .project-layout { flex-direction: column; }
+        .project-title-large { font-size: 1.8rem; }
     }
-
-    .recent-upload-card { gap: 12px; }
-    .recent-upload-info { min-width: 0; }
-    .recent-upload-actions { flex-shrink: 0; }
 
     .tools-modal-content {
         background: var(--bg-card) !important;
@@ -516,11 +572,9 @@ include __DIR__ . '/../views/header.php';
     }
 
     @media (max-width: 768px) {
-        .recent-upload-card { flex-wrap: wrap; }
-        .recent-upload-actions { width: 100%; justify-content: flex-end; }
+        .d-flex.flex-wrap.gap-4 { gap: 10px !important; }
     }
 
-    body.theme-light .project-sidebar .nav-link:hover { background: rgba(15,23,42,0.08); color: #0f172a; }
     body.theme-light .file-hover:hover { background: rgba(15,23,42,0.06); }
     body.theme-light .project-content .text-white,
     body.theme-light .project-content h1,
