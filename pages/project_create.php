@@ -554,8 +554,20 @@ document.getElementById('createProjectForm').addEventListener('submit', function
     const fd = new FormData(this);
     const isEdit = this.querySelector('input[name="is_edit"]')?.value === '1';
     if (isEdit) {
-        const projectId = fd.get('project_id');
+        const projectId = fd.get('project_id'); // Guardamos el ID para la segunda llamada al API (carpetas)
         fd.append('action', 'update_project_info');
+
+        // Remapeamos los nombres de los campos del formulario para que coincidan con lo que espera el API de actualización.
+        // El API de creación ('create_project.php') y el de actualización ('api.php') esperan nombres diferentes.
+        fd.set('id', fd.get('project_id'));
+        fd.delete('project_id');
+
+        fd.set('name', fd.get('project_name'));
+        fd.delete('project_name');
+
+        fd.set('date_bid_sent', fd.get('date_bid_send'));
+        fd.delete('date_bid_send');
+
         fetch('../api/api.php', { method: 'POST', body: fd })
             .then(r => r.json())
             .then(res => {

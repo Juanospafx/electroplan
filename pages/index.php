@@ -94,8 +94,7 @@ elseif (!$projectId) {
 }
 else {
     // VISTA LEGACY (Si alguien entra por un link antiguo) - Redirigir al nuevo dashboard recomendado
-    // Descomenta la siguiente linea si quieres forzar la redirección:
-    // header("Location: project_dashboard.php?id=$projectId"); exit;
+    header("Location: project_dashboard.php?id=$projectId"); exit;
 
     $project = $pdo->query("SELECT * FROM projects WHERE id=$projectId")->fetch(PDO::FETCH_ASSOC);
     if(!$project) die("Project not found");

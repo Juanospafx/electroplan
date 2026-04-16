@@ -201,7 +201,7 @@ include __DIR__ . '/../views/header.php';
             
             foreach($activities as $act): 
                 $icon = 'fa-circle'; $link = '#';
-                if($act['type'] == 'project') { $icon = 'fa-layer-group'; $colorClass = 'text-primary'; $actionText = 'New Project Created'; $link = "index.php?project_id=" . $act['ref_id']; } 
+                if($act['type'] == 'project') { $icon = 'fa-layer-group'; $colorClass = 'text-primary'; $actionText = 'New Project Created'; $link = "project_dashboard.php?id=" . $act['ref_id']; } 
                 elseif($act['type'] == 'file') { $icon = 'fa-file-upload'; $colorClass = 'text-info'; $actionText = 'File Uploaded'; $link = "preview.php?id=" . $act['ref_id']; } 
                 elseif($act['type'] == 'report') { $icon = 'fa-clipboard-check'; $colorClass = 'text-success'; $actionText = 'Field Report Submitted'; $link = "preview.php?id=" . $act['ref_id']; }
                 
