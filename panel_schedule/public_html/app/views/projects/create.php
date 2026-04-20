@@ -111,7 +111,7 @@ $ctxFolderName = (string)($context['folder_name'] ?? '');
       </div>
 
       <div class="mt-4">
-        <button class="btn btn-primary">Save Project</button>
+        <button class="btn btn-accent">Save Project</button>
       </div>
     </form>
   </div>

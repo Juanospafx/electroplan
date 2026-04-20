@@ -21,15 +21,27 @@ if ($electroplanProjectId > 0 || $electroplanFolderId > 0) {
       require $epDb;
       if (isset($pdo) && $pdo instanceof PDO) {
         if ($electroplanProjectId > 0) {
-          $stmt = $pdo->prepare("SELECT name FROM projects WHERE id = ? AND deleted_at IS NULL LIMIT 1");
-          $stmt->execute([$electroplanProjectId]);
-          $electroplanProjectName = (string)($stmt->fetchColumn() ?: '');
+          try {
+            $stmt = $pdo->prepare("SELECT name FROM projects WHERE id = ? AND deleted_at IS NULL LIMIT 1");
+            $stmt->execute([$electroplanProjectId]);
+            $electroplanProjectName = (string)($stmt->fetchColumn() ?: '');
+          } catch (Throwable $e) {
+            $stmt = $pdo->prepare("SELECT name FROM projects WHERE id = ? LIMIT 1");
+            $stmt->execute([$electroplanProjectId]);
+            $electroplanProjectName = (string)($stmt->fetchColumn() ?: '');
+          }
         }
 
         if ($electroplanFolderId > 0) {
-          $stmt = $pdo->prepare("SELECT name FROM folders WHERE id = ? AND deleted_at IS NULL LIMIT 1");
-          $stmt->execute([$electroplanFolderId]);
-          $electroplanFolderName = (string)($stmt->fetchColumn() ?: '');
+          try {
+            $stmt = $pdo->prepare("SELECT name FROM folders WHERE id = ? AND deleted_at IS NULL LIMIT 1");
+            $stmt->execute([$electroplanFolderId]);
+            $electroplanFolderName = (string)($stmt->fetchColumn() ?: '');
+          } catch (Throwable $e) {
+            $stmt = $pdo->prepare("SELECT name FROM folders WHERE id = ? LIMIT 1");
+            $stmt->execute([$electroplanFolderId]);
+            $electroplanFolderName = (string)($stmt->fetchColumn() ?: '');
+          }
         }
       }
     }
@@ -65,7 +77,7 @@ if ($electroplanProjectId > 0 || $electroplanFolderId > 0) {
     </div>
     <div class="d-flex gap-2 align-items-center">
       <button id="themeToggleBtn" class="btn btn-outline-light btn-sm" type="button" title="Toggle theme"><i class="fa-solid fa-moon"></i></button>
-      <a class="btn btn-primary btn-sm" href="<?= htmlspecialchars(base_url('/projects/new') . $contextSuffix) ?>">Create Project</a>
+      <a class="btn btn-accent btn-sm" href="<?= htmlspecialchars(base_url('/projects/new') . $contextSuffix) ?>">Create Project</a>
     </div>
   </div>
 </nav>
