@@ -109,7 +109,9 @@ $recentFiles->execute([$projectId]);
 $recentFiles = $recentFiles->fetchAll(PDO::FETCH_ASSOC);
 
 $userName = $_SESSION['username'] ?? 'User';
-$userRole = $_SESSION['role'] ?? 'viewer';
+$userRole = strtolower(trim((string)($_SESSION['role'] ?? 'viewer')));
+$isAdmin = ($userRole === 'admin');
+$canUpload = $isAdmin;
 
 include __DIR__ . '/../views/header.php'; 
 ?>
@@ -159,10 +161,12 @@ include __DIR__ . '/../views/header.php';
             </p>
         </div>
         <div class="d-flex gap-2 flex-shrink-0 align-items-start">
+            <?php if($canUpload): ?>
             <button class="btn btn-main rounded-pill px-4 shadow-sm" onclick="openUploadModal()"><i class="fas fa-cloud-upload-alt me-2"></i> Upload File</button>
-            
+            <?php endif; ?>
+
             <button class="btn btn-tools rounded-pill px-4 py-2 shadow-sm" onclick="openToolsModal()"><i class="fas fa-toolbox me-2"></i> Tools</button>
-            <?php if($_SESSION['role'] === 'admin'): ?>
+            <?php if($isAdmin): ?>
             <div class="dropdown">
                 <button class="btn btn-outline-light d-flex align-items-center justify-content-center" data-bs-toggle="dropdown" aria-expanded="false" style="width: 42px; height: 42px; border-radius: 50%; padding: 0;"><i class="fas fa-ellipsis-v"></i></button>
                 <ul class="dropdown-menu dropdown-menu-end bg-card border-secondary shadow-lg rounded-3 py-2">
@@ -282,7 +286,9 @@ include __DIR__ . '/../views/header.php';
             <div class="text-center py-5">
                 <i class="fas fa-cloud-upload-alt fa-3x text-gray mb-3 opacity-25"></i>
                 <p class="text-gray">This folder is empty.</p>
+                <?php if($canUpload): ?>
                 <button class="btn btn-outline-primary rounded-pill" onclick="openUploadModal()">Upload Here</button>
+                <?php endif; ?>
             </div>
         <?php else: ?>
             <div class="row g-3">
@@ -761,6 +767,7 @@ include __DIR__ . '/../views/header.php';
 <script>
     const pId = <?= $projectId ?>;
     const fId = <?= $currentFolderId ?? 'null' ?>;
+    const canUpload = <?= $canUpload ? 'true' : 'false' ?>;
 
     window.projectToolsMap = <?= json_encode(array_map(function($t){
         return [
@@ -813,6 +820,7 @@ include __DIR__ . '/../views/header.php';
     }
 
     function openUploadModal() {
+        if (!canUpload) return;
         if (fId) {
             const input = document.getElementById('projectUploadInput');
             if (input) input.click();
@@ -825,6 +833,7 @@ include __DIR__ . '/../views/header.php';
     const projectUploadInput = document.getElementById('projectUploadInput');
     if (projectUploadInput) {
         projectUploadInput.addEventListener('change', function() {
+            if (!canUpload) return;
             if (!this.files || this.files.length === 0) return;
             if (!fId) return;
             const fd = new FormData();
@@ -895,6 +904,7 @@ include __DIR__ . '/../views/header.php';
     if (uploadFileForm) {
         uploadFileForm.addEventListener('submit', function(e) {
             e.preventDefault();
+            if (!canUpload) return;
             const fileInput = document.getElementById('upload_file_input');
             const folderSelect = document.getElementById('upload_folder_select');
             if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
