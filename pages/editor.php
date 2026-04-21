@@ -72,296 +72,7 @@ if ($filePath !== '') {
 
     <link rel="stylesheet" href="../assets/editor/editor.css">
 
-    <style>
-        :root {
-            --header-height: 60px;
-            --sb-right-w: 70px; /* Ancho Desktop */
-            --sb-mobile-h: 65px; /* Alto Mobile */
-            --bg-dark: #0f172a;
-            --border-color: #334155;
-        }
-
-        body { overflow: hidden; background: var(--bg-dark); }
-
-        body.theme-light {
-            --bg-body: #f3f6fb;
-            --bg-panel: #ffffff;
-            --bg-header: rgba(255, 255, 255, 0.96);
-            --border: rgba(15, 23, 42, 0.18);
-            --text-main: #0f172a;
-            --text-muted: #475569;
-            --bg-dark: #f3f6fb;
-            --border-color: rgba(15, 23, 42, 0.18);
-            color: #0f172a;
-        }
-        body.theme-light .canvas-area { background: #dbe4f0; }
-        body.theme-light .floating-controls { background: rgba(255,255,255,0.95); color: #0f172a; }
-        body.theme-light .float-btn { color: #0f172a; }
-        body.theme-light .tool-btn { color: #334155; }
-        body.theme-light .tool-btn:hover { background: rgba(15,23,42,0.08); color: #0f172a; }
-        body.theme-light .brand-logo,
-        body.theme-light .file-info span,
-        body.theme-light .text-white,
-        body.theme-light .prop-label,
-        body.theme-light .small,
-        body.theme-light .btn-outline-light,
-        body.theme-light .btn-close-custom,
-        body.theme-light .stamp-item,
-        body.theme-light .modal-content { color: #0f172a !important; }
-        body.theme-light .form-control,
-        body.theme-light .form-select { background: #fff; color: #0f172a; border-color: rgba(15,23,42,0.2); }
-        body.theme-light .text-muted { color: #64748b !important; }
-        body.theme-light .btn-outline-light {
-            color: #0f172a !important;
-            border-color: rgba(15,23,42,0.25) !important;
-            background: transparent !important;
-        }
-        body.theme-light .btn-outline-light:hover {
-            background: #0f172a !important;
-            color: #fff !important;
-            border-color: #0f172a !important;
-        }
-        body.theme-light .border-secondary { border-color: rgba(15,23,42,0.18) !important; }
-        body.theme-light .bg-dark { background-color: #334155 !important; }
-        #rep-attach-dropzone { background: #0f172a; }
-        body.theme-light #rep-attach-dropzone { background: #f8fafc; border-color: rgba(15,23,42,0.25) !important; }
-        body.theme-light #rep-attachments-preview > div { background: #ffffff !important; border-color: rgba(15,23,42,0.2) !important; }
-        body.theme-light .toast-msg {
-            background: #ffffff !important;
-            color: #0f172a !important;
-            border-color: rgba(15,23,42,0.18) !important;
-            box-shadow: 0 10px 24px rgba(15,23,42,0.14) !important;
-        }
-        body.theme-light .toast-msg span { color: #0f172a !important; }
-
-        /* --- LAYOUT GRID (Desktop Default) --- */
-        .app-container {
-            display: grid;
-            height: 100vh;
-            width: 100vw;
-            grid-template-columns: 1fr var(--sb-right-w); 
-            grid-template-rows: var(--header-height) 1fr;
-            grid-template-areas: 
-                "header header"
-                "canvas right";
-        }
-
-        .app-header { grid-area: header; z-index: 50; border-bottom: 1px solid var(--border-color); }
-        .canvas-area { grid-area: canvas; position: relative; overflow: hidden; background: #1e293b; }
-        #konva-overlay { position: absolute; inset: 0; z-index: 25; pointer-events: none; }
-
-        /* --- SIDEBAR IZQUIERDA (Overlay Universal) --- */
-        .sidebar-left {
-            position: fixed !important;
-            top: var(--header-height); left: 0; bottom: 0; width: 260px;
-            background: var(--bg-dark); border-right: 1px solid var(--border-color);
-            z-index: 1000; transform: translateX(-100%);
-            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            display: flex; flex-direction: column;
-        }
-        .sidebar-left.show { transform: translateX(0); }
-        .sidebar-overlay {
-            position: fixed; top: var(--header-height); left: 0; right: 0; bottom: 0;
-            background: rgba(0,0,0,0.5); z-index: 999; display: none; opacity: 0; transition: opacity 0.3s;
-        }
-        .sidebar-overlay.show { display: block; opacity: 1; }
-
-        /* --- SIDEBAR DERECHA (Herramientas) --- */
-        .sidebar-right {
-            grid-area: right;
-            border-left: 1px solid var(--border-color);
-            background: var(--bg-dark);
-            z-index: 40;
-            display: flex;
-            flex-direction: column; /* Desktop: Vertical */
-            align-items: center;
-            padding-top: 15px;
-            gap: 10px;
-        }
-
-        /* --- CONTROLES FLOTANTES (Zoom/Paginas) --- */
-        .floating-controls {
-            position: absolute;
-            bottom: 20px; right: 20px;
-            background: rgba(15, 23, 42, 0.9);
-            border: 1px solid var(--border-color);
-            border-radius: 50px;
-            padding: 5px 15px;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            z-index: 30;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3);
-            transition: all 0.3s ease; /* TransiciÃ³n suave para ocultar/mostrar */
-            color: white;
-        }
-
-        .float-btn {
-            background: none; border: none; color: white;
-            padding: 5px; cursor: pointer; opacity: 0.8;
-            transition: opacity 0.2s;
-        }
-        .float-btn:hover { opacity: 1; }
-
-        /* --- UI ELEMENTS (Botones Icono Grande) --- */
-        .toggle-icon-btn {
-            background: none !important;
-            border: none !important;
-            color: rgba(255,255,255,0.7);
-            font-size: 1.5rem; /* Icono Grande */
-            padding: 0 10px;
-            margin-right: 5px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: color 0.2s;
-        }
-        .toggle-icon-btn:hover, .toggle-icon-btn.active {
-            color: #fff;
-            text-shadow: 0 0 8px rgba(255,255,255,0.3);
-        }
-
-        /* --- STAMP MENU (FIXED POSITION) --- */
-        .stamp-menu {
-            position: fixed; /* Fix para Mobile overflow */
-            z-index: 2000;
-            display: none;
-            background: rgba(15, 23, 42, 0.95);
-            border: 1px solid var(--border-color);
-            border-radius: 12px;
-            padding: 10px;
-            gap: 8px;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.5);
-            backdrop-filter: blur(5px);
-        }
-        
-        .stamp-item {
-            padding: 8px 15px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 0.9rem;
-            font-weight: 500;
-            transition: background 0.2s;
-            color: white;
-            white-space: nowrap;
-            display: flex;
-            align-items: center;
-        }
-        .stamp-item:hover { background: rgba(255,255,255,0.1); }
-
-        /* Desktop: A la izquierda del sidebar */
-        @media (min-width: 992px) {
-            .stamp-menu {
-                right: 80px; /* 70px sidebar + 10px gap */
-                top: 50%;
-                transform: translateY(-50%);
-                flex-direction: column;
-            }
-        }
-
-        /* --- BOTÃ“N SAVE (MORADO Y RESPONSIVE) --- */
-        #btn-save {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            height: 40px !important;
-            padding: 0 20px !important; /* Estilo pÃ­ldora en Desktop */
-            border-radius: 50px !important;
-            
-            /* COLOR MORADO FUERTE */
-            background: #8b5cf6 !important; 
-            color: white !important;
-            border: none;
-            
-            min-width: unset;
-            transition: transform 0.2s, background 0.2s;
-            box-shadow: 0 4px 6px rgba(139, 92, 246, 0.25);
-        }
-        #btn-save:hover { 
-            transform: scale(1.05); 
-            background: #7c3aed !important; /* Morado un poco mÃ¡s oscuro al pasar mouse */
-        }
-        #btn-save span { display: inline-block; font-weight: 600; font-size: 0.9rem; }
-        #btn-save i { font-size: 1rem; }
-
-        /* --- MOBILE LAYOUT (Responsive) --- */
-        @media (max-width: 991px) {
-            .app-container {
-                grid-template-columns: 1fr; /* Una sola columna */
-                grid-template-areas: 
-                    "header"
-                    "canvas";
-            }
-
-            /* Transformar Sidebar Derecho en Barra Inferior */
-            .sidebar-right {
-                position: fixed;
-                bottom: 0; left: 0; right: 0;
-                height: var(--sb-mobile-h);
-                width: 100%;
-                border-left: none;
-                border-top: 1px solid var(--border-color);
-                flex-direction: row; /* Mobile: Horizontal */
-                justify-content: center; /* Centrar herramientas */
-                padding-top: 0;
-                gap: 15px;
-                transform: translateY(100%); /* Oculto por defecto (abajo) */
-                transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-                overflow-x: auto; /* Scroll si hay muchas herramientas */
-                padding-left: 10px; padding-right: 10px;
-            }
-
-            .sidebar-right.show-mobile {
-                transform: translateY(0); /* Mostrar al subir */
-            }
-
-            /* Fix Stamp Menu Mobile (Arriba de la barra) */
-            .stamp-menu {
-                bottom: 80px; /* 65px barra + 15px gap */
-                left: 50%;
-                transform: translateX(-50%);
-                flex-direction: row; /* Horizontal en mobile */
-                flex-wrap: wrap;
-                justify-content: center;
-                width: 90%;
-                max-width: 350px;
-            }
-
-            /* BotÃ³n Save en Mobile: Solo Icono (CÃ­rculo mÃ¡s grande) */
-            #btn-save {
-                width: 40px !important;
-                height: 40px !important;
-                padding: 0 !important;
-                border-radius: 50% !important;
-            }
-            /* OCULTAR EL TEXTO "SAVE" EN MOBILE */
-            #btn-save span { display: none !important; }
-
-            /* Ajustar controles flotantes en Mobile */
-            .floating-controls {
-                bottom: 20px; right: 15px; /* Ajuste de posiciÃ³n */
-                transform: scale(0.85); /* Reducir tamaÃ±o un 15% */
-                transform-origin: bottom right; 
-                padding: 4px 12px;
-            }
-
-            /* Clase para ocultar los controles cuando sube la barra */
-            .floating-controls.hide-ui {
-                opacity: 0;
-                pointer-events: none;
-                transform: translateY(20px) scale(0.85); /* Se desplaza un poco hacia abajo */
-            }
-
-            /* Ajustar separadores en horizontal */
-            .tool-separator {
-                width: 1px; height: 30px; margin: 0 5px;
-                border-bottom: none; border-left: 1px solid #475569;
-            }
-        }
-
-    </style>
+    
 </head>
 <body>
 <script>
@@ -389,19 +100,16 @@ if ($filePath !== '') {
         <div class="header-left">
             <a href="<?= $backUrl ?>" class="text-white me-3 d-md-none"><i class="fas fa-chevron-left"></i></a>
             
-            <button class="toggle-icon-btn" onclick="toggleSheets()" title="Show Sheets">
+            <button id="btn-toggle-left" class="toggle-icon-btn me-2" onclick="toggleSheets()" title="Show Sheets">
                 <i class="far fa-file-alt"></i>
             </button>
 
-            <button class="toggle-icon-btn d-lg-none" id="btn-toggle-tools" onclick="toggleMobileTools()" title="Tools">
-                <i class="fas fa-tools"></i>
-            </button>
-
-            <div class="brand-logo ms-2">
-                <i class="fas fa-bolt text-warning"></i> <span class="d-none d-md-inline">Brightronix</span>
-            </div>
+            <a href="<?= $backUrl ?>" class="brand-logo">
+                <div class="logo-full" role="img" aria-label="Brightronix Logo"></div>
+                <div class="app-subtitle">Electro Plan</div>
+            </a>
             
-            <div class="file-info d-none d-lg-flex">
+            <div class="file-info d-none d-md-flex">
                 <small>Editing File</small>
                 <span><?= htmlspecialchars($file['filename']) ?></span>
             </div>
@@ -563,6 +271,18 @@ if ($filePath !== '') {
         <button class="tool-btn text-warning" id="btn-cal" onclick="setMode('cal')" title="Calibrate"><i class="fas fa-ruler-combined"></i></button>
     </aside>
 
+    <div class="mobile-bottom-bar">
+        <button id="mobile-toggle-left" class="nav-icon-btn" onclick="toggleSheets()">
+            <i class="far fa-file-alt"></i>
+        </button>
+        <button id="mobile-toggle-center" class="nav-icon-btn active" onclick="closeAllOverlays(); closeTools();">
+            <i class="fas fa-pencil-alt"></i>
+        </button>
+        <button id="mobile-toggle-tools" class="nav-icon-btn" onclick="toggleMobileTools()">
+            <i class="fas fa-tools"></i>
+        </button>
+    </div>
+
 </div>
 
 <div class="modal fade" id="mobileCalModal" tabindex="-1">
@@ -659,40 +379,67 @@ if ($filePath !== '') {
     
     // Toggle Sidebar Izquierda (Sheets)
     function toggleSheets() {
-        document.getElementById('sidebarLeft').classList.toggle('show');
+        const sbLeft = document.getElementById('sidebarLeft');
+        const btnLeft = document.getElementById('btn-toggle-left');
+        const mobBtnLeft = document.getElementById('mobile-toggle-left');
+        const mobBtnCenter = document.getElementById('mobile-toggle-center');
+
+        sbLeft.classList.toggle('show');
+        const isShow = sbLeft.classList.contains('show');
+
+        if (btnLeft) btnLeft.classList.toggle('active', isShow);
+        if (mobBtnLeft) mobBtnLeft.classList.toggle('active', isShow);
+
+        if (mobBtnCenter && window.innerWidth <= 991) {
+            if (isShow) mobBtnCenter.classList.remove('active');
+            else if (!document.getElementById('sidebarRight').classList.contains('show-mobile')) mobBtnCenter.classList.add('active');
+        }
+
+        if (window.innerWidth <= 991 && isShow) {
+            closeTools();
+        }
+
         updateOverlay();
-        // Cerrar herramientas si abrimos sheets
-        closeTools();
     }
 
     // Toggle Herramientas (Mobile)
     function toggleMobileTools() {
         const sbRight = document.getElementById('sidebarRight');
-        const btn = document.getElementById('btn-toggle-tools');
-        const floatControls = document.querySelector('.floating-controls'); // SelecciÃ³n de controles flotantes
-
         sbRight.classList.toggle('show-mobile');
-        btn.classList.toggle('active');
-        
-        // Logica para ocultar controles flotantes
-        if (sbRight.classList.contains('show-mobile')) {
-            if(floatControls) floatControls.classList.add('hide-ui');
-        } else {
-            if(floatControls) floatControls.classList.remove('hide-ui');
+
+        const mobBtnTools = document.getElementById('mobile-toggle-tools');
+        const mobBtnCenter = document.getElementById('mobile-toggle-center');
+        const isShow = sbRight.classList.contains('show-mobile');
+
+        if (mobBtnTools) mobBtnTools.classList.toggle('active', isShow);
+        if (mobBtnCenter) {
+            if (isShow) mobBtnCenter.classList.remove('active');
+            else if (!document.getElementById('sidebarLeft').classList.contains('show')) mobBtnCenter.classList.add('active');
         }
 
-        // Cerrar sheets si abrimos herramientas
-        document.getElementById('sidebarLeft').classList.remove('show');
-        updateOverlay();
+        if (isShow) {
+            const sbLeft = document.getElementById('sidebarLeft');
+            if (sbLeft && sbLeft.classList.contains('show')) {
+                sbLeft.classList.remove('show');
+                const mobBtnLeft = document.getElementById('mobile-toggle-left');
+                if (mobBtnLeft) mobBtnLeft.classList.remove('active');
+                updateOverlay();
+            }
+        }
     }
 
     function closeTools() {
-        document.getElementById('sidebarRight').classList.remove('show-mobile');
-        document.getElementById('btn-toggle-tools').classList.remove('active');
-        
-        // Mostrar de nuevo los controles flotantes si se cerrÃ³ la barra
-        const floatControls = document.querySelector('.floating-controls');
-        if(floatControls) floatControls.classList.remove('hide-ui');
+        const sbRight = document.getElementById('sidebarRight');
+        if (sbRight) sbRight.classList.remove('show-mobile');
+
+        const mobBtnTools = document.getElementById('mobile-toggle-tools');
+        if (mobBtnTools) mobBtnTools.classList.remove('active');
+
+        const mobBtnCenter = document.getElementById('mobile-toggle-center');
+        const sbLeft = document.getElementById('sidebarLeft');
+        if (mobBtnCenter && sbLeft && !sbLeft.classList.contains('show')) {
+            mobBtnCenter.classList.add('active');
+        }
     }
 
     function applyTheme(theme) {
@@ -725,6 +472,18 @@ if ($filePath !== '') {
     function closeAllOverlays() {
         document.getElementById('sidebarLeft').classList.remove('show');
         updateOverlay();
+
+        const btnLeft = document.getElementById('btn-toggle-left');
+        if (btnLeft) btnLeft.classList.remove('active');
+
+        const mobBtnLeft = document.getElementById('mobile-toggle-left');
+        if (mobBtnLeft) mobBtnLeft.classList.remove('active');
+
+        const mobBtnCenter = document.getElementById('mobile-toggle-center');
+        const sbRight = document.getElementById('sidebarRight');
+        if (mobBtnCenter && sbRight && !sbRight.classList.contains('show-mobile')) {
+            mobBtnCenter.classList.add('active');
+        }
     }
 
     function openMobileCalModal() {
@@ -3430,6 +3189,18 @@ if ($filePath !== '') {
         if (useKonvaRuler) syncKonvaToFabric();
         updateTextScales(zoom);
         opt.e.preventDefault(); opt.e.stopPropagation();
+    });
+
+    // UI Isaac_work: auto mostrar barra de herramientas en móvil al cargar
+    document.addEventListener('DOMContentLoaded', () => {
+        if (window.innerWidth <= 991) {
+            setTimeout(() => {
+                const sbRight = document.getElementById('sidebarRight');
+                if (sbRight && !sbRight.classList.contains('show-mobile')) {
+                    toggleMobileTools();
+                }
+            }, 150);
+        }
     });
 
     window.addEventListener('beforeunload', () => {

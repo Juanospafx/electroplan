@@ -94,8 +94,7 @@ elseif (!$projectId) {
 }
 else {
     // VISTA LEGACY (Si alguien entra por un link antiguo) - Redirigir al nuevo dashboard recomendado
-    // Descomenta la siguiente linea si quieres forzar la redirección:
-    // header("Location: project_dashboard.php?id=$projectId"); exit;
+    header("Location: project_dashboard.php?id=$projectId"); exit;
 
     $project = $pdo->query("SELECT * FROM projects WHERE id=$projectId")->fetch(PDO::FETCH_ASSOC);
     if(!$project) die("Project not found");
@@ -132,6 +131,110 @@ include __DIR__ . '/../views/header.php';
 ?>
 
 <style>
+    :root {
+        /* Paleta Dark Mode (Deep Matte) */
+        --bg-body: #1b212d;
+        --bg-card: #242a38;
+        --bg-input: #151a23;
+        --primary: #fb5a3a;
+        --primary-hover: #e14e32;
+        --text-white: #ffffff;
+        --text-gray: #94a3b8;
+        --text-muted: #58657a;
+        --border-subtle: #2f384a;
+        --radius-box: 20px;
+    }
+
+    body.theme-light {
+        --bg-body: #e2e8f0;
+        --bg-card: #ffffff;
+        --bg-input: #f8fafc;
+        --text-white: #0f172a;
+        --text-gray: #64748b;
+        --text-muted: #94a3b8;
+        --border-subtle: #cbd5e1;
+    }
+
+    body.theme-light .bg-dark { background-color: var(--bg-input) !important; color: var(--text-white) !important; border-color: var(--border-subtle) !important; }
+    body.theme-light .text-white { color: var(--text-white) !important; }
+
+    .box-card { background: var(--bg-card); border-radius: var(--radius-box); border: 1px solid var(--border-subtle); transition: 0.3s; }
+    .box-card:hover { transform: translateY(-3px); border-color: var(--primary); }
+    .box-card-dashed { border: 2px dashed var(--border-subtle); background: transparent; }
+    .box-card-dashed:hover { border-color: var(--primary); background: rgba(251, 90, 58, 0.05); }
+
+    .btn-main { background-color: var(--primary) !important; border-color: var(--primary) !important; color: white !important; border-radius: 8px; padding: 8px 16px; border: 1px solid transparent; transition: 0.2s; }
+    .btn-main:hover { background-color: var(--primary-hover) !important; border-color: var(--primary-hover) !important; }
+    .btn-outline-light { border-color: var(--border-subtle); color: var(--text-gray); }
+    .btn-outline-light:hover { background: var(--bg-input); color: var(--primary); border-color: var(--primary); }
+
+    .btn-icon { width: 32px; height: 32px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--border-subtle); color: var(--text-gray); transition: 0.2s; background: var(--bg-card); text-decoration: none; }
+    .btn-icon:hover { background: var(--primary); color: white; border-color: var(--primary); }
+    .btn-icon.border-primary { color: var(--primary); border-color: var(--primary); }
+    .btn-icon.border-primary:hover { background: var(--primary); color: white; }
+    .btn-icon.border-warning { color: #f59e0b; border-color: #f59e0b; }
+    .btn-icon.border-warning:hover { background: #f59e0b; color: white; }
+    .btn-icon.border-danger { color: #ef4444; border-color: #ef4444; }
+    .btn-icon.border-danger:hover { background: #ef4444; color: white; }
+
+    .bulk-actions-bar { background: var(--bg-card); border: 1px solid var(--border-subtle); }
+    
+    .modal-content { background-color: var(--bg-card); border: 1px solid var(--border-subtle); color: var(--text-white); border-radius: var(--radius-box); }
+    .modal-header { border-bottom: 1px solid var(--border-subtle); }
+    .modal-footer { border-top: 1px solid var(--border-subtle); }
+    .modal-content .border { border-color: var(--border-subtle) !important; }
+    .btn-close { filter: invert(1) grayscale(100%) brightness(200%); }
+    body.theme-light .btn-close { filter: none; }
+
+    /* --- MODERN FILE CARDS (OVERLAY UI) --- */
+    .file-card-modern {
+        background: var(--bg-card);
+        border: 1px solid var(--border-subtle);
+        border-radius: 16px;
+        transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.3s;
+        position: relative;
+        overflow: hidden;
+    }
+    .file-card-modern:hover {
+        transform: translateY(-4px);
+        border-color: var(--border-subtle);
+        box-shadow: 0 12px 24px rgba(0,0,0,0.2);
+    }
+    
+    .file-icon-large {
+        font-size: 2.5rem;
+        margin: 0.5rem auto 1.2rem auto;
+        width: 70px;
+        height: 70px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 18px;
+    }
+
+    .file-overlay {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        opacity: 0;
+        z-index: 10;
+        transition: opacity 0.3s ease;
+        border-radius: 16px;
+        overflow: hidden;
+        outline: none;
+    }
+    .file-card-modern:hover .file-overlay,
+    .file-card-modern:focus-within .file-overlay { opacity: 1; }
+
+    .overlay-action { display: inline-flex; flex-direction: column; align-items: center; justify-content: center; text-decoration: none; color: white !important; transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), filter 0.2s; }
+    .overlay-view { background: rgba(245, 158, 11, 0.95); transform: translateX(-100%); }
+    .overlay-edit { background: rgba(59, 130, 246, 0.95); transform: translateX(100%); }
+    .overlay-action.w-100 { transform: translateY(100%); }
+    .file-card-modern:hover .overlay-action, .file-card-modern:focus-within .overlay-action { transform: translate(0, 0); }
+    .overlay-action:hover { filter: brightness(1.1); }
+    .overlay-action i { transition: transform 0.2s; }
+    .overlay-action:hover i { transform: scale(1.2); }
+
     @media (max-width: 992px) {
         .proj-actions { flex-wrap: wrap; gap: 8px; }
         .proj-actions .btn,
@@ -167,13 +270,13 @@ include __DIR__ . '/../views/header.php';
                 </div>
             </div>
 
-            <div class="user-pill">
+            <a href="../admin/settings.php?tab=users" class="user-pill text-decoration-none">
                 <div class="avatar"><?= strtoupper(substr($userName,0,1)) ?></div>
-                <div class="d-flex flex-column" style="line-height:1">
-                    <span class="small fw-bold"><?= htmlspecialchars($userName) ?></span>
-                    <span class="role-badge"><?= ucfirst($userRole) ?></span>
+                <div class="user-pill-info">
+                    <span class="user-pill-name"><?= htmlspecialchars($userName) ?></span>
+                    <span class="user-pill-role"><?= ucfirst($userRole) ?></span>
                 </div>
-            </div>
+            </a>
         </header>
 
         <?php if(!$projectId && !$viewTrash): ?>
@@ -187,36 +290,40 @@ include __DIR__ . '/../views/header.php';
             </div>
 
             <div class="row g-4 mb-5">
-                <div class="col-md-4"><div class="box-card"><i class="fas fa-folder-open stat-icon-bg"></i><div class="stat-num"><?= $stats['total_projects'] ?></div><div class="stat-label">Active Projects</div></div></div>
-                <div class="col-md-4"><div class="box-card"><i class="fas fa-file-contract stat-icon-bg"></i><div class="stat-num"><?= $stats['total_files'] ?></div><div class="stat-label">Files Uploaded</div></div></div>
-                <div class="col-md-4"><div class="box-card"><i class="fas fa-users stat-icon-bg"></i><div class="stat-num"><?= $stats['total_users'] ?></div><div class="stat-label">Active Users</div></div></div>
+                <div class="col-md-4"><div class="box-card"><i class="fas fa-folder-open stat-icon-bg" style="color: #3b82f6; opacity: 0.5;"></i><div class="stat-num"><?= $stats['total_projects'] ?></div><div class="stat-label">Active Projects</div></div></div>
+                <div class="col-md-4"><div class="box-card"><i class="fas fa-file-contract stat-icon-bg" style="color: #10b981; opacity: 0.5;"></i><div class="stat-num"><?= $stats['total_files'] ?></div><div class="stat-label">Files Uploaded</div></div></div>
+                <div class="col-md-4"><div class="box-card"><i class="fas fa-users stat-icon-bg" style="color: #f59e0b; opacity: 0.5;"></i><div class="stat-num"><?= $stats['total_users'] ?></div><div class="stat-label">Active Users</div></div></div>
             </div>
             
             <h5 class="fw-bold mb-4">Recent Projects (Latest 10)</h5>
-            <div class="row g-4 mb-5">
+            <div class="d-flex flex-column gap-2 mb-5">
                 <?php foreach($recentProjects as $p): ?>
-                <div class="col-md-4 col-xl-3">
-                    <a href="project_dashboard.php?id=<?= $p['id'] ?>" class="box-card d-block">
-                        <div class="proj-status">Active</div>
-                        <div class="proj-title"><?= htmlspecialchars($p['name']) ?></div>
-                        <div class="proj-desc"><?= htmlspecialchars($p['description'] ?: 'No description.') ?></div>
-                        <div class="mt-4 pt-3 border-top border-secondary d-flex justify-content-between align-items-center text-gray small">
-                            <span><?= date('M d', strtotime($p['created_at'])) ?></span>
-                            <i class="fas fa-arrow-right"></i>
+                <a href="project_dashboard.php?id=<?= $p['id'] ?>" class="box-card d-flex align-items-center justify-content-between text-decoration-none p-3">
+                    <div class="d-flex align-items-center gap-3 w-100 overflow-hidden">
+                        <div class="bg-primary bg-opacity-10 p-2 rounded text-primary d-flex align-items-center justify-content-center" style="width: 40px; height: 40px; flex-shrink: 0;">
+                            <i class="fas fa-folder"></i>
                         </div>
-                    </a>
-                </div>
+                        <div class="overflow-hidden flex-grow-1">
+                            <div class="d-flex align-items-center gap-2 mb-1">
+                                <div class="fw-bold text-white text-truncate" style="font-size: 1.05rem;"><?= htmlspecialchars($p['name']) ?></div>
+                                <span class="badge bg-success bg-opacity-25 text-success px-2 py-0 rounded small d-md-none">Active</span>
+                            </div>
+                            <div class="small text-gray text-truncate"><?= htmlspecialchars($p['description'] ?: 'No description.') ?></div>
+                        </div>
+                    </div>
+                    <div class="d-flex align-items-center gap-4 flex-shrink-0 ms-3">
+                        <div class="d-none d-md-block text-end">
+                            <div class="small text-white fw-bold"><?= date('M d, Y', strtotime($p['created_at'])) ?></div>
+                        </div>
+                        <div class="d-none d-md-block">
+                            <span class="badge bg-success bg-opacity-25 text-success px-2 py-1 rounded">Active</span>
+                        </div>
+                        <i class="fas fa-chevron-right text-gray"></i>
+                    </div>
+                </a>
                 <?php endforeach; ?>
-                
-                <?php if($canCreate): ?>
-                <div class="col-md-4 col-xl-3">
-                    <a href="project_create.php" class="text-decoration-none">
-                        <div class="box-card box-card-dashed h-100 d-flex flex-column align-items-center justify-content-center">
-                            <div class="mb-2 p-3 rounded-circle bg-dark"><i class="fas fa-plus fa-lg text-white"></i></div>
-                            <div class="fw-bold text-white">Create New Project</div>
-                        </div>
-                    </a>
-                </div>
+                <?php if(empty($recentProjects)): ?>
+                    <div class="text-gray text-center py-4">No projects created yet.</div>
                 <?php endif; ?>
             </div>
 
@@ -226,24 +333,29 @@ include __DIR__ . '/../views/header.php';
                 <?php foreach($recentFiles as $f): 
                     $ft = strtolower(pathinfo($f['filename'], PATHINFO_EXTENSION));
                     $isPdf = ($ft === 'pdf'); $isImg = in_array($ft, ['jpg', 'jpeg', 'png', 'webp', 'gif']);
-                    $tileClass = 'file-gen'; $iconClass = 'fa-file';
-                    if($isPdf) { $tileClass='pdf'; $iconClass='fa-file-pdf'; } elseif($isImg) { $tileClass='img'; $iconClass='fa-image'; }
+                    $iconClass = 'fa-file-alt'; $colorClass = 'primary';
+                    if($isPdf) { $iconClass='fa-file-pdf'; $colorClass='danger'; } elseif($isImg) { $iconClass='fa-image'; $colorClass='info'; }
                 ?>
                 <div class="col-md-3 col-xl-2">
-                    <div class="box-card text-center p-3">
-                        <div class="file-tile <?= $tileClass ?>" style="width:50px; height:60px;">
-                            <i class="fas <?= $iconClass ?>" style="font-size:1.5rem"></i>
-                            <?php if(isset($f['version_number']) && $f['version_number'] > 1): ?>
-                                <span class="version-badge" style="font-size:0.55rem; padding:1px 4px;">V<?= $f['version_number'] ?></span>
-                            <?php endif; ?>
-                        </div>
-                        <h6 class="fw-bold text-truncate w-100 mb-1" style="font-size:0.9rem"><?= htmlspecialchars($f['filename']) ?></h6>
-                        <small class="text-accent d-block mb-1 text-truncate" style="font-size:0.7rem"><i class="fas fa-layer-group me-1"></i> <?= htmlspecialchars($f['project_name']) ?></small>
-                        <small class="text-gray d-block mb-3" style="font-size:0.75rem"><?= date('M d, Y', strtotime($f['uploaded_at'])) ?></small>
+                    <div class="file-card-modern p-4 text-center h-100">
+                        <?php if(isset($f['version_number']) && $f['version_number'] > 1): ?>
+                            <div class="position-absolute top-0 start-0 m-2" style="z-index: 5;">
+                                <span class="badge bg-primary rounded-pill small">V<?= $f['version_number'] ?></span>
+                            </div>
+                        <?php endif; ?>
                         
-                        <div class="d-flex justify-content-center gap-2">
-                            <a href="preview.php?id=<?= $f['id'] ?>" class="btn-icon" style="width:30px;height:30px;font-size:0.8rem"><i class="fas fa-eye"></i></a>
-                            <?php if($userRole !== 'viewer'): ?><a href="editor.php?id=<?= $f['id'] ?>" class="btn-icon text-primary border-primary" style="width:30px;height:30px;font-size:0.8rem"><i class="fas fa-pen"></i></a><?php endif; ?>
+                        <div class="file-icon-large text-<?= $colorClass ?> bg-<?= $colorClass ?> bg-opacity-10">
+                            <i class="fas <?= $iconClass ?>"></i>
+                        </div>
+                        
+                        <div class="fw-bold text-truncate mb-1 text-white fs-6" title="<?= htmlspecialchars($f['filename']) ?>"><?= htmlspecialchars($f['filename']) ?></div>
+                        <small class="text-accent d-block mb-1 text-truncate" style="font-size:0.75rem"><i class="fas fa-layer-group me-1"></i> <?= htmlspecialchars($f['project_name']) ?></small>
+                        <div class="small text-gray fw-medium"><?= date('M d, Y', strtotime($f['uploaded_at'])) ?></div>
+                        
+                        <!-- OVERLAY INTERACTIVO -->
+                        <div class="file-overlay" tabindex="0">
+                            <a href="preview.php?id=<?= $f['id'] ?>" class="overlay-action overlay-view <?= ($userRole === 'viewer') ? 'w-100' : 'w-50' ?>"><i class="fas fa-eye fa-lg mb-1"></i><span class="small fw-bold">View</span></a>
+                            <?php if($userRole !== 'viewer'): ?><a href="editor.php?id=<?= $f['id'] ?>" class="overlay-action overlay-edit w-50"><i class="fas fa-pen-nib fa-lg mb-1"></i><span class="small fw-bold">Edit</span></a><?php endif; ?>
                         </div>
                     </div>
                 </div>
@@ -324,7 +436,7 @@ include __DIR__ . '/../views/header.php';
                             <span class="fw-bold fs-5 text-white"><?= htmlspecialchars($item['name']) ?></span>
                         </a>
                         <?php if(!$isRep && $canDelete): ?>
-                            <a href="index.php?action=delete_folder&id=<?= $item['id'] ?>" class="text-danger opacity-25 hover-opacity-100 ms-2" onclick="return confirm('Delete folder?')"><i class="fas fa-trash"></i></a>
+                            <a href="index.php?action=delete_folder&id=<?= $item['id'] ?>" class="text-danger opacity-25 hover-opacity-100 ms-2" onclick="event.preventDefault(); let url=this.href; appConfirm('Delete folder?', 'Confirm Deletion', () => { window.location.href = url; });"><i class="fas fa-trash"></i></a>
                         <?php endif; ?>
                     </div>
                 </div>
@@ -471,7 +583,7 @@ include __DIR__ . '/../views/header.php';
     // Procesador de Subida
     async function handleFiles(fileList) {
         if(fileList.length === 0) return;
-        if(!pId) { alert("Error: No project selected."); return; }
+        if(!pId) { appAlert("Error: No project selected.", "Missing Project", "error"); return; }
 
         const btnUp = document.querySelector('.btn-main'); 
         if(btnUp) { btnUp.disabled = true; btnUp.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Uploading...'; }
@@ -483,12 +595,12 @@ include __DIR__ . '/../views/header.php';
             const file = fileList[i];
             
             if (file.size > MAX_SIZE) {
-                alert(`Error: El archivo "${file.name}" supera el límite de 1GB.`);
+                appAlert(`Error: File "${file.name}" exceeds the 1GB limit.`, "Size Limit", "warning");
                 continue; 
             }
 
             if (!ALLOWED_TYPES.includes(file.type) && !file.name.match(/\.(jpg|jpeg|png|gif|webp|pdf|bmp|tiff)$/i)) {
-                 alert(`Error: El archivo "${file.name}" no es válido. Solo se permiten PDF e Imágenes.`);
+                 appAlert(`Error: File "${file.name}" is invalid. Only PDF and Images allowed.`, "Invalid Format", "error");
                  continue; 
             }
 
@@ -500,11 +612,11 @@ include __DIR__ . '/../views/header.php';
                 let response = await fetch('../api/api.php', { method: 'POST', body: fd }); 
                 let data = await response.json();
                 if(data.status === 'error') {
-                    alert(`Error subiendo ${file.name}: ${data.msg}`);
+                    appAlert(`Error uploading ${file.name}: ${data.msg}`, "Upload Error", "error");
                 }
             } catch (e) { 
                 console.error(e); 
-                alert(`Error de conexión subiendo ${file.name}`);
+                appAlert(`Connection error uploading ${file.name}`, "Error", "error");
             }
         }
         location.reload();
@@ -566,9 +678,9 @@ include __DIR__ . '/../views/header.php';
                 .then(r => r.json())
                 .then(d => {
                     if(d.status === 'success') location.reload();
-                    else { alert("Error moving item: " + d.msg); btn.innerHTML = originalText; btn.disabled = false; }
+                    else { appAlert("Error moving item: " + d.msg, "Error", "error"); btn.innerHTML = originalText; btn.disabled = false; }
                 })
-                .catch(e => { alert("Connection error"); btn.innerHTML = originalText; btn.disabled = false; });
+                .catch(e => { appAlert("Connection error", "Error", "error"); btn.innerHTML = originalText; btn.disabled = false; });
         });
     }
 
@@ -600,17 +712,18 @@ include __DIR__ . '/../views/header.php';
     }
     
     function deleteBulk() {
-        if(!confirm(`Move ${selectedIds.size} files to Recycle Bin?`)) return;
-        const ids = Array.from(selectedIds); 
-        const fd = new FormData(); fd.append('action', 'delete_bulk'); fd.append('ids', JSON.stringify(ids));
-        fetch('../api/api.php', { method: 'POST', body: fd }).then(r=>r.json()).then(d => { if(d.status === 'success') location.reload(); });
+        appConfirm(`Move ${selectedIds.size} files to Recycle Bin?`, "Move to Trash", () => {
+            const ids = Array.from(selectedIds); 
+            const fd = new FormData(); fd.append('action', 'delete_bulk'); fd.append('ids', JSON.stringify(ids));
+            fetch('../api/api.php', { method: 'POST', body: fd }).then(r=>r.json()).then(d => { if(d.status === 'success') location.reload(); });
+        });
     }
 
     function deleteFile(id) {
-        if(confirm("Move to Recycle Bin?")) {
+        appConfirm("Move to Recycle Bin?", "Delete File", () => {
             const fd = new FormData(); fd.append('action', 'delete_entity'); fd.append('type', 'file'); fd.append('id', id);
             fetch('../api/api.php', { method:'POST', body:fd }).then(r=>r.json()).then(d=>{ if(d.status==='success') location.reload(); });
-        }
+        });
     }
 
     // --- PAPELERA ---
@@ -658,15 +771,17 @@ include __DIR__ . '/../views/header.php';
     }
     
     async function restoreSelected() { 
-        if (!confirm(`Restore ${selectedTrash.size} items?`)) return; 
-        const promises = Array.from(selectedTrash).map(comp => { const [type, id] = comp.split('_'); const fd = new FormData(); fd.append('action', 'restore_entity'); fd.append('type', type); fd.append('id', id); return fetch('../api/api.php', { method: 'POST', body: fd }); }); 
-        try { await Promise.all(promises); location.reload(); } catch (e) { alert("Error processing request"); } 
+        appConfirm(`Restore ${selectedTrash.size} items?`, "Restore Items", async () => {
+            const promises = Array.from(selectedTrash).map(comp => { const [type, id] = comp.split('_'); const fd = new FormData(); fd.append('action', 'restore_entity'); fd.append('type', type); fd.append('id', id); return fetch('../api/api.php', { method: 'POST', body: fd }); }); 
+            try { await Promise.all(promises); location.reload(); } catch (e) { appAlert("Error processing request", "Error", "error"); } 
+        });
     }
     
     async function hardDeleteSelected() { 
-        if (!confirm(`WARNING: This will permanently delete ${selectedTrash.size} items.`)) return; 
-        const promises = Array.from(selectedTrash).map(comp => { const [type, id] = comp.split('_'); const fd = new FormData(); fd.append('action', 'hard_delete_entity'); fd.append('type', type); fd.append('id', id); return fetch('../api/api.php', { method: 'POST', body: fd }); }); 
-        try { await Promise.all(promises); location.reload(); } catch (e) { alert("Error processing request"); } 
+        appConfirm(`WARNING: This will permanently delete ${selectedTrash.size} items.`, "Delete Forever", async () => {
+            const promises = Array.from(selectedTrash).map(comp => { const [type, id] = comp.split('_'); const fd = new FormData(); fd.append('action', 'hard_delete_entity'); fd.append('type', type); fd.append('id', id); return fetch('../api/api.php', { method: 'POST', body: fd }); }); 
+            try { await Promise.all(promises); location.reload(); } catch (e) { appAlert("Error processing request", "Error", "error"); } 
+        });
     }
 
     // --- ASIGNAR USUARIOS A PROYECTO ---
@@ -682,7 +797,7 @@ include __DIR__ . '/../views/header.php';
             const checked = Array.from(this.querySelectorAll('input[name="user_ids[]"]:checked'));
             const hasAdmin = checked.some(i => i.dataset.role === 'admin');
             if (checked.length === 0 || !hasAdmin) {
-                alert('At least one admin must be assigned to the project.');
+                appAlert('At least one admin must be assigned to the project.', "Assignment Error", "warning");
                 return;
             }
             const fd = new FormData(this);
@@ -690,9 +805,9 @@ include __DIR__ . '/../views/header.php';
                 .then(r => r.json())
                 .then(d => {
                     if (d.status === 'success') location.reload();
-                    else alert('Error assigning users: ' + (d.msg || 'Unknown'));
+                    else appAlert('Error assigning users: ' + (d.msg || 'Unknown'), "Error", "error");
                 })
-                .catch(() => alert('Connection error'));
+                .catch(() => appAlert('Connection error', "Error", "error"));
         });
     }
 </script>
