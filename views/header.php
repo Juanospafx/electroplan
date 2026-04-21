@@ -104,27 +104,6 @@
         }
         body.theme-light .toast-msg span { color: #0f172a !important; }
 
-        .global-theme-toggle {
-            position: fixed;
-            top: 14px;
-            right: 16px;
-            z-index: 1300;
-            width: 38px;
-            height: 38px;
-            border-radius: 999px;
-            border: 1px solid rgba(255,255,255,0.2);
-            background: rgba(17,24,39,.92);
-            color: #fff;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-        }
-        body.theme-light .global-theme-toggle {
-            border-color: rgba(15,23,42,0.25);
-            background: rgba(255,255,255,0.95);
-            color: #0f172a;
-        }
         a { text-decoration: none; color: inherit; }
         
         /* Wrapper principal */
@@ -156,33 +135,6 @@
         .menu-item i { width: 20px; text-align: center; }
         .menu-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-        .sidebar-toggle {
-            position: fixed;
-            top: 14px;
-            left: 274px;
-            z-index: 1200;
-            width: 36px;
-            height: 36px;
-            border-radius: 999px;
-            border: 1px solid rgba(255,255,255,0.2);
-            background: rgba(17,24,39,.92);
-            color: #fff;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            transition: left .25s ease;
-        }
-
-        body.sidebar-collapsed .sidebar { width: 78px; padding: 24px 10px; }
-        body.sidebar-collapsed .brand { justify-content: center; }
-        body.sidebar-collapsed .brand-text,
-        body.sidebar-collapsed .menu-label { display: none; }
-        body.sidebar-collapsed .menu-item { justify-content: center; padding: 14px 10px; gap: 0; }
-        body.sidebar-collapsed .menu-item i { margin-right: 0 !important; }
-        body.sidebar-collapsed .main-content { margin-left: 78px; width: calc(100% - 78px); }
-        body.sidebar-collapsed .sidebar-toggle { left: 92px; }
-
         /* --- 3. LAYOUT PRINCIPAL (MODIFICADO PARA RESPONSIVE) --- */
         .main-content { 
             margin-left: 260px; /* Espacio para el sidebar fijo */
@@ -197,9 +149,19 @@
         .breadcrumbs { color: var(--text-gray); font-size: 0.9rem; }
         .breadcrumbs span { color: white; font-weight: 600; }
         
-        .user-pill { background: var(--bg-card); padding: 8px 15px; border-radius: var(--radius-btn); display: flex; align-items: center; gap: 10px; border: 1px solid rgba(255,255,255,0.1); }
-        .avatar { width: 32px; height: 32px; background: var(--accent); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.8rem; font-weight: bold; }
-        .role-badge { font-size: 0.65rem; text-transform: uppercase; background: rgba(255,255,255,0.1); padding: 2px 6px; border-radius: 4px; color: var(--accent); margin-left: 5px; }
+        .user-pill { background: var(--bg-input, #151a23); padding: 6px 20px 6px 8px; border-radius: 50px; display: inline-flex; align-items: center; gap: 12px; border: 1px solid var(--border-subtle, #2f384a); transition: all 0.3s ease; text-decoration: none; cursor: pointer; }
+        .user-pill:hover { border-color: var(--primary, #fb5a3a); transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        <?php 
+            $avColor = '#3b82f6'; // Blue
+            $ur = strtolower($_SESSION['role'] ?? '');
+            if($ur === 'admin') $avColor = '#f59e0b'; // Amber
+            elseif($ur === 'technician') $avColor = '#10b981'; // Emerald
+            elseif($ur === 'viewer') $avColor = '#8b5cf6'; // Purple
+        ?>
+        .avatar { width: 38px; height: 38px; background: <?= $avColor ?>; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1rem; font-weight: 700; }
+        .user-pill-info { display: flex; flex-direction: column; line-height: 1.2; }
+        .user-pill-name { font-size: 0.9rem; font-weight: 700; color: var(--text-white, #ffffff); }
+        .user-pill-role { font-size: 0.7rem; font-weight: 600; color: var(--text-gray, #94a3b8); text-transform: uppercase; letter-spacing: 0.05em; }
 
         /* --- 4. COMPONENTES GLOBALES --- */
         .box-card { background: var(--bg-card); border-radius: var(--radius-box); padding: 25px; height: 100%; border: 1px solid rgba(255,255,255,0.05); transition: 0.3s; position: relative; overflow: hidden; }
@@ -267,25 +229,11 @@
 </script>
 
 <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
-<button id="sidebarCollapseBtn" class="sidebar-toggle" type="button" onclick="toggleSidebarDesktop()" aria-label="Toggle sidebar">
-    <i class="fas fa-angle-left"></i>
-</button>
-<button id="globalThemeToggle" class="global-theme-toggle" type="button" onclick="toggleAppTheme()" aria-label="Toggle day/night theme" title="Switch theme">
-    <i class="fas fa-sun"></i>
-</button>
 
 <script>
     function toggleSidebar() {
         document.querySelector('.sidebar').classList.toggle('show');
         document.getElementById('sidebarOverlay').classList.toggle('show');
-    }
-
-    function syncSidebarToggleIcon() {
-        const btn = document.getElementById('sidebarCollapseBtn');
-        if (!btn) return;
-        const icon = btn.querySelector('i');
-        const collapsed = document.body.classList.contains('sidebar-collapsed');
-        if (icon) icon.className = collapsed ? 'fas fa-angle-right' : 'fas fa-angle-left';
     }
 
     function applyAppTheme(theme) {
@@ -302,26 +250,10 @@
         applyAppTheme(document.body.classList.contains('theme-light') ? 'dark' : 'light');
     }
 
-    function toggleSidebarDesktop() {
-        document.body.classList.toggle('sidebar-collapsed');
-        try {
-            localStorage.setItem('mainSidebarCollapsed', document.body.classList.contains('sidebar-collapsed') ? '1' : '0');
-        } catch (e) {}
-        syncSidebarToggleIcon();
-    }
-
     document.addEventListener('DOMContentLoaded', function() {
-        if (window.matchMedia('(min-width: 992px)').matches) {
-            try {
-                if (localStorage.getItem('mainSidebarCollapsed') === '1') {
-                    document.body.classList.add('sidebar-collapsed');
-                }
-            } catch (e) {}
-        }
         let savedTheme = 'dark';
         try { savedTheme = localStorage.getItem('app_theme') || localStorage.getItem('editor_theme') || 'dark'; } catch (e) {}
         applyAppTheme(savedTheme);
-        syncSidebarToggleIcon();
     });
 </script>
 

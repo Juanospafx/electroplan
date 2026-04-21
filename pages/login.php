@@ -46,38 +46,49 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
-            /* Misma paleta que el Dashboard */
-            --bg-body: #0b1120;
-            --bg-card: #1e293b;
-            --primary: #6366f1;
-            --primary-hover: #4f46e5;
+            /* Paleta Dark Mode (Deep Matte) de style.css */
+            --bg-body: #1b212d;
+            --bg-card: #242a38;
+            --bg-input: #151a23;
+            --primary: #fb5a3a;
+            --primary-hover: #e14e32;
             --text-white: #ffffff;
             --text-gray: #94a3b8;
-            --text-muted: #9aa7b9;
+            --text-muted: #58657a;
+            --border-subtle: #2f384a;
             --radius-box: 20px;
         }
 
         body {
             background-color: var(--bg-body);
             color: var(--text-white);
-            font-family: 'Outfit', sans-serif;
+            font-family: 'Poppins', sans-serif;
             height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
             margin: 0;
+            transition: background-color 0.3s ease, color 0.3s ease;
         }
 
         body.theme-light {
-            --bg-body: #f3f6fb;
+            --bg-body: #e2e8f0;
             --bg-card: #ffffff;
+            --bg-input: #f8fafc;
             --text-white: #0f172a;
-            --text-gray: #475569;
-            --text-muted: #64748b;
+            --text-gray: #64748b;
+            --text-muted: #94a3b8;
+            --border-subtle: #e2e8f0;
         }
         body.theme-light .form-control,
-        body.theme-light .btn-eye { background: #fff; color: #0f172a; border-color: rgba(15,23,42,0.2); }
+        body.theme-light .btn-eye { background: var(--bg-input); color: #0f172a; border-color: var(--border-subtle); }
         body.theme-light .brand { color: #0f172a; }
+        body.theme-light .logo-full { 
+            background-color: transparent;
+            background-image: url("../assets/logo-text.png");
+            -webkit-mask: none;
+            mask: none;
+        }
 
         .login-theme-toggle {
             position: fixed; top: 16px; right: 16px; width: 38px; height: 38px; border-radius: 999px;
@@ -96,7 +107,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             background: var(--bg-card);
             border-radius: var(--radius-box);
             padding: 40px;
-            border: 1px solid rgba(255,255,255,0.05);
+            border: 1px solid var(--border-subtle);
             box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
         }
 
@@ -113,7 +124,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         .brand-icon {
             width: 40px; height: 40px;
-            background: linear-gradient(135deg, var(--primary), #0ea5e9);
+            background: var(--primary);
             border-radius: 12px;
             display: flex; align-items: center; justify-content: center;
             box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4);
@@ -127,26 +138,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         .form-control {
-            background: var(--bg-body);
-            border: 1px solid rgba(255,255,255,0.1);
+            background: var(--bg-input);
+            border: 1px solid var(--border-subtle);
             border-radius: 12px;
-            color: white;
+            color: var(--text-white);
             padding: 12px 15px;
             font-size: 0.95rem;
         }
 
         .form-control:focus {
-            background: var(--bg-body);
-            color: white;
+            background: var(--bg-input);
+            color: var(--text-white);
             border-color: var(--primary);
-            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+            box-shadow: 0 0 0 3px rgba(251, 90, 58, 0.2);
             z-index: 2;
+        }
+
+        /* Mantiene el color de fondo y texto al usar Autofill del navegador */
+        .form-control:-webkit-autofill,
+        .form-control:-webkit-autofill:hover, 
+        .form-control:-webkit-autofill:focus {
+            -webkit-text-fill-color: var(--text-white) !important;
+            -webkit-box-shadow: 0 0 0px 1000px var(--bg-input) inset !important;
+            transition: background-color 5000s ease-in-out 0s;
         }
         
         /* Estilo para el botón de ojo */
         .btn-eye {
-            background: var(--bg-body);
-            border: 1px solid rgba(255,255,255,0.1);
+            background: var(--bg-input);
+            border: 1px solid var(--border-subtle);
             border-left: 0;
             color: var(--text-gray);
             border-radius: 0 12px 12px 0;
@@ -154,9 +174,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             transition: 0.2s;
         }
         .btn-eye:hover {
-            background: #2d3748;
+            background: var(--bg-body);
             color: white;
-            border-color: rgba(255,255,255,0.2);
+            border-color: var(--border-subtle);
+        }
+
+        .input-group-text i {
+            color: var(--text-gray);
+        }
+
+        .form-control::placeholder {
+            color: var(--text-gray);
+            opacity: 1; /* Firefox fix */
         }
 
         .btn-login {
@@ -169,7 +198,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             width: 100%;
             margin-top: 20px;
             transition: 0.3s;
-            box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3);
+            box-shadow: 0 1px 10px var(--primary);
         }
 
         .btn-login:hover {
@@ -191,6 +220,37 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             font-size: 0.8rem;
             color: var(--text-muted);
         }
+
+        .logo-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .logo-full {
+            height: 2.5rem;
+            width: 220px;
+            background-color: var(--text-white);
+            -webkit-mask: url("../assets/logo-text.png") no-repeat center;
+            mask: url("../assets/logo-text.png") no-repeat center;
+            -webkit-mask-size: contain;
+            mask-size: contain;
+            background-size: contain;
+            background-repeat: no-repeat;
+            background-position: center;
+            transition: all 0.3s ease;
+        }
+
+        .app-subtitle {
+        font-size: 0.7rem;
+        color: var(--text-gray);
+        font-weight: 700;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        margin-top: -0.5rem;
+        margin-left: 0;
+        }
     </style>
 </head>
 <body>
@@ -209,12 +269,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
 <div class="login-wrapper">
     <div class="login-card">
-        <div class="brand">
-            <div class="brand-icon"><i class="fas fa-bolt"></i></div>
-            Brightronix
-        </div>
+        <div class="logo-container">
+                <div class="logo-full" role="img" aria-label="Brightronix Logo"></div>
+                <div class="app-subtitle">Electro Plan</div>
+            </div>
         
-        <h5 class="text-center mb-4 fw-bold">Welcome Back</h5>
+       <!-- <h5 class="text-center mb-2 fw-bold">Welcome Back</h5> -->
 
         <?php if($error): ?>
             <div class="alert alert-danger py-2 text-center mb-4">
@@ -226,7 +286,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div class="mb-3">
                 <label class="form-label">Username</label>
                 <div class="input-group">
-                    <span class="input-group-text bg-transparent border-secondary text-main" style="border-right:0; border-radius: 12px 0 0 12px; border-color: rgba(255,255,255,0.1);">
+                    <span class="input-group-text bg-transparent" style="border-right:0; border-radius: 12px 0 0 12px; border-color: var(--border-subtle);">
                         <i class="fas fa-user"></i>
                     </span>
                     <input type="text" name="username" class="form-control" style="border-left:0; border-radius: 0 12px 12px 0;" placeholder="Enter your username" required autofocus>
@@ -236,7 +296,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div class="mb-3">
                 <label class="form-label">Password</label>
                 <div class="input-group">
-                    <span class="input-group-text bg-transparent border-secondary text-main" style="border-right:0; border-radius: 12px 0 0 12px; border-color: rgba(255,255,255,0.1);">
+                    <span class="input-group-text bg-transparent" style="border-right:0; border-radius: 12px 0 0 12px; border-color: var(--border-subtle);">
                         <i class="fas fa-lock"></i>
                     </span>
                     <input type="password" name="password" id="loginPass" class="form-control" style="border-left:0; border-right:0; border-radius: 0;" placeholder="••••••••" required>
@@ -252,7 +312,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         </form>
 
         <div class="footer-text">
-            Protected System V5.0
+            Brightronix © 2026. All rights reserved.
         </div>
     </div>
 </div>
