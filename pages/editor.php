@@ -433,6 +433,11 @@ if ($filePath !== '') {
                     <div class="color-dot" data-col="#3b82f6" style="background:#3b82f6" onclick="setTextFixedColor('#3b82f6', this)"></div>
                     <div class="color-dot" data-col="#22c55e" style="background:#22c55e" onclick="setTextFixedColor('#22c55e', this)"></div>
                     <div class="color-dot" data-col="#eab308" style="background:#eab308" onclick="setTextFixedColor('#eab308', this)"></div>
+                    <!-- FIX-BUG2: colores adicionales solicitados -->
+                    <div class="color-dot" data-col="#ec4899" style="background:#ec4899" onclick="setTextFixedColor('#ec4899', this)"></div>
+                    <div class="color-dot" data-col="#f97316" style="background:#f97316" onclick="setTextFixedColor('#f97316', this)"></div>
+                    <div class="color-dot" data-col="#8b5cf6" style="background:#8b5cf6" onclick="setTextFixedColor('#8b5cf6', this)"></div>
+                    <div class="color-dot" data-col="#ffffff" style="background:#ffffff; border:1px solid #64748b" onclick="setTextFixedColor('#ffffff', this)"></div>
                 </div>
                 <div class="border-start border-secondary mx-2 h-50"></div>
                 <span class="prop-label">Size</span>
@@ -1258,7 +1263,17 @@ if ($filePath !== '') {
     function serializeKonvaForPage(pg) {
         const notes = konvaNotes
             .filter(n => n.page === pg)
-            .map(n => ({ x: n.group.x(), y: n.group.y(), text: n.label.text(), fill: n.label.fill(), fontSize: n.label.fontSize() }));
+            .map(n => ({
+                x: n.group.x(),
+                y: n.group.y(),
+                text: n.label.text(),
+                fill: n.label.fill(),
+                fontSize: n.label.fontSize(),
+                // FIX-BUG2/FIX-BUG3: persistir resize real de notas
+                scaleX: n.group.scaleX(),
+                scaleY: n.group.scaleY(),
+                width: n.label.width()
+            }));
         const rulers = konvaRulers
             .filter(r => r.page === pg)
             .map(r => ({ p1: r.a1.position(), p2: r.a2.position() }));
@@ -1293,6 +1308,11 @@ if ($filePath !== '') {
             const note = createKonvaNote({ x: n.x, y: n.y }, n.text || 'annotation', pg);
             if (n.fill) note.label.fill(n.fill);
             if (n.fontSize) note.label.fontSize(n.fontSize);
+            // FIX-BUG2/FIX-BUG3: restaurar width/scale de notas
+            if (n.width) note.label.width(Math.max(40, n.width));
+            note.group.scaleX(n.scaleX || 1);
+            note.group.scaleY(n.scaleY || 1);
+            if (typeof updateKonvaNoteBox === 'function') updateKonvaNoteBox(note);
         });
         (data.clouds || []).forEach(c => {
             const cloud = createKonvaCloud({ x: c.x, y: c.y }, pg, c.strokeWidth || cloudStrokeWidth);
@@ -1462,9 +1482,52 @@ if ($filePath !== '') {
         return { fontSize: 64, minEditW: 260, minEditH: 72 };
     }
 
+    // FIX-BUG1/FIX-BUG5: detectar targets hijos de notas/nubes para no iniciar pan por error
+    function isKonvaAnnotationTarget(target) {
+        let node = target;
+        while (node) {
+            if (node.getAttr && (node.getAttr('annoType') === 'note' || node.getAttr('annoType') === 'cloud')) return true;
+            node = node.getParent ? node.getParent() : null;
+        }
+        return false;
+    }
+
+    // NEW-FEAT1: fondo tipo sticky-note + sync con tamaño de texto
+    function updateKonvaNoteBox(note) {
+        if (!note || !note.label || !note.bg) return;
+        const padX = note.padX || 14;
+        const padY = note.padY || 10;
+        note.bg.position({ x: -padX, y: -padY });
+        note.bg.size({
+            width: Math.max(40, note.label.width()) + (padX * 2),
+            height: Math.max(20, note.label.height()) + (padY * 2)
+        });
+    }
+
+    // FIX-BUG5: mantener hitbox en sync tras transformaciones
+    function syncKonvaCloudHitBox(cloud) {
+        if (!cloud || !cloud.hitBox) return;
+        const baseW = 180;
+        const baseH = 120;
+        const pad = 12;
+        cloud.hitBox.position({ x: -(baseW / 2) - pad, y: -(baseH / 2) - pad });
+        cloud.hitBox.size({ width: baseW + (pad * 2), height: baseH + (pad * 2) });
+    }
+
     function createKonvaNote(pos, text = 'annotation', targetPage = pageNum) {
         const preset = getResponsiveNotePreset();
-        const group = new Konva.Group({ x: pos.x, y: pos.y, draggable: true });
+        const group = new Konva.Group({ x: pos.x, y: pos.y, draggable: true, annoType: 'note' });
+        // NEW-FEAT1: caja tipo sticky note
+        const noteBg = new Konva.Rect({
+            x: -14,
+            y: -10,
+            width: 328,
+            height: 96,
+            fill: 'rgba(255,255,0,0.30)',
+            stroke: '#facc15',
+            strokeWidth: 2,
+            cornerRadius: 6
+        });
         const label = new Konva.Text({
             x: 0,
             y: 0,
@@ -1472,20 +1535,32 @@ if ($filePath !== '') {
             fontSize: preset.fontSize,
             fill: '#ef4444',
             fontFamily: 'Arial',
-            wrap: 'word'
+            wrap: 'word',
+            // FIX-BUG3: width inicial para permitir reflow real al redimensionar
+            width: 300
         });
+        group.add(noteBg);
         group.add(label);
         konvaLayer.add(group);
 
-        const note = { group, label, page: targetPage };
+        const note = { group, label, bg: noteBg, page: targetPage, padX: 14, padY: 10, bgFill: 'rgba(255,255,0,0.30)' };
+        updateKonvaNoteBox(note);
         konvaNotes.push(note);
 
+        group.on('mousedown touchstart', (e) => {
+            // FIX-BUG1: evitar que el stage capture pan cuando se interactúa con nota
+            e.cancelBubble = true;
+        });
         group.on('click tap', () => {
             if (currentMode !== 'smart') setMode('smart');
             konvaSelectedNote = note;
             showPropSection('text');
             const sizeInput = document.getElementById('text-size-input');
             if (sizeInput) sizeInput.value = Math.round(note.label.fontSize());
+            // FIX-BUG2: resaltar color actual en la paleta
+            document.querySelectorAll('#prop-text .color-dot').forEach(d => {
+                d.classList.toggle('active', (d.getAttribute('data-col') || '').toLowerCase() === (note.label.fill() || '').toLowerCase());
+            });
             if (konvaTransformer) konvaTransformer.nodes([group]);
             konvaSelectedNode = { type: 'note', ref: note };
         });
@@ -1510,7 +1585,7 @@ if ($filePath !== '') {
     }
 
     function createKonvaCloud(pos, targetPage = pageNum, strokeWidth = cloudStrokeWidth) {
-        const group = new Konva.Group({ x: pos.x, y: pos.y, draggable: true });
+        const group = new Konva.Group({ x: pos.x, y: pos.y, draggable: true, annoType: 'cloud' });
 
         const w = 180;
         const h = 120;
@@ -1585,9 +1660,13 @@ if ($filePath !== '') {
         group.add(hitBox);
         konvaLayer.add(group);
 
-        const cloud = { group, shape: cloudShape, page: targetPage };
+        const cloud = { group, shape: cloudShape, hitBox, page: targetPage };
         konvaClouds.push(cloud);
 
+        group.on('mousedown touchstart', (e) => {
+            // FIX-BUG5: evitar que pan del stage capture interacciones de nubes
+            e.cancelBubble = true;
+        });
         group.on('click tap', () => {
             if (currentMode !== 'smart') setMode('smart');
             if (konvaTransformer) konvaTransformer.nodes([group]);
@@ -1605,6 +1684,7 @@ if ($filePath !== '') {
             showPropSection('cloud');
         });
         group.on('dragend', saveCurrentPageAnnotations);
+        syncKonvaCloudHitBox(cloud);
 
         updateKonvaInteractivity();
         return cloud;
@@ -1622,7 +1702,24 @@ if ($filePath !== '') {
                     return newBox;
                 }
             });
-            konvaTransformer.on('transformend', saveCurrentPageAnnotations);
+            konvaTransformer.on('transformend', () => {
+                // FIX-BUG3: en notas, convertir escala en width para reflow real de texto
+                if (konvaSelectedNode?.type === 'note' && konvaSelectedNode.ref?.label) {
+                    const note = konvaSelectedNode.ref;
+                    const sx = note.group.scaleX() || 1;
+                    const sy = note.group.scaleY() || 1;
+                    note.label.width(Math.max(40, note.label.width() * sx));
+                    note.label.fontSize(Math.max(8, note.label.fontSize() * sy));
+                    note.group.scaleX(1);
+                    note.group.scaleY(1);
+                    updateKonvaNoteBox(note);
+                }
+                // FIX-BUG5: asegurar hitbox vigente en nubes tras transform
+                if (konvaSelectedNode?.type === 'cloud' && konvaSelectedNode.ref) {
+                    syncKonvaCloudHitBox(konvaSelectedNode.ref);
+                }
+                saveCurrentPageAnnotations();
+            });
             konvaLayer.add(konvaTransformer);
         }
     }
@@ -1685,8 +1782,9 @@ if ($filePath !== '') {
         const fontSizePx = fontSize * vpt.scaleX;
         konvaEditingTextarea.style.fontSize = fontSizePx + 'px';
         konvaEditingTextarea.style.lineHeight = '1.2';
-        konvaEditingTextarea.style.left = (absPos.x * vpt.scaleX + vpt.translateX) + 'px';
-        konvaEditingTextarea.style.top = (absPos.y * vpt.scaleY + vpt.translateY) + 'px';
+        // FIX-BUG6: usar posición calculada con offset real del contenedor
+        konvaEditingTextarea.style.left = areaPosition.x + 'px';
+        konvaEditingTextarea.style.top = areaPosition.y + 'px';
         const preset = getResponsiveNotePreset();
         konvaEditingTextarea.style.width = Math.max(preset.minEditW, textNode.width() * vpt.scaleX) + 'px';
         konvaEditingTextarea.style.height = Math.max(preset.minEditH, textNode.height() * vpt.scaleY) + 'px';
@@ -1703,6 +1801,7 @@ if ($filePath !== '') {
             if (next !== '') {
                 textNode.text(next);
             }
+            updateKonvaNoteBox(note);
             konvaEditingTextarea.remove();
             konvaEditingTextarea = null;
             if (isKonvaNoteEmpty(note)) {
@@ -1717,6 +1816,8 @@ if ($filePath !== '') {
 
         const onInput = () => {
             textNode.text(konvaEditingTextarea.value);
+            // NEW-FEAT1: ajustar fondo sticky al contenido mientras se escribe
+            updateKonvaNoteBox(note);
             konvaLayer.batchDraw();
         };
         const onKey = (e) => {
@@ -1763,8 +1864,10 @@ if ($filePath !== '') {
         konvaStage.on('mousedown', (e) => {
             const evt = e.evt;
             const target = e.target;
+            const isAnnoTarget = isKonvaAnnotationTarget(target);
             const isEmpty = !target || target === konvaStage;
-            if (pendingPlacementTool) return;
+            // FIX-BUG1/FIX-BUG5: nunca iniciar pan si el click fue en nota/nube (o hijos)
+            if (pendingPlacementTool || isAnnoTarget) return;
             if (evt && ((evt.altKey || evt.button === 2) || (currentMode === 'smart' && isEmpty))) {
                 panStart = { x: evt.clientX, y: evt.clientY };
                 konvaIsPanning = true;
@@ -1812,9 +1915,11 @@ if ($filePath !== '') {
 
         konvaStage.on('mousedown touchstart', (e) => {
             const target = e.target;
+            const isAnnoTarget = isKonvaAnnotationTarget(target);
             const isEmpty = !target || target === konvaStage;
             const pos = konvaStage.getPointerPosition();
-            if (pendingPlacementTool && isEmpty) {
+            // FIX-BUG1: placement solo en área vacía, nunca sobre nota/nube
+            if (pendingPlacementTool && isEmpty && !isAnnoTarget) {
                 if (!pos) return;
                 pendingPlacementStart = screenToWorld(pos);
                 if (pendingPlacementPreview) pendingPlacementPreview.destroy();
@@ -1879,25 +1984,30 @@ if ($filePath !== '') {
                     pendingPlacementPreview = null;
                 }
 
-                if (pendingPlacementTool === 'note') {
+                const toolToPlace = pendingPlacementTool;
+                // FIX-BUG1: limpiar placement inmediatamente para evitar estado residual al arrastrar luego
+                clearPlacementTool();
+
+                if (toolToPlace === 'note') {
                     const note = createKonvaNote({ x: cx, y: cy }, 'annotation');
                     const baseW = Math.max(1, note.label.width());
                     const baseH = Math.max(1, note.label.height());
                     note.group.scaleX(Math.max(0.35, width / baseW));
                     note.group.scaleY(Math.max(0.35, height / baseH));
+                    updateKonvaNoteBox(note);
                     if (konvaTransformer) konvaTransformer.nodes([note.group]);
                     konvaSelectedNode = { type: 'note', ref: note };
                     konvaSelectedNote = note;
                     startInlineNoteEdit(note);
-                } else if (pendingPlacementTool === 'cloud') {
+                } else if (toolToPlace === 'cloud') {
                     const cloud = createKonvaCloud({ x: cx, y: cy });
                     cloud.group.scaleX(Math.max(0.35, width / 180));
                     cloud.group.scaleY(Math.max(0.35, height / 120));
+                    syncKonvaCloudHitBox(cloud);
                     if (konvaTransformer) konvaTransformer.nodes([cloud.group]);
                     konvaSelectedNode = { type: 'cloud', ref: cloud };
                 }
 
-                clearPlacementTool();
                 saveCurrentPageAnnotations();
                 return;
             }
@@ -2630,8 +2740,18 @@ if ($filePath !== '') {
         const center = canvas.getVpCenter();
         const rect = new fabric.Rect({ width: 200, height: 80, rx: 10, ry: 10, fill: 'transparent', stroke: color, strokeWidth: 5, originX: 'center', originY: 'center' });
         const lbl = new fabric.Text(text, { fontSize: 40, fill: color, fontWeight: 'bold', fontFamily: 'Arial', originX: 'center', originY: 'center' });
-        const group = new fabric.Group([rect, lbl], { left: center.x, top: center.y, opacity: 0.8 });
-        lockObject(group);
+        const group = new fabric.Group([rect, lbl], { left: center.x, top: center.y, opacity: 0.8, isStamp: true });
+        // FIX-BUG4: stamp movible directo (sin doble-tap), pero sin rotar/escalar
+        group.set({
+            lockMovementX: false,
+            lockMovementY: false,
+            lockRotation: true,
+            lockScalingX: true,
+            lockScalingY: true,
+            hasControls: false,
+            hasBorders: true,
+            borderColor: '#22c55e'
+        });
         canvas.add(group); canvas.setActiveObject(group);
         document.getElementById('stamp-menu').style.display = 'none';
         saveHistory();
@@ -2706,7 +2826,18 @@ if ($filePath !== '') {
         }
         
         if (opt.target && currentMode === 'smart') {
-            if (lastTapTarget === opt.target && (now - lastTapTime < DOUBLE_TAP_DELAY)) {
+            if (opt.target.isStamp) {
+                // FIX-BUG4: stamps no usan lock/unlock por doble tap
+                opt.target.set({
+                    lockMovementX: false,
+                    lockMovementY: false,
+                    lockRotation: true,
+                    lockScalingX: true,
+                    lockScalingY: true,
+                    hasControls: false,
+                    hasBorders: true
+                });
+            } else if (lastTapTarget === opt.target && (now - lastTapTime < DOUBLE_TAP_DELAY)) {
                 // Si no es un control de regla, permitir desbloqueo normal
                 if (!opt.target.isMeasureLine || !opt.control) {
                     unlockObject(opt.target);
@@ -3149,8 +3280,29 @@ if ($filePath !== '') {
 
     function updateTextProp(prop, val) {
         if (konvaSelectedNote && konvaSelectedNote.label) {
-            if (prop === 'fill') konvaSelectedNote.label.fill(val);
+            if (prop === 'fill') {
+                konvaSelectedNote.label.fill(val);
+                // FIX-BUG2 / NEW-FEAT1: sincronizar color de fondo sticky al cambiar color de texto
+                const bgMap = {
+                    '#ef4444': 'rgba(239,68,68,0.22)',
+                    '#3b82f6': 'rgba(59,130,246,0.22)',
+                    '#22c55e': 'rgba(34,197,94,0.22)',
+                    '#eab308': 'rgba(234,179,8,0.22)',
+                    '#ec4899': 'rgba(236,72,153,0.24)',
+                    '#f97316': 'rgba(249,115,22,0.24)',
+                    '#8b5cf6': 'rgba(139,92,246,0.24)',
+                    '#ffffff': 'rgba(255,255,255,0.22)'
+                };
+                const normalized = String(val || '').toLowerCase();
+                const bgFill = bgMap[normalized] || 'rgba(255,255,0,0.30)';
+                konvaSelectedNote.bgFill = bgFill;
+                if (konvaSelectedNote.bg) {
+                    konvaSelectedNote.bg.fill(bgFill);
+                    konvaSelectedNote.bg.stroke(val);
+                }
+            }
             if (prop === 'fontSize') konvaSelectedNote.label.fontSize(parseInt(val, 10) || konvaSelectedNote.label.fontSize());
+            updateKonvaNoteBox(konvaSelectedNote);
             if (konvaLayer) konvaLayer.batchDraw();
             saveCurrentPageAnnotations();
             return;
