@@ -141,7 +141,8 @@ class PdfService
 
 
         // Output + save copy into Electroplan project Tools folder
-        $filename = 'Panel_' . preg_replace('/[^a-zA-Z0-9]/', '_', $panel['panel_name'] ?? 'Schedule') . '.pdf';
+        $timestamp = gmdate('Y-m-d_H-i-s');
+        $filename = 'Panel_' . preg_replace('/[^a-zA-Z0-9]/', '_', $panel['panel_name'] ?? 'Schedule') . '_' . $timestamp . '.pdf';
         $pdfBinary = $pdf->Output($filename, 'S');
 
         $electroplanProjectId = isset($_GET['project_id']) ? (int)$_GET['project_id'] : (int)($_SESSION['electroplan_project_id'] ?? 0);

@@ -968,6 +968,10 @@ if ($filePath !== '') {
         if (!konvaOverlay) return;
         konvaOverlay.style.pointerEvents = active ? 'auto' : 'none';
         konvaOverlay.style.display = 'block';
+        // FIX-2d: permitir interacción táctil en smart/measure desde el container de Konva
+        if (konvaStage && konvaStage.container()) {
+            konvaStage.container().style.pointerEvents = active ? 'auto' : 'none';
+        }
         if (active) syncKonvaToFabric();
     }
 
@@ -1313,15 +1317,20 @@ if ($filePath !== '') {
         group.on('click tap', () => {
             if (currentMode !== 'smart') setMode('smart');
             konvaSelectedNote = note;
+            konvaSelectedNode = { type: 'note', ref: note };
+            if (konvaTransformer) konvaTransformer.nodes([group]);
+            // FIX-2c: evitar que Fabric sobreescriba el panel de propiedades de Konva
+            canvas.discardActiveObject();
+            canvas.requestRenderAll();
             showPropSection('text');
             const sizeInput = document.getElementById('text-size-input');
             if (sizeInput) sizeInput.value = Math.round(note.label.fontSize());
-            // FIX-BUG2: resaltar color actual en la paleta
+            // FIX-2c: marcar color activo al seleccionar nota Konva
+            const currentFill = note.label.fill();
             document.querySelectorAll('#prop-text .color-dot').forEach(d => {
-                d.classList.toggle('active', (d.getAttribute('data-col') || '').toLowerCase() === (note.label.fill() || '').toLowerCase());
+                d.classList.remove('active');
+                if ((d.getAttribute('data-col') || '').toLowerCase() === (currentFill || '').toLowerCase()) d.classList.add('active');
             });
-            if (konvaTransformer) konvaTransformer.nodes([group]);
-            konvaSelectedNode = { type: 'note', ref: note };
         });
         group.on('dragend', saveCurrentPageAnnotations);
         label.on('dblclick dbltap', () => {
@@ -1428,6 +1437,9 @@ if ($filePath !== '') {
         });
         group.on('click tap', () => {
             if (currentMode !== 'smart') setMode('smart');
+            // FIX-2c: evitar que Fabric sobreescriba el panel de cloud
+            canvas.discardActiveObject();
+            canvas.requestRenderAll();
             if (konvaTransformer) konvaTransformer.nodes([group]);
             konvaSelectedNode = { type: 'cloud', ref: cloud };
             cloudStrokeWidth = cloud.shape.strokeWidth();
@@ -1456,6 +1468,9 @@ if ($filePath !== '') {
                 enabledAnchors: ['top-left','top-right','bottom-left','bottom-right'],
                 rotateEnabled: false,
                 keepRatio: false,
+                // FIX-2e: anchors más grandes en mobile
+                anchorSize: window.innerWidth <= 991 ? 16 : 10,
+                anchorStrokeWidth: 2,
                 boundBoxFunc: (oldBox, newBox) => {
                     if (newBox.width < 20 || newBox.height < 20) return oldBox;
                     return newBox;
@@ -1627,7 +1642,7 @@ if ($filePath !== '') {
             const isEmpty = !target || target === konvaStage;
             // FIX-BUG1/FIX-BUG5: nunca iniciar pan si el click fue en nota/nube (o hijos)
             if (pendingPlacementTool || isAnnoTarget) return;
-            if (evt && ((evt.altKey || evt.button === 2) || (currentMode === 'smart' && isEmpty))) {
+            if (evt && ((evt.altKey || evt.button === 2) || (currentMode === 'smart' && isEmpty && !pendingPlacementTool))) {
                 panStart = { x: evt.clientX, y: evt.clientY };
                 konvaIsPanning = true;
             }
@@ -1677,6 +1692,8 @@ if ($filePath !== '') {
             const isAnnoTarget = isKonvaAnnotationTarget(target);
             const isEmpty = !target || target === konvaStage;
             const pos = konvaStage.getPointerPosition();
+            // FIX-2d: ignorar multi-touch (pinch) para evitar interferencia con ruler/placement
+            if (e.evt && e.evt.touches && e.evt.touches.length > 1) return;
             // FIX-BUG1: placement solo en área vacía, nunca sobre nota/nube
             if (pendingPlacementTool && isEmpty && !isAnnoTarget) {
                 if (!pos) return;
@@ -1978,30 +1995,60 @@ if ($filePath !== '') {
     let lastClientY = 0;
 
     if(canvasWrapper) {
+        // FIX-2a: 1-finger pan en mobile (modo smart, solo en espacio vacío)
+        let singleTouchStart = null;
+
         canvasWrapper.addEventListener('touchstart', function(e) {
+            if (e.touches.length === 1 && currentMode === 'smart') {
+                const touch = e.touches[0];
+                const rect = canvasWrapper.getBoundingClientRect();
+                const hit = canvas.findTarget({ clientX: touch.clientX - rect.left, clientY: touch.clientY - rect.top });
+                if (!hit) {
+                    singleTouchStart = {
+                        x: touch.clientX,
+                        y: touch.clientY,
+                        vpt: [...canvas.viewportTransform]
+                    };
+                    e.preventDefault();
+                }
+            }
+
             if (e.touches.length === 2) {
                 // Calcular distancia inicial
                 const dx = e.touches[0].clientX - e.touches[1].clientX;
                 const dy = e.touches[0].clientY - e.touches[1].clientY;
                 lastDist = Math.sqrt(dx * dx + dy * dy);
-                
+
                 // Calcular centro inicial para el Pan
                 lastClientX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
                 lastClientY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
-                
-                e.preventDefault(); 
+
+                e.preventDefault();
             }
         }, { passive: false });
 
         canvasWrapper.addEventListener('touchmove', function(e) {
+            if (e.touches.length === 1 && singleTouchStart && currentMode === 'smart') {
+                e.preventDefault();
+                const touch = e.touches[0];
+                const dx = touch.clientX - singleTouchStart.x;
+                const dy = touch.clientY - singleTouchStart.y;
+                const vpt = canvas.viewportTransform;
+                vpt[4] = singleTouchStart.vpt[4] + dx;
+                vpt[5] = singleTouchStart.vpt[5] + dy;
+                canvas.requestRenderAll();
+                if (useKonvaRuler) syncKonvaToFabric();
+                return;
+            }
+
             if (e.touches.length === 2) {
                 e.preventDefault();
-                
+
                 // 1. CALCULAR ZOOM (Escala)
                 const dx = e.touches[0].clientX - e.touches[1].clientX;
                 const dy = e.touches[0].clientY - e.touches[1].clientY;
                 const dist = Math.sqrt(dx * dx + dy * dy);
-                
+
                 // 2. CALCULAR PAN (Movimiento)
                 const currentClientX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
                 const currentClientY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
@@ -2019,11 +2066,11 @@ if ($filePath !== '') {
                     const scale = dist / lastDist;
                     let newZoom = canvas.getZoom() * scale;
                     if (newZoom > 20) newZoom = 20; if (newZoom < 0.1) newZoom = 0.1;
-                    
+
                     // Zoom hacia el punto central de los dedos
                     const point = new fabric.Point(currentClientX, currentClientY);
                     canvas.zoomToPoint(point, newZoom);
-                    
+
                     document.getElementById('zoom-disp').innerText = Math.round(newZoom * 100) + '%';
                     updateTextScales(newZoom);
                     if (useKonvaRuler) syncKonvaToFabric();
@@ -2037,6 +2084,10 @@ if ($filePath !== '') {
                 canvas.requestRenderAll();
             }
         }, { passive: false });
+
+        canvasWrapper.addEventListener('touchend', function(e) {
+            if (e.touches.length === 0) singleTouchStart = null;
+        });
     }
 
     canvas.on('mouse:up', function(opt) {
@@ -2499,9 +2550,11 @@ if ($filePath !== '') {
         const center = canvas.getVpCenter();
         const rect = new fabric.Rect({ width: 200, height: 80, rx: 10, ry: 10, fill: 'transparent', stroke: color, strokeWidth: 5, originX: 'center', originY: 'center' });
         const lbl = new fabric.Text(text, { fontSize: 40, fill: color, fontWeight: 'bold', fontFamily: 'Arial', originX: 'center', originY: 'center' });
-        const group = new fabric.Group([rect, lbl], { left: center.x, top: center.y, opacity: 0.8, isStamp: true });
-        // FIX-BUG4: stamp movible directo (sin doble-tap), pero sin rotar/escalar
-        group.set({
+        // FIX-2b: stamps movibles libremente sin lockObject()
+        const group = new fabric.Group([rect, lbl], {
+            left: center.x,
+            top: center.y,
+            opacity: 0.8,
             lockMovementX: false,
             lockMovementY: false,
             lockRotation: true,
@@ -2509,7 +2562,9 @@ if ($filePath !== '') {
             lockScalingY: true,
             hasControls: false,
             hasBorders: true,
-            borderColor: '#22c55e'
+            borderColor: color,
+            borderDashArray: [5, 5],
+            isStamp: true
         });
         canvas.add(group); canvas.setActiveObject(group);
         document.getElementById('stamp-menu').style.display = 'none';
@@ -2586,7 +2641,7 @@ if ($filePath !== '') {
         
         if (opt.target && currentMode === 'smart') {
             if (opt.target.isStamp) {
-                // FIX-BUG4: stamps no usan lock/unlock por doble tap
+                // FIX-2b: stamps no se lockean/desbloquean por doble tap
                 opt.target.set({
                     lockMovementX: false,
                     lockMovementY: false,
@@ -2597,22 +2652,25 @@ if ($filePath !== '') {
                     hasBorders: true
                 });
             } else if (lastTapTarget === opt.target && (now - lastTapTime < DOUBLE_TAP_DELAY)) {
-                // Si no es un control de regla, permitir desbloqueo normal
-                if (!opt.target.isMeasureLine || !opt.control) {
+                // FIX-2b: no unlock de stamps
+                if (!opt.target.isMeasureLine && !opt.target.isStamp) {
                     unlockObject(opt.target);
-                    showToast("Movement Unlocked", "warning"); 
+                    showToast("Movement Unlocked", "warning");
                     canvas.requestRenderAll();
                     opt.target.isMoving = true;
                 }
             } else {
-                if(opt.target.isMeasureLine) { 
-                    lockObject(opt.target); 
-                    canvas.requestRenderAll(); 
-                } else { 
-                    lockObject(opt.target); 
+                // FIX-2b: no lock en first tap para stamps
+                if (!opt.target.isStamp) {
+                    if(opt.target.isMeasureLine) {
+                        lockObject(opt.target);
+                        canvas.requestRenderAll();
+                    } else {
+                        lockObject(opt.target);
+                    }
                 }
             }
-            lastTapTarget = opt.target; 
+            lastTapTarget = opt.target;
             lastTapTime = now;
         }
         const isTouch = evt.type.startsWith('touch');
@@ -2773,7 +2831,9 @@ if ($filePath !== '') {
         setKonvaActive(true);
         updateKonvaInteractivity();
         if (konvaStage && konvaStage.container()) konvaStage.container().style.cursor = 'crosshair';
-        showToast(tool === 'note' ? 'Click where you want to place the note' : 'Click where you want to place the cloud', 'success');
+        showToast(tool === 'note' ? 'Tap where you want to place the note' : 'Tap where you want to place the cloud', 'success');
+        // FIX-2e: cerrar toolbar en mobile para visualizar mejor el canvas
+        if (window.innerWidth <= 991 && typeof closeTools === 'function') closeTools();
     }
 
     function clearPlacementTool() {

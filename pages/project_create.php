@@ -68,20 +68,44 @@ include __DIR__ . '/../views/header.php';
 ?>
 
 <style>
-    /* 1. INPUTS MÁS FINOS Y COMPACTOS */
-    .form-control {
-        background-color: rgba(0, 0, 0, 0.2) !important;
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        color: #fff !important;
-        font-size: 0.85rem;      /* Texto más pequeño */
-        padding: 6px 10px;       /* Relleno reducido */
-        border-radius: 6px;
-        min-height: 34px;        /* Altura controlada */
+    :root {
+        --bg-body: #1b212d;
+        --bg-card: #242a38;
+        --bg-input: #151a23;
+        --primary: #fb5a3a;
+        --primary-hover: #e14e32;
+        --text-white: #ffffff;
+        --text-gray: #94a3b8;
+        --text-muted: #58657a;
+        --border-subtle: #2f384a;
+        --radius-box: 20px;
     }
-    .form-control:focus {
-        background-color: rgba(0, 0, 0, 0.3) !important;
+    body.theme-light {
+        --bg-body: #e2e8f0;
+        --bg-card: #ffffff;
+        --bg-input: #f8fafc;
+        --text-white: #0f172a;
+        --text-gray: #64748b;
+        --text-muted: #94a3b8;
+        --border-subtle: #cbd5e1;
+    }
+
+    /* 1. INPUTS MÁS FINOS Y COMPACTOS */
+    .form-control,
+    .form-select {
+        background-color: var(--bg-input) !important;
+        border: 1px solid var(--border-subtle);
+        color: var(--text-white) !important;
+        font-size: 0.85rem;
+        padding: 6px 10px;
+        border-radius: 6px;
+        min-height: 34px;
+    }
+    .form-control:focus,
+    .form-select:focus {
+        background-color: var(--bg-input) !important;
         border-color: var(--primary);
-        box-shadow: none;
+        box-shadow: 0 0 0 .2rem rgba(251, 90, 58, .18);
     }
     .form-control::placeholder {
         color: rgba(255, 255, 255, 0.25);
@@ -90,21 +114,21 @@ include __DIR__ . '/../views/header.php';
 
     /* 2. LABELS PEGADOS AL INPUT */
     .form-label {
-        color: #9ca3af;
+        color: var(--text-gray);
         font-size: 0.7rem;
         font-weight: 700;
         text-transform: uppercase;
-        margin-bottom: 2px; /* Casi sin espacio abajo */
+        margin-bottom: 2px;
         display: block;
     }
 
     /* 3. TARJETAS MÁS DENSAS */
     .box-card-compact {
         background: var(--bg-card);
-        border: 1px solid rgba(255, 255, 255, 0.05);
+        border: 1px solid var(--border-subtle);
         border-radius: 10px;
-        padding: 15px; /* Padding reducido (antes era p-4) */
-        margin-bottom: 15px; /* Margen entre tarjetas reducido */
+        padding: 15px;
+        margin-bottom: 15px;
     }
 
     /* 4. ENCABEZADOS DE SECCIÓN PEQUEÑOS */
@@ -129,7 +153,7 @@ include __DIR__ . '/../views/header.php';
     }
 
     /* BOTONES */
-    .btn-create-submit {
+    .btn-main {
         background: var(--primary);
         color: white;
         border: none;
@@ -138,8 +162,8 @@ include __DIR__ . '/../views/header.php';
         border-radius: 6px;
         transition: 0.2s;
     }
-    .btn-create-submit:hover {
-        background: #4f46e5;
+    .btn-main:hover {
+        background: var(--primary-hover);
     }
     
     /* SCROLLBAR FINO */
@@ -167,18 +191,21 @@ include __DIR__ . '/../views/header.php';
         .folder-list { max-height: 260px; }
     }
 
-    body.theme-light .form-control {
+    body.theme-light .form-control,
+    body.theme-light .form-select {
         background-color: #fff !important;
         color: #0f172a !important;
         border-color: rgba(15,23,42,0.18);
     }
-    body.theme-light .form-control:focus { background-color: #fff !important; }
+    body.theme-light .form-control:focus,
+    body.theme-light .form-select:focus { background-color: #fff !important; }
     body.theme-light .form-control::placeholder { color: #94a3b8; }
     body.theme-light .form-label,
     body.theme-light .text-white,
     body.theme-light .section-title,
     body.theme-light .fw-bold { color: #0f172a !important; }
     body.theme-light .text-gray { color: #475569 !important; }
+    body.theme-light .bg-dark { background-color: #ffffff !important; color: #0f172a !important; }
     body.theme-light .section-header { border-bottom-color: rgba(15,23,42,0.12); }
     body.theme-light .check-item:hover { background: rgba(15,23,42,0.05); }
     body.theme-light .folder-list::-webkit-scrollbar-thumb { background: rgba(15,23,42,0.25); }
@@ -377,7 +404,7 @@ include __DIR__ . '/../views/header.php';
                         <?php if($isEdit): ?>
                             <div class="text-muted small">Folders are shown for reference. To add folders, use "Add Folder" in the project dashboard.</div>
                         <?php endif; ?>
-                        <button type="submit" class="btn btn-create-submit w-100 py-2">
+                        <button type="submit" class="btn btn-main w-100 py-2">
                             <i class="fas <?= $isEdit ? 'fa-save' : 'fa-rocket' ?> me-2"></i> <?= $isEdit ? 'Save Changes' : 'Create Project' ?>
                         </button>
                     </div>
@@ -397,7 +424,7 @@ document.getElementById('createProjectForm').addEventListener('submit', function
     const checked = Array.from(this.querySelectorAll('input[name="user_ids[]"]:checked'));
     const hasAdmin = checked.some(i => i.dataset.role === 'admin');
     if (checked.length > 0 && !hasAdmin) {
-        alert('At least one admin must be assigned to the project.');
+        appAlert('At least one admin must be assigned to the project.', 'Validation', 'warning');
         return;
     }
     
@@ -413,7 +440,7 @@ document.getElementById('createProjectForm').addEventListener('submit', function
             .then(r => r.json())
             .then(res => {
                 if(res.status !== 'success') {
-                    alert('Error: ' + res.msg);
+                    appAlert('Error: ' + res.msg, 'Error', 'error');
                     btn.innerHTML = original;
                     btn.disabled = false;
                     return;
@@ -432,19 +459,19 @@ document.getElementById('createProjectForm').addEventListener('submit', function
                     .then(r2 => {
                         if(r2.status === 'success') window.location.href = 'project_dashboard.php?id=' + projectId;
                         else {
-                            alert('Error: ' + (r2.msg || 'Unknown'));
+                            appAlert('Error: ' + (r2.msg || 'Unknown'), 'Error', 'error');
                             btn.innerHTML = original;
                             btn.disabled = false;
                         }
                     })
                     .catch(() => {
-                        alert('Connection Error');
+                        appAlert('Connection Error', 'Error', 'error');
                         btn.innerHTML = original;
                         btn.disabled = false;
                     });
             })
             .catch(() => {
-                alert('Connection Error');
+                appAlert('Connection Error', 'Error', 'error');
                 btn.innerHTML = original;
                 btn.disabled = false;
             });
@@ -457,17 +484,19 @@ document.getElementById('createProjectForm').addEventListener('submit', function
             if(res.status === 'success') {
                 window.location.href = 'project_dashboard.php?id=' + res.id;
             } else {
-                alert('Error: ' + res.msg);
+                appAlert('Error: ' + res.msg, 'Error', 'error');
                 btn.innerHTML = original;
                 btn.disabled = false;
             }
         })
         .catch(() => {
-            alert('Connection Error');
+            appAlert('Connection Error', 'Error', 'error');
             btn.innerHTML = original;
             btn.disabled = false;
         });
 });
 </script>
 
+<?php include_once __DIR__ . '/../funciones/calendar.php'; ?>
+<?php include_once __DIR__ . '/../funciones/alerts.php'; ?>
 <?php include __DIR__ . '/../views/footer.php'; ?>

@@ -348,7 +348,8 @@ function exportReport() {
     printArea.innerHTML = reportHTML;
     window.print();
 
-    autoSaveCurrentToolExport('wireway', reportHTML, `wireway_export_${new Date().toISOString().slice(0,10)}.pdf`);
+    const ts = new Date().toISOString().replace('T', '_').slice(0, 19).replace(/:/g, '-');
+    autoSaveCurrentToolExport('wireway', reportHTML, `wireway_export_${ts}.pdf`);
 }
 
 /* --- CALCULO --- */
@@ -570,7 +571,8 @@ async function autoSaveCurrentToolExport(toolName, reportHtml, filename) {
         fd.append('action', cfg.action);
         fd.append('project_id', String(cfg.projectId));
         fd.append('tool_name', toolName);
-        fd.append('filename', filename || ('export_' + new Date().toISOString().slice(0,10) + '.pdf'));
+        const fallbackTs = new Date().toISOString().replace('T', '_').slice(0, 19).replace(/:/g, '-');
+        fd.append('filename', filename || ('export_' + fallbackTs + '.pdf'));
         fd.append('pdf_file', pdfBlob, 'export.pdf');
         await fetch(cfg.apiUrl, { method: 'POST', body: fd, credentials: 'include' });
     } catch (e) {

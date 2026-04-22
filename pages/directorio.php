@@ -58,14 +58,51 @@ include __DIR__ . '/../views/header.php';
 ?>
 
 <style>
-    .table-responsive { border-radius: var(--radius-box); overflow: auto; border: 1px solid rgba(255,255,255,0.05); }
+    :root {
+        --bg-body: #1b212d;
+        --bg-card: #242a38;
+        --bg-input: #151a23;
+        --primary: #fb5a3a;
+        --primary-hover: #e14e32;
+        --text-white: #ffffff;
+        --text-gray: #94a3b8;
+        --text-muted: #58657a;
+        --border-subtle: #2f384a;
+        --radius-box: 20px;
+    }
+    body.theme-light {
+        --bg-body: #e2e8f0;
+        --bg-card: #ffffff;
+        --bg-input: #f8fafc;
+        --text-white: #0f172a;
+        --text-gray: #64748b;
+        --text-muted: #94a3b8;
+        --border-subtle: #cbd5e1;
+    }
+
+    .table-responsive { border-radius: var(--radius-box); overflow: auto; border: 1px solid var(--border-subtle); }
     .table-rounded { width: 100%; border-collapse: separate; border-spacing: 0; background: var(--bg-card); }
-    .table-rounded th { background: rgba(0,0,0,0.2); color: var(--text-gray); font-weight: 600; text-transform: uppercase; font-size: 0.75rem; padding: 18px 25px; border-bottom: 1px solid rgba(255,255,255,0.05); }
-    .table-rounded td { padding: 20px 25px; color: white; vertical-align: middle; border-bottom: 1px solid rgba(255,255,255,0.02); }
+    .table-rounded th { background: var(--bg-input); color: var(--text-gray); font-weight: 600; text-transform: uppercase; font-size: 0.75rem; padding: 18px 25px; border-bottom: 1px solid var(--border-subtle); }
+    .table-rounded td { padding: 20px 25px; color: var(--text-white); vertical-align: middle; border-bottom: 1px solid var(--border-subtle); }
     .table-rounded tr:last-child td { border-bottom: none; }
     .table-rounded tr:hover td { background: rgba(255,255,255,0.02); }
-    .user-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px; border-radius: 8px; background: rgba(255,255,255,0.08); margin-right: 6px; margin-bottom: 6px; font-size: 0.75rem; }
-    .user-role { opacity: 0.7; font-size: 0.7rem; }
+    .user-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px; border-radius: 8px; background: var(--bg-input); border: 1px solid var(--border-subtle); margin-right: 6px; margin-bottom: 6px; font-size: 0.75rem; }
+    .user-role { color: var(--text-gray); font-size: 0.7rem; }
+
+    .form-control {
+        background: var(--bg-input) !important;
+        border: 1px solid var(--border-subtle) !important;
+        color: var(--text-white) !important;
+    }
+    .form-control:focus {
+        border-color: var(--primary) !important;
+        box-shadow: 0 0 0 .2rem rgba(251, 90, 58, .18) !important;
+    }
+
+    body.theme-light .btn-outline-light {
+        color: #334155;
+        border-color: #cbd5e1;
+    }
 
     @media (max-width: 768px) {
         .header { flex-direction: column; align-items: flex-start; gap: 12px; }
@@ -90,10 +127,13 @@ include __DIR__ . '/../views/header.php';
             </div>
         </div>
 
-        <div class="user-pill">
+        <a href="../admin/settings.php?tab=users" class="user-pill text-decoration-none">
             <div class="avatar"><?= strtoupper(substr($userName,0,1)) ?></div>
-            <span class="small fw-bold"><?= htmlspecialchars($userName) ?></span>
-        </div>
+            <div class="user-pill-info">
+                <span class="user-pill-name"><?= htmlspecialchars($userName) ?></span>
+                <span class="user-pill-role"><?= ucfirst($_SESSION['role'] ?? 'Viewer') ?></span>
+            </div>
+        </a>
     </header>
 
     <div class="d-flex justify-content-between align-items-end mb-4">
