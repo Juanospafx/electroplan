@@ -1694,8 +1694,18 @@ if ($filePath !== '') {
             const target = e.target;
             const isAnnoTarget = isKonvaAnnotationTarget(target);
             const isEmpty = !target || target === konvaStage;
-            // FIX-BUG1/FIX-BUG5: nunca iniciar pan si el click fue en nota/nube (o hijos)
+            // Nunca iniciar pan si el click fue en nota/nube
             if (pendingPlacementTool || isAnnoTarget) return;
+
+            // FIX: si hay un objeto de Fabric bajo el cursor (stamp, dibujo, texto),
+            // NO activar pan — dejar que el evento llegue a Fabric
+            if (isEmpty && evt && currentMode === 'smart' && !evt.altKey && evt.button !== 2) {
+                const konvaContainer = konvaStage.container();
+                const rect = konvaContainer.getBoundingClientRect();
+                const fabricTarget = canvas.findTarget({ clientX: evt.clientX - rect.left, clientY: evt.clientY - rect.top });
+                if (fabricTarget) return; // hay objeto Fabric → no pan, Fabric lo maneja
+            }
+
             if (evt && ((evt.altKey || evt.button === 2) || (currentMode === 'smart' && isEmpty && !pendingPlacementTool))) {
                 panStart = { x: evt.clientX, y: evt.clientY };
                 konvaIsPanning = true;
