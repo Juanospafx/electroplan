@@ -1741,7 +1741,10 @@ if ($filePath !== '') {
                 }
             }
 
-            if (evt && ((evt.altKey || evt.button === 2) || (currentMode === 'smart' && isEmpty && !pendingPlacementTool))) {
+            // FIX: no iniciar pan normal desde Konva en smart con click izquierdo.
+            // Dejar que Fabric reciba esos clicks para seleccionar/mover stamps, paths y textos.
+            // Konva pan queda solo para ALT o botón derecho.
+            if (evt && (evt.altKey || evt.button === 2)) {
                 panStart = { x: evt.clientX, y: evt.clientY };
                 konvaIsPanning = true;
             }
