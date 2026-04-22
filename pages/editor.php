@@ -2436,8 +2436,8 @@ if ($filePath !== '') {
                         }
                     } else if (!obj.isMeasureLabel) {
                         if (obj.isStamp) {
-                            // FIX: stamps restaurados quedan movibles
-                            obj.set({ lockMovementX: false, lockMovementY: false, lockRotation: true, lockScalingX: true, lockScalingY: true, hasControls: false, hasBorders: true });
+                            // FIX: stamps restaurados quedan movibles (y redimensionables)
+                            obj.set({ lockMovementX: false, lockMovementY: false, lockRotation: true, lockScalingX: false, lockScalingY: false, hasControls: true, hasBorders: true, cornerStyle: 'circle', transparentCorners: false });
                         } else if (obj.isFreeDraw) {
                             // FIX: paths de lápiz restaurados son seleccionables
                             obj.set({ lockMovementX: false, lockMovementY: false, selectable: true, evented: true, hasBorders: true, hasControls: false, borderColor: '#ef4444', borderDashArray: [5, 5] });
@@ -2508,8 +2508,8 @@ if ($filePath !== '') {
                     if(lbl) { obj.label = lbl; lbl.selectable = false; lbl.evented = false; }
                 }
             } else if (obj.isStamp) {
-                // FIX: stamps restaurados tras undo/redo quedan movibles
-                obj.set({ lockMovementX: false, lockMovementY: false, lockRotation: true, lockScalingX: true, lockScalingY: true, hasControls: false, hasBorders: true });
+                // FIX: stamps restaurados tras undo/redo quedan movibles (y redimensionables)
+                obj.set({ lockMovementX: false, lockMovementY: false, lockRotation: true, lockScalingX: false, lockScalingY: false, hasControls: true, hasBorders: true, cornerStyle: 'circle', transparentCorners: false });
             } else if (obj.isFreeDraw) {
                 // FIX: paths restaurados tras undo/redo son seleccionables
                 obj.set({ lockMovementX: false, lockMovementY: false, selectable: true, evented: true, hasBorders: true, hasControls: false, borderColor: '#ef4444', borderDashArray: [5, 5] });
@@ -2704,9 +2704,9 @@ if ($filePath !== '') {
             lockMovementX: false,
             lockMovementY: false,
             lockRotation: true,
-            lockScalingX: true,
-            lockScalingY: true,
-            hasControls: false,
+            lockScalingX: false,
+            lockScalingY: false,
+            hasControls: true,
             hasBorders: true,
             borderColor: color,
             borderDashArray: [5, 5],
