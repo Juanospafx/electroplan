@@ -584,6 +584,10 @@ if ($filePath !== '') {
     let konvaRulers = [];
     let konvaNotes = [];
     let konvaClouds = [];
+    let konvaFreeDraws = [];
+    let konvaFreeDrawCurrent = null;
+    let konvaPenColor = '#ef4444';
+    let konvaPenWidth = 3;
     const konvaRulersByPage = {};
     let konvaTransformer = null;
     let konvaEditingTextarea = null;
@@ -1063,16 +1067,25 @@ if ($filePath !== '') {
                 scaleY: c.group.scaleY(),
                 strokeWidth: c.shape ? c.shape.strokeWidth() : cloudStrokeWidth
             }));
-        return { notes, rulers, clouds };
+        const freeDraws = konvaFreeDraws
+            .filter(d => d.page === pg)
+            .map(d => ({
+                points: d.line.points(),
+                stroke: d.line.stroke(),
+                strokeWidth: d.line.strokeWidth()
+            }));
+        return { notes, rulers, clouds, freeDraws };
     }
 
     function clearKonvaPage(pg) {
         konvaNotes.filter(n => n.page === pg).forEach(n => n.group.destroy());
         konvaRulers.filter(r => r.page === pg).forEach(r => r.group.destroy());
         konvaClouds.filter(c => c.page === pg).forEach(c => c.group.destroy());
+        konvaFreeDraws.filter(d => d.page === pg).forEach(d => d.group.destroy());
         konvaNotes = konvaNotes.filter(n => n.page !== pg);
         konvaRulers = konvaRulers.filter(r => r.page !== pg);
         konvaClouds = konvaClouds.filter(c => c.page !== pg);
+        konvaFreeDraws = konvaFreeDraws.filter(d => d.page !== pg);
     }
 
     function loadKonvaForPage(pg, data) {
@@ -1095,6 +1108,9 @@ if ($filePath !== '') {
             const cloud = createKonvaCloud({ x: c.x, y: c.y }, pg, c.strokeWidth || cloudStrokeWidth);
             cloud.group.scaleX(c.scaleX || 1);
             cloud.group.scaleY(c.scaleY || 1);
+        });
+        (data.freeDraws || []).forEach(d => {
+            createKonvaFreeDrawStroke(d.points || [], d.stroke || '#ef4444', d.strokeWidth || 3, pg);
         });
         setKonvaPage(pg);
     }
@@ -1133,6 +1149,9 @@ if ($filePath !== '') {
         konvaClouds.forEach(c => {
             c.group.draggable(allowEdit);
         });
+        konvaFreeDraws.forEach(d => {
+            d.group.draggable(allowEdit);
+        });
         if (konvaTransformer) {
             if (!allowEdit) konvaTransformer.nodes([]);
         }
@@ -1148,6 +1167,9 @@ if ($filePath !== '') {
         });
         konvaClouds.forEach(c => {
             c.group.visible(c.page === page);
+        });
+        konvaFreeDraws.forEach(d => {
+            d.group.visible(d.page === page);
         });
         if (konvaTransformer) {
             konvaTransformer.nodes([]);
@@ -1280,7 +1302,7 @@ if ($filePath !== '') {
     function isKonvaAnnotationTarget(target) {
         let node = target;
         while (node) {
-            if (node.getAttr && (node.getAttr('annoType') === 'note' || node.getAttr('annoType') === 'cloud')) return true;
+            if (node.getAttr && (node.getAttr('annoType') === 'note' || node.getAttr('annoType') === 'cloud' || node.getAttr('annoType') === 'draw')) return true;
             node = node.getParent ? node.getParent() : null;
         }
         return false;
@@ -1492,6 +1514,39 @@ if ($filePath !== '') {
         return cloud;
     }
 
+
+    function createKonvaFreeDrawStroke(points, stroke = '#ef4444', strokeWidth = 3, targetPage = pageNum) {
+        const group = new Konva.Group({ draggable: true, annoType: 'draw' });
+        const line = new Konva.Line({
+            points: points,
+            stroke: stroke,
+            strokeWidth: strokeWidth,
+            lineCap: 'round',
+            lineJoin: 'round',
+            tension: 0,
+            listening: true
+        });
+        group.add(line);
+        konvaLayer.add(group);
+
+        const draw = { group, line, page: targetPage };
+        konvaFreeDraws.push(draw);
+
+        group.on('mousedown touchstart', (e) => { e.cancelBubble = true; });
+        group.on('click tap', () => {
+            if (currentMode !== 'smart') setMode('smart');
+            if (konvaTransformer) konvaTransformer.nodes([group]);
+            konvaSelectedNode = { type: 'draw', ref: draw };
+            canvas.discardActiveObject();
+            canvas.requestRenderAll();
+            showPropSection('draw');
+        });
+        group.on('dragend', saveCurrentPageAnnotations);
+
+        updateKonvaInteractivity();
+        return draw;
+    }
+
     function ensureKonvaTransformer() {
         if (!konvaLayer) return;
         if (!konvaTransformer) {
@@ -1545,6 +1600,9 @@ if ($filePath !== '') {
         } else if (type === 'cloud') {
             ref.group.destroy();
             konvaClouds = konvaClouds.filter(c => c !== ref);
+        } else if (type === 'draw') {
+            ref.group.destroy();
+            konvaFreeDraws = konvaFreeDraws.filter(d => d !== ref);
         }
         konvaSelectedNode = null;
         if (konvaTransformer) konvaTransformer.nodes([]);
@@ -1814,9 +1872,26 @@ if ($filePath !== '') {
                 konvaLayer.batchDraw();
                 return;
             }
-            if (currentMode !== 'measure') return;
             if (!pos) return;
             const world = screenToWorld(pos);
+
+            if (currentMode === 'draw') {
+                const group = new Konva.Group({ draggable: false, annoType: 'draw' });
+                const line = new Konva.Line({
+                    points: [world.x, world.y],
+                    stroke: konvaPenColor,
+                    strokeWidth: konvaPenWidth,
+                    lineCap: 'round',
+                    lineJoin: 'round',
+                    tension: 0
+                });
+                group.add(line);
+                konvaLayer.add(group);
+                konvaFreeDrawCurrent = { group, line, page: pageNum };
+                return;
+            }
+
+            if (currentMode !== 'measure') return;
             konvaDrawing = createKonvaRuler(world, world);
             syncKonvaToFabric();
         });
@@ -1834,6 +1909,16 @@ if ($filePath !== '') {
                 konvaLayer.batchDraw();
                 return;
             }
+            if (konvaFreeDrawCurrent && currentMode === 'draw') {
+                if (!pos) return;
+                const world = screenToWorld(pos);
+                const pts = konvaFreeDrawCurrent.line.points();
+                pts.push(world.x, world.y);
+                konvaFreeDrawCurrent.line.points(pts);
+                konvaLayer.batchDraw();
+                return;
+            }
+
             if (!konvaDrawing) return;
             if (!pos) return;
             const world = screenToWorld(pos);
@@ -1886,6 +1971,29 @@ if ($filePath !== '') {
                     konvaSelectedNode = { type: 'cloud', ref: cloud };
                 }
 
+                saveCurrentPageAnnotations();
+                return;
+            }
+
+            if (konvaFreeDrawCurrent && currentMode === 'draw') {
+                const points = konvaFreeDrawCurrent.line.points();
+                if (!points || points.length < 4) {
+                    konvaFreeDrawCurrent.group.destroy();
+                } else {
+                    konvaFreeDrawCurrent.group.draggable(true);
+                    konvaFreeDrawCurrent.group.on('mousedown touchstart', (ev) => { ev.cancelBubble = true; });
+                    konvaFreeDrawCurrent.group.on('click tap', () => {
+                        if (currentMode !== 'smart') setMode('smart');
+                        if (konvaTransformer) konvaTransformer.nodes([konvaFreeDrawCurrent.group]);
+                        konvaSelectedNode = { type: 'draw', ref: konvaFreeDrawCurrent };
+                        canvas.discardActiveObject();
+                        canvas.requestRenderAll();
+                        showPropSection('draw');
+                    });
+                    konvaFreeDrawCurrent.group.on('dragend', saveCurrentPageAnnotations);
+                    konvaFreeDraws.push(konvaFreeDrawCurrent);
+                }
+                konvaFreeDrawCurrent = null;
                 saveCurrentPageAnnotations();
                 return;
             }
@@ -2631,7 +2739,7 @@ if ($filePath !== '') {
         resetToolState();
         currentMode = mode;
         canvas.discardActiveObject(); canvas.requestRenderAll();
-        canvas.isDrawingMode = (mode === 'draw');
+        canvas.isDrawingMode = false; // lápiz migrado a Konva
         canvas.selection = (mode === 'smart'); 
         document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
         if(mode !== 'smart') {
@@ -2644,7 +2752,7 @@ if ($filePath !== '') {
         document.getElementById('stamp-menu').style.display = 'none';
         
         // CURSOR LOGIC SIMPLIFIED (No 'pan' mode check needed for cursor style here)
-        if(mode === 'draw') { canvas.freeDrawingBrush.color = '#ef4444'; canvas.freeDrawingBrush.width = 3; canvas.defaultCursor = 'crosshair'; } 
+        if(mode === 'draw') { canvas.defaultCursor = 'crosshair'; } 
         else if(mode === 'measure') {
             if(pixelsPerFoot <= 0) { showToast("Please calibrate first!", "error"); setMode('cal'); return; }
             canvas.defaultCursor = 'crosshair';
@@ -2657,7 +2765,7 @@ if ($filePath !== '') {
         else { canvas.defaultCursor = 'default'; }
 
         if (useKonvaRuler) {
-            if (mode === 'measure' || mode === 'smart') {
+            if (mode === 'measure' || mode === 'smart' || mode === 'draw') {
                 initKonvaRuler();
                 setKonvaActive(true);
             } else {
@@ -2971,8 +3079,8 @@ if ($filePath !== '') {
     }
 
     // --- UTILS ---
-    function setPenColor(c, el) { canvas.freeDrawingBrush.color = c; document.querySelectorAll('.color-dot').forEach(d => d.classList.remove('active')); el.classList.add('active'); }
-    function setPenWidth(w) { canvas.freeDrawingBrush.width = parseInt(w); }
+    function setPenColor(c, el) { konvaPenColor = c; document.querySelectorAll('#prop-draw .color-dot').forEach(d => d.classList.remove('active')); if (el) el.classList.add('active'); }
+    function setPenWidth(w) { konvaPenWidth = parseInt(w); }
 
     function startPlacementTool(tool) {
         pendingPlacementTool = tool;
