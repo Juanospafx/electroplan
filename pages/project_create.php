@@ -516,7 +516,7 @@ function nextStep() {
     if (currentStep === 1) {
         const name = document.querySelector('input[name="project_name"]').value;
         if (!name.trim()) {
-            alert("Please provide a Project Name before continuing.");
+            appAlert("Please provide a Project Name before continuing.", "Missing Info", "warning");
             document.querySelector('input[name="project_name"]').focus();
             return;
         }
@@ -538,7 +538,7 @@ function jumpToStep(step) {
     if (step > currentStep && currentStep === 1) {
         const name = document.querySelector('input[name="project_name"]').value;
         if (!name.trim()) {
-            alert("Please provide a Project Name first.");
+            appAlert("Please provide a Project Name first.", "Missing Info", "warning");
             return;
         }
     }
