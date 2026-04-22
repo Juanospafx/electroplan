@@ -614,19 +614,15 @@ body.theme-light .text-muted, body.theme-light .text-gray { color: var(--text-gr
         if (disp) disp.innerText = Math.round(viewer.scale * 100) + '%';
     }
 
-    // FIX-2f: suavizar pan/zoom con RAF
-    let rafId = null;
+    let _rafId = null;
     function applyTransform() {
-        if (rafId) return;
-        rafId = requestAnimationFrame(() => {
+        if (_rafId) return; // ya hay un frame pendiente, no duplicar
+        _rafId = requestAnimationFrame(() => {
+            _rafId = null;
             const el = viewer.mode === 'pdf' ? viewer.canvas : viewer.img;
-            if (!el) {
-                rafId = null;
-                return;
-            }
+            if (!el) return;
             el.style.transform = `translate(${viewer.translateX}px, ${viewer.translateY}px) scale(${viewer.scale})`;
             setZoomDisplay();
-            rafId = null;
         });
     }
 
@@ -714,9 +710,7 @@ body.theme-light .text-muted, body.theme-light .text-gray { color: var(--text-gr
     viewer.container.addEventListener('touchstart', (e) => {
         if (!viewer.mode) return;
         if (e.touches.length === 1) {
-            // FIX-2f: en mobile, pan de 1 dedo siempre activo
-            const isMobile = window.innerWidth <= 991;
-            if (!viewer.isPanningMode && !isMobile) return;
+            // FIX: en mobile, 1 dedo siempre puede hacer pan sin activar botón
             const t = e.touches[0];
             viewer.isDragging = true;
             viewer.dragStartX = t.clientX;
@@ -735,9 +729,7 @@ body.theme-light .text-muted, body.theme-light .text-gray { color: var(--text-gr
     viewer.container.addEventListener('touchmove', (e) => {
         if (!viewer.mode) return;
         if (e.touches.length === 1) {
-            // FIX-2f: en mobile, pan de 1 dedo sin requerir botón de pan
-            const isMobile = window.innerWidth <= 991;
-            if (!viewer.isPanningMode && !isMobile) return;
+            // FIX: en mobile siempre hacer pan con 1 dedo
             if (!viewer.isDragging) return;
             const t = e.touches[0];
             const dx = t.clientX - viewer.dragStartX;
@@ -760,10 +752,13 @@ body.theme-light .text-muted, body.theme-light .text-gray { color: var(--text-gr
     }, { passive: false });
 
     viewer.container.addEventListener('touchend', (e) => {
-        if (e.touches.length === 0) {
-            viewer.isDragging = false;
+        // FIX: resetear siempre al soltar cualquier dedo, no solo al soltar todos
+        if (e.touches.length < 2) {
             lastTouchDist = 0;
             lastTouchCenter = null;
+        }
+        if (e.touches.length === 0) {
+            viewer.isDragging = false;
             viewer.container.style.cursor = viewer.isPanningMode ? 'grab' : 'default';
         }
     }, { passive: false });
