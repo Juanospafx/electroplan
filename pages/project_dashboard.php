@@ -365,6 +365,10 @@ include __DIR__ . '/../views/header.php';
         --text-muted: #94a3b8;
         --border-subtle: #cbd5e1;
     }
+/* Override Bootstrap text-muted con la paleta del proyecto */
+.text-muted { color: var(--text-gray) !important; }
+body.theme-light .text-muted { color: var(--text-gray) !important; }
+
 
     body.theme-light .bg-dark { background-color: var(--bg-input) !important; color: var(--text-white) !important; border-color: var(--border-subtle) !important; }
     body.theme-light .text-white { color: var(--text-white) !important; }
@@ -658,7 +662,7 @@ include __DIR__ . '/../views/header.php';
                         <?php endforeach; ?>
                     </select>
                     <?php if(empty($allFolders)): ?>
-                        <div class="text-muted small mt-2">No folders available. Create a folder first.</div>
+                        <div class="text-gray small mt-2">No folders available. Create a folder first.</div>
                     <?php endif; ?>
                 </div>
                 <div class="modal-footer">
@@ -700,7 +704,7 @@ include __DIR__ . '/../views/header.php';
                     <select name="target_parent_folder_id" id="move_folder_parent_select" class="form-select text-white bg-dark border-secondary">
                         <option value="">Keep as top-level</option>
                     </select>
-                    <div class="text-muted small mt-2">Select a parent folder to create a subfolder with the current name.</div>
+                    <div class="text-gray small mt-2">Select a parent folder to create a subfolder with the current name.</div>
                 </div>
                 <div class="modal-footer">
                     <button type="submit" class="btn-main w-100">Move Folder</button>

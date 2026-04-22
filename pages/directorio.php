@@ -79,6 +79,10 @@ include __DIR__ . '/../views/header.php';
         --text-muted: #94a3b8;
         --border-subtle: #cbd5e1;
     }
+/* Override Bootstrap text-muted con la paleta del proyecto */
+.text-muted { color: var(--text-gray) !important; }
+body.theme-light .text-muted { color: var(--text-gray) !important; }
+
 
     .table-responsive { border-radius: var(--radius-box); overflow: auto; border: 1px solid var(--border-subtle); }
     .table-rounded { width: 100%; border-collapse: separate; border-spacing: 0; background: var(--bg-card); }

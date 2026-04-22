@@ -68,6 +68,10 @@ include __DIR__ . '/../views/header.php';
             --text-muted: #94a3b8;
             --border-subtle: #cbd5e1;
         }
+/* Override Bootstrap text-muted con la paleta del proyecto */
+.text-muted { color: var(--text-gray) !important; }
+body.theme-light .text-muted { color: var(--text-gray) !important; }
+
 
         body.theme-light .bg-dark { background-color: var(--bg-input) !important; color: var(--text-white) !important; border-color: var(--border-subtle) !important; }
 
@@ -193,7 +197,7 @@ include __DIR__ . '/../views/header.php';
                                 <div class="fw-bold small"><?= htmlspecialchars($p['company_name']) ?></div>
                                 <div class="small text-gray"><?= htmlspecialchars($p['contact_name'] ?: '') ?></div>
                             <?php else: ?>
-                                <span class="text-muted small">Not specified</span>
+                                <span class="text-gray small">Not specified</span>
                             <?php endif; ?>
                         </td>
                         <td>
@@ -342,7 +346,7 @@ include __DIR__ . '/../views/header.php';
                             </label>
                         <?php endforeach; ?>
                     </div>
-                    <small class="text-muted d-block mt-2" style="font-size:0.75rem;">At least one admin must be assigned.</small>
+                    <small class="text-gray d-block mt-2" style="font-size:0.75rem;">At least one admin must be assigned.</small>
                 </div>
                 <div class="modal-footer">
                     <button type="submit" class="btn-main w-100">Save assignment</button>

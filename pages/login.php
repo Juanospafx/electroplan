@@ -80,6 +80,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             --text-muted: #94a3b8;
             --border-subtle: #e2e8f0;
         }
+/* Override Bootstrap text-muted con la paleta del proyecto */
+.text-muted { color: var(--text-gray) !important; }
+body.theme-light .text-muted { color: var(--text-gray) !important; }
+
         body.theme-light .form-control,
         body.theme-light .btn-eye { background: var(--bg-input); color: #0f172a; border-color: var(--border-subtle); }
         body.theme-light .brand { color: #0f172a; }

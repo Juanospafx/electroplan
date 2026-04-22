@@ -128,7 +128,8 @@ if ($filePath !== '') {
         body.theme-light .bg-dark { background-color: #334155 !important; }
         body.theme-light .logo-full { background-color: #0f172a !important; }
         
-        .text-muted, .text-gray { color: var(--text-muted) !important; }
+        .text-muted, .text-gray { color: var(--text-gray) !important; }
+body.theme-light .text-muted, body.theme-light .text-gray { color: var(--text-gray) !important; }
 
         .app-container {
             position: absolute; top: 0; left: 0; right: 0; bottom: 0;
@@ -433,7 +434,7 @@ if ($filePath !== '') {
                     ?>
                     <?php if (!empty($attachments)): ?>
                         <div class="mb-2">
-                            <div class="small text-muted mb-1"><i class="fas fa-paperclip me-1"></i>Attachments</div>
+                            <div class="small text-gray mb-1"><i class="fas fa-paperclip me-1"></i>Attachments</div>
                             <div class="d-flex flex-column gap-1">
                                 <?php foreach($attachments as $att): ?>
                                     <?php
@@ -484,7 +485,7 @@ if ($filePath !== '') {
                 </div>
                 <?php endforeach; ?>
             <?php else: ?>
-                <div class="text-center text-muted py-5 px-3">
+                <div class="text-center text-gray py-5 px-3">
                     <i class="fas fa-clipboard-check fa-3x mb-3 opacity-25"></i><br>
                     <p class="small">No reports have been generated for this file yet.</p>
                 </div>

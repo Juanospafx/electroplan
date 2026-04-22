@@ -92,6 +92,10 @@ body.theme-light {
     --text-muted: #94a3b8;
     --border-subtle: #cbd5e1;
 }
+/* Override Bootstrap text-muted con la paleta del proyecto */
+.text-muted { color: var(--text-gray) !important; }
+body.theme-light .text-muted { color: var(--text-gray) !important; }
+
 body.theme-light .bg-dark {
     background-color: var(--bg-input) !important;
     color: var(--text-white) !important;
@@ -395,7 +399,7 @@ body.theme-light .wizard-indicator { background: var(--bg-body); }
                     <div class="text-gray small">No users available.</div>
                     <?php endif; ?>
                 </div>
-                <small class="text-muted d-block mt-2" style="font-size:0.75rem;">Note: At least one Administrator must be assigned to manage the project.</small>
+                <small class="text-gray d-block mt-2" style="font-size:0.75rem;">Note: At least one Administrator must be assigned to manage the project.</small>
             </div>
             <?php endif; ?>
         </div>
@@ -435,7 +439,7 @@ body.theme-light .wizard-indicator { background: var(--bg-body); }
                 <div class="section-header">
                     <i class="fas fa-folder-tree section-icon text-primary"></i>
                     <span class="section-title">Select Initial Folders</span>
-                    <small class="ms-auto text-muted fw-normal" style="font-size:0.75rem"><?= $isEdit ? 'Current selection' : 'Uncheck unused' ?></small>
+                    <small class="ms-auto text-gray fw-normal" style="font-size:0.75rem"><?= $isEdit ? 'Current selection' : 'Uncheck unused' ?></small>
                 </div>
                 <div class="row g-2 mb-3">
                     <div class="col-md-4"><label class="check-item d-flex align-items-center gap-2"><input class="form-check-input" type="checkbox" name="folders[]" value="bom" <?= $isEdit ? (in_array($folderMap['bom'], $existingFolders, true) ? 'checked' : '') : 'checked' ?>> <span class="small">BoM</span></label></div>
@@ -457,7 +461,7 @@ body.theme-light .wizard-indicator { background: var(--bg-body); }
                     <div class="col-md-4"><label class="check-item d-flex align-items-center gap-2"><input class="form-check-input" type="checkbox" name="folders[]" value="warranty_sup" <?= $isEdit ? (in_array($folderMap['warranty_sup'], $existingFolders, true) ? 'checked' : '') : '' ?>> <span class="small">Warranty Sup</span></label></div>
                     <div class="col-md-4"><label class="check-item d-flex align-items-center gap-2"><input class="form-check-input" type="checkbox" name="folders[]" value="clock_in" <?= $isEdit ? (in_array($folderMap['clock_in'], $existingFolders, true) ? 'checked' : '') : '' ?>> <span class="small">Clock in</span></label></div>
                 </div>
-                <?php if($isEdit): ?><div class="text-muted small border-top border-secondary pt-2">Note: To add totally new custom folders later, you can use "Add Folder" in the project dashboard.</div><?php endif; ?>
+                <?php if($isEdit): ?><div class="text-gray small border-top border-secondary pt-2">Note: To add totally new custom folders later, you can use "Add Folder" in the project dashboard.</div><?php endif; ?>
             </div>
         </div>
 

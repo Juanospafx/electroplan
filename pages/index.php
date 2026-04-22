@@ -154,6 +154,10 @@ include __DIR__ . '/../views/header.php';
         --text-muted: #94a3b8;
         --border-subtle: #cbd5e1;
     }
+/* Override Bootstrap text-muted con la paleta del proyecto */
+.text-muted { color: var(--text-gray) !important; }
+body.theme-light .text-muted { color: var(--text-gray) !important; }
+
 
     body.theme-light .bg-dark { background-color: var(--bg-input) !important; color: var(--text-white) !important; border-color: var(--border-subtle) !important; }
     body.theme-light .text-white { color: var(--text-white) !important; }
@@ -380,7 +384,7 @@ include __DIR__ . '/../views/header.php';
                         <div class="box-card border-danger cursor-pointer" id="t-card-project-<?= $tp['id'] ?>" onclick="toggleTrashSelect('project', <?= $tp['id'] ?>)">
                             <div class="selection-check" id="t-check-project-<?= $tp['id'] ?>"></div>
                             <h5 class="text-white"><?= htmlspecialchars($tp['name']) ?> <small>(Project)</small></h5>
-                            <small class="text-muted">Deleted: <?= $tp['deleted_at'] ?></small>
+                            <small class="text-gray">Deleted: <?= $tp['deleted_at'] ?></small>
                         </div>
                     </div>
                 <?php endforeach; ?>
@@ -390,7 +394,7 @@ include __DIR__ . '/../views/header.php';
                             <div class="selection-check" id="t-check-file-<?= $tf['id'] ?>"></div>
                             <i class="fas fa-file fa-2x mb-2 text-danger"></i>
                             <h6 class="text-truncate"><?= htmlspecialchars($tf['filename']) ?></h6>
-                            <small class="text-muted">Deleted: <?= $tf['deleted_at'] ?></small>
+                            <small class="text-gray">Deleted: <?= $tf['deleted_at'] ?></small>
                         </div>
                     </div>
                 <?php endforeach; ?>
