@@ -100,37 +100,79 @@ include __DIR__ . '/../views/header.php';
 ?>
 
     <style>
-        .settings-nav { display: flex; gap: 10px; margin-bottom: 30px; border-bottom: 1px solid rgba(255,255,255,0.05); padding-bottom: 20px; }
-        .nav-pill { padding: 10px 25px; border-radius: 50px; font-weight: 600; font-size: 0.9rem; color: #94a3b8; transition: 0.2s; border: 1px solid transparent; }
-        .nav-pill:hover { background: #334155; color: white; }
-        .nav-pill.active { background: #6366f1; color: white; box-shadow: 0 4px 15px rgba(99, 102, 241, 0.3); }
+        :root {
+            --bg-body: #1b212d;
+            --bg-card: #242a38;
+            --bg-input: #151a23;
+            --primary: #fb5a3a;
+            --primary-hover: #e14e32;
+            --text-white: #ffffff;
+            --text-gray: #94a3b8;
+            --text-muted: #58657a;
+            --border-subtle: #2f384a;
+            --radius-box: 20px;
+        }
+        body.theme-light {
+            --bg-body: #e2e8f0;
+            --bg-card: #ffffff;
+            --bg-input: #f8fafc;
+            --text-white: #0f172a;
+            --text-gray: #64748b;
+            --text-muted: #94a3b8;
+            --border-subtle: #cbd5e1;
+        }
 
-        .card-box { background: #1e293b; border-radius: 20px; padding: 30px; border: 1px solid rgba(255,255,255,0.05); }
-        .form-label { color: #94a3b8; font-size: 0.85rem; font-weight: 600; margin-bottom: 8px; }
-        
-        .table-responsive { border-radius: 20px; overflow: hidden; border: 1px solid rgba(255,255,255,0.05); }
-        .table-rounded { width: 100%; border-collapse: separate; border-spacing: 0; background: #1e293b; }
-        .table-rounded th { background: rgba(0,0,0,0.2); color: #94a3b8; font-weight: 600; text-transform: uppercase; font-size: 0.75rem; padding: 15px 20px; border-bottom: 1px solid rgba(255,255,255,0.05); }
-        .table-rounded td { padding: 15px 20px; color: white; vertical-align: middle; border-bottom: 1px solid rgba(255,255,255,0.02); }
+        .settings-nav { display: flex; gap: 10px; margin-bottom: 30px; border-bottom: 1px solid var(--border-subtle); padding-bottom: 20px; }
+        .nav-pill { padding: 10px 25px; border-radius: 50px; font-weight: 600; font-size: 0.9rem; color: var(--text-gray); transition: 0.2s; border: 1px solid transparent; }
+        .nav-pill:hover { background: var(--bg-input); color: var(--text-white); border-color: var(--border-subtle); }
+        .nav-pill.active { background: var(--primary); color: white; box-shadow: 0 4px 15px rgba(251, 90, 58, 0.3); }
+
+        .card-box { background: var(--bg-card); border-radius: 20px; padding: 30px; border: 1px solid var(--border-subtle); }
+        .form-label { color: var(--text-gray); font-size: 0.85rem; font-weight: 600; margin-bottom: 8px; }
+
+        .table-responsive { border-radius: 20px; overflow: hidden; border: 1px solid var(--border-subtle); }
+        .table-rounded { width: 100%; border-collapse: separate; border-spacing: 0; background: var(--bg-card); }
+        .table-rounded th { background: var(--bg-input); color: var(--text-gray); font-weight: 600; text-transform: uppercase; font-size: 0.75rem; padding: 15px 20px; border-bottom: 1px solid var(--border-subtle); }
+        .table-rounded td { padding: 15px 20px; color: var(--text-white); vertical-align: middle; border-bottom: 1px solid var(--border-subtle); }
         .table-rounded tr:last-child td { border-bottom: none; }
+        .table-rounded tr:hover td { background: rgba(255,255,255,0.02); }
 
         .alert-custom { background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.2); color: #34d399; border-radius: 12px; padding: 15px; display: flex; align-items: center; gap: 10px; margin-bottom: 20px; }
-        .btn-action { width: 32px; height: 32px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid rgba(255,255,255,0.05); color: #94a3b8; background: transparent; transition: 0.2s; }
-        .btn-action:hover { background: white; color: #0b1120; }
+        .btn-action { width: 32px; height: 32px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--border-subtle); color: var(--text-gray); background: transparent; transition: 0.2s; }
+        .btn-action:hover { background: var(--primary); color: white; border-color: var(--primary); }
         .btn-action.delete:hover { background: #ef4444; color: white; border-color: #ef4444; }
+
+        .form-control,
+        .form-select {
+            background: var(--bg-input) !important;
+            border: 1px solid var(--border-subtle) !important;
+            color: var(--text-white) !important;
+        }
+        .form-control:focus,
+        .form-select:focus {
+            border-color: var(--primary) !important;
+            box-shadow: 0 0 0 .2rem rgba(251, 90, 58, .18) !important;
+        }
+
+        .btn-main { background: var(--primary); border-color: var(--primary); }
+        .btn-main:hover { background: var(--primary-hover); border-color: var(--primary-hover); }
+
+        .modal-content { background: var(--bg-card); border: 1px solid var(--border-subtle); color: var(--text-white); }
+        .modal-header, .modal-footer { border-color: var(--border-subtle); }
+        .btn-close { filter: invert(1) grayscale(1); }
 
         /* Estilos para botón ojo en Settings */
         .btn-eye-settings {
             background: transparent;
-            border: 1px solid rgba(255,255,255,0.1);
+            border: 1px solid var(--border-subtle);
             border-left: 0;
-            color: #94a3b8;
+            color: var(--text-gray);
             transition: 0.2s;
         }
         .btn-eye-settings:hover {
             background: rgba(255,255,255,0.05);
             color: white;
-            border-color: rgba(255,255,255,0.2);
+            border-color: var(--border-subtle);
         }
         /* Ajuste de form-control en input-group para esquinas */
         .input-group .form-control:first-child { border-top-right-radius: 0; border-bottom-right-radius: 0; }
@@ -154,10 +196,13 @@ include __DIR__ . '/../views/header.php';
                 </div>
             </div>
 
-            <div class="user-pill">
+            <a href="settings.php?tab=users" class="user-pill text-decoration-none">
                 <div class="avatar"><?= strtoupper(substr($userName,0,1)) ?></div>
-                <span class="small fw-bold"><?= htmlspecialchars($userName) ?></span>
-            </div>
+                <div class="user-pill-info">
+                    <span class="user-pill-name"><?= htmlspecialchars($userName) ?></span>
+                    <span class="user-pill-role"><?= ucfirst($_SESSION['role'] ?? 'Viewer') ?></span>
+                </div>
+            </a>
         </header>
 
         <div class="mb-4">
@@ -222,7 +267,7 @@ include __DIR__ . '/../views/header.php';
                                     <i class="fas fa-pen"></i>
                                 </button>
                                 <?php if($u['id'] != 1 && $u['id'] != $userId): ?>
-                                <a href="settings.php?tab=users&delete_id=<?= $u['id'] ?>" class="btn-action delete" onclick="return confirm('Delete this user?');">
+                                <a href="settings.php?tab=users&delete_id=<?= $u['id'] ?>" class="btn-action delete" onclick="event.preventDefault(); confirmDeleteUser(this.href);">
                                     <i class="fas fa-trash"></i>
                                 </a>
                                 <?php endif; ?>
@@ -352,6 +397,12 @@ include __DIR__ . '/../views/header.php';
         new bootstrap.Modal(document.getElementById('editUserModal')).show();
     }
 
+    function confirmDeleteUser(url) {
+        appConfirm('Delete this user?', 'Delete User', () => {
+            window.location.href = url;
+        });
+    }
+
     function togglePassword(inputId, btn) {
         const input = document.getElementById(inputId);
         const icon = btn.querySelector('i');
@@ -368,4 +419,5 @@ include __DIR__ . '/../views/header.php';
     }
 </script>
 
+<?php include_once __DIR__ . '/../funciones/alerts.php'; ?>
 <?php include __DIR__ . '/../views/footer.php'; ?>

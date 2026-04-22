@@ -83,36 +83,59 @@ include __DIR__ . '/../views/header.php';
 
     <main class="main-content">
         <style>
+            :root {
+                --bg-body: #1b212d;
+                --bg-card: #242a38;
+                --bg-input: #151a23;
+                --primary: #fb5a3a;
+                --primary-hover: #e14e32;
+                --text-white: #ffffff;
+                --text-gray: #94a3b8;
+                --text-muted: #58657a;
+                --border-subtle: #2f384a;
+                --radius-box: 20px;
+            }
+            body.theme-light {
+                --bg-body: #e2e8f0;
+                --bg-card: #ffffff;
+                --bg-input: #f8fafc;
+                --text-white: #0f172a;
+                --text-gray: #64748b;
+                --text-muted: #94a3b8;
+                --border-subtle: #cbd5e1;
+            }
+
              /* ESTILOS TIMELINE */
             .timeline-container { position: relative; max-width: 800px; margin-left: 10px; }
-            .timeline-container::before { content: ''; position: absolute; top: 0; bottom: 0; left: 24px; width: 2px; background: rgba(255,255,255,0.05); border-radius: 2px; }
+            .timeline-container::before { content: ''; position: absolute; top: 0; bottom: 0; left: 24px; width: 2px; background: var(--border-subtle); border-radius: 2px; }
             .timeline-item { position: relative; padding-left: 60px; margin-bottom: 30px; }
-            .timeline-icon { position: absolute; left: 0; top: 0; width: 50px; height: 50px; border-radius: 50%; background: #0b1120; border: 2px solid rgba(255,255,255,0.05); display: flex; align-items: center; justify-content: center; z-index: 2; color: #94a3b8; font-size: 1.1rem; }
-            .timeline-item:hover .timeline-icon { border-color: #6366f1; color: white; background: #6366f1; box-shadow: 0 0 15px rgba(99, 102, 241, 0.4); }
-            .timeline-card { background: #1e293b; border-radius: 20px; padding: 20px 25px; border: 1px solid rgba(255,255,255,0.05); transition: 0.3s; }
-            .timeline-card:hover { transform: translateY(-3px); border-color: rgba(255,255,255,0.1); background: #252f44; }
-            .time-badge { font-size: 0.75rem; color: #94a3b8; margin-bottom: 8px; display: block; text-transform: uppercase; letter-spacing: 0.5px; }
-            .activity-title { font-size: 1.1rem; font-weight: 600; margin-bottom: 5px; color: white; }
-            .activity-desc { color: #94a3b8; font-size: 0.9rem; }
-            .user-mini { display: flex; align-items: center; gap: 8px; margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.05); }
-            .user-mini img, .user-mini div.av { width: 24px; height: 24px; border-radius: 50%; background: #6366f1; display: flex; align-items: center; justify-content: center; font-size: 0.6rem; font-weight: bold; }
-            .user-role-badge { background: rgba(255,255,255,0.1); padding: 2px 8px; border-radius: 10px; font-size: 0.65rem; margin-left: auto; color: #94a3b8; }
+            .timeline-icon { position: absolute; left: 0; top: 0; width: 50px; height: 50px; border-radius: 50%; background: var(--bg-body); border: 2px solid var(--border-subtle); display: flex; align-items: center; justify-content: center; z-index: 2; color: var(--text-gray); font-size: 1.1rem; }
+            .timeline-item:hover .timeline-icon { border-color: var(--primary); color: white; background: var(--primary); box-shadow: 0 0 15px rgba(251, 90, 58, 0.4); }
+            .timeline-card { background: var(--bg-card); border-radius: 20px; padding: 20px 25px; border: 1px solid var(--border-subtle); transition: 0.3s; }
+            .timeline-card:hover { transform: translateY(-3px); border-color: var(--primary); background: var(--bg-input); }
+            .time-badge { font-size: 0.75rem; color: var(--text-gray); margin-bottom: 8px; display: block; text-transform: uppercase; letter-spacing: 0.5px; }
+            .activity-title { font-size: 1.1rem; font-weight: 600; margin-bottom: 5px; color: var(--text-white); }
+            .activity-desc { color: var(--text-gray); font-size: 0.9rem; }
+            .user-mini { display: flex; align-items: center; gap: 8px; margin-top: 15px; padding-top: 15px; border-top: 1px solid var(--border-subtle); }
+            .user-mini img, .user-mini div.av { width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.6rem; font-weight: bold; }
+            .user-role-badge { background: var(--bg-body); border: 1px solid var(--border-subtle); padding: 2px 8px; border-radius: 10px; font-size: 0.65rem; margin-left: auto; color: var(--text-gray); }
             /* ESTILO PARA SEPARADOR DE FECHAS */
             .date-separator { position: relative; margin: 40px 0 30px 0; padding-left: 60px; }
-            .date-separator::before { content: ''; position: absolute; left: 19px; top: 50%; width: 12px; height: 12px; background: #6366f1; border-radius: 50%; border: 3px solid #0b1120; z-index: 3; transform: translateY(-50%); }
-            .date-label { display: inline-block; background: rgba(99, 102, 241, 0.1); color: #6366f1; padding: 5px 15px; border-radius: 20px; font-weight: 700; font-size: 0.85rem; border: 1px solid rgba(99, 102, 241, 0.2); }
+            .date-separator::before { content: ''; position: absolute; left: 19px; top: 50%; width: 12px; height: 12px; background: var(--primary); border-radius: 50%; border: 3px solid var(--bg-body); z-index: 3; transform: translateY(-50%); }
+            .date-label { display: inline-block; background: rgba(251, 90, 58, 0.12); color: var(--primary); padding: 5px 15px; border-radius: 20px; font-weight: 700; font-size: 0.85rem; border: 1px solid rgba(251, 90, 58, 0.25); }
 
-            body.theme-light .timeline-container::before { background: rgba(15,23,42,0.15); }
-            body.theme-light .timeline-icon { background: #ffffff; border-color: rgba(15,23,42,0.18); color: #475569; }
-            body.theme-light .timeline-card { background: #ffffff; border-color: rgba(15,23,42,0.12); }
-            body.theme-light .timeline-card:hover { background: #f8fafc; border-color: rgba(15,23,42,0.2); }
+            body.theme-light .timeline-container::before { background: var(--border-subtle); }
+            body.theme-light .timeline-icon { background: #ffffff; border-color: var(--border-subtle); color: #475569; }
+            body.theme-light .timeline-card { background: #ffffff; border-color: var(--border-subtle); }
+            body.theme-light .timeline-card:hover { background: #f8fafc; border-color: var(--primary); }
             body.theme-light .activity-title { color: #0f172a; }
             body.theme-light .activity-desc,
             body.theme-light .time-badge,
             body.theme-light .user-role-badge { color: #475569; }
-            body.theme-light .user-mini { border-top-color: rgba(15,23,42,0.12); }
+            body.theme-light .user-mini { border-top-color: var(--border-subtle); }
             body.theme-light .date-separator::before { border-color: #f3f6fb; }
-            body.theme-light .bg-dark { background-color: #ffffff !important; color: #0f172a !important; }
+            body.theme-light .form-control,
+            body.theme-light .bg-dark { background-color: #ffffff !important; color: #0f172a !important; border-color: #cbd5e1 !important; }
         </style>
 
         <header class="header">
@@ -127,10 +150,13 @@ include __DIR__ . '/../views/header.php';
                 </div>
             </div>
 
-            <div class="user-pill">
+            <a href="../admin/settings.php?tab=users" class="user-pill text-decoration-none">
                 <div class="avatar"><?= strtoupper(substr($userName,0,1)) ?></div>
-                <span class="small fw-bold"><?= htmlspecialchars($userName) ?></span>
-            </div>
+                <div class="user-pill-info">
+                    <span class="user-pill-name"><?= htmlspecialchars($userName) ?></span>
+                    <span class="user-pill-role"><?= ucfirst($_SESSION['role'] ?? 'Viewer') ?></span>
+                </div>
+            </a>
         </header>
 
         <div class="d-flex justify-content-between align-items-end mb-5">
@@ -140,7 +166,7 @@ include __DIR__ . '/../views/header.php';
             </div>
             
             <form method="GET" class="d-flex align-items-center gap-2">
-                <input type="date" name="filter_date" class="form-control form-control-sm bg-dark text-white border-secondary" value="<?= htmlspecialchars($filterDate) ?>">
+                <input type="text" name="filter_date" class="form-control form-control-sm app-datepicker bg-dark text-white border-secondary" value="<?= htmlspecialchars($filterDate) ?>">
                 <button type="submit" class="btn btn-sm btn-primary"><i class="fas fa-filter"></i></button>
                 <?php if(!empty($filterDate)): ?>
                     <a href="timeline.php" class="btn btn-sm btn-outline-secondary" title="Clear"><i class="fas fa-times"></i></a>
@@ -154,9 +180,14 @@ include __DIR__ . '/../views/header.php';
             
             foreach($activities as $act): 
                 $icon = 'fa-circle'; $link = '#';
-                if($act['type'] == 'project') { $icon = 'fa-layer-group'; $colorClass = 'text-primary'; $actionText = 'New Project Created'; $link = "index.php?project_id=" . $act['ref_id']; } 
+                if($act['type'] == 'project') { $icon = 'fa-layer-group'; $colorClass = 'text-primary'; $actionText = 'New Project Created'; $link = "project_dashboard.php?id=" . $act['ref_id']; } 
                 elseif($act['type'] == 'file') { $icon = 'fa-file-upload'; $colorClass = 'text-info'; $actionText = 'File Uploaded'; $link = "preview.php?id=" . $act['ref_id']; } 
                 elseif($act['type'] == 'report') { $icon = 'fa-clipboard-check'; $colorClass = 'text-success'; $actionText = 'Field Report Submitted'; $link = "preview.php?id=" . $act['ref_id']; }
+
+                $rCol = '#3b82f6';
+                if(($act['user_role'] ?? '') == 'admin') $rCol = '#f59e0b';
+                elseif(($act['user_role'] ?? '') == 'technician') $rCol = '#10b981';
+                elseif(($act['user_role'] ?? '') == 'viewer') $rCol = '#8b5cf6';
                 
                 // LOGICA DE AGRUPACIÓN POR DIA
                 $actDateObj = new DateTime($act['activity_date']); // PHP usará el $appTimeZone definido en functions.php
@@ -182,7 +213,7 @@ include __DIR__ . '/../views/header.php';
                     <div class="activity-title"><?= htmlspecialchars($act['title']) ?></div>
                     <div class="activity-desc"><?= $act['type'] == 'file' ? 'Uploaded to: ' : '' ?><?= htmlspecialchars($act['subtitle'] ?: 'No additional details.') ?></div>
                     <div class="user-mini">
-                        <div class="av"><?= strtoupper(substr($act['user_name'] ?? 'U', 0, 1)) ?></div>
+                        <div class="av" style="background: <?= $rCol ?>"><?= strtoupper(substr($act['user_name'] ?? 'U', 0, 1)) ?></div>
                         <div class="small fw-bold text-white"><?= htmlspecialchars($act['user_name'] ?? 'System') ?></div>
                         <div class="small text-muted ms-1">performed action: <span class="<?= $colorClass ?>"><?= $actionText ?></span></div>
                         <div class="user-role-badge"><?= strtoupper($act['user_role'] ?? '') ?></div>
@@ -201,4 +232,5 @@ include __DIR__ . '/../views/header.php';
         </div>
     </main>
 
+<?php include_once __DIR__ . '/../funciones/calendar.php'; ?>
 <?php include __DIR__ . '/../views/footer.php'; ?>

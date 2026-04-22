@@ -613,11 +613,20 @@ if ($filePath !== '') {
         if (disp) disp.innerText = Math.round(viewer.scale * 100) + '%';
     }
 
+    // FIX-2f: suavizar pan/zoom con RAF
+    let rafId = null;
     function applyTransform() {
-        const el = viewer.mode === 'pdf' ? viewer.canvas : viewer.img;
-        if (!el) return;
-        el.style.transform = `translate(${viewer.translateX}px, ${viewer.translateY}px) scale(${viewer.scale})`;
-        setZoomDisplay();
+        if (rafId) return;
+        rafId = requestAnimationFrame(() => {
+            const el = viewer.mode === 'pdf' ? viewer.canvas : viewer.img;
+            if (!el) {
+                rafId = null;
+                return;
+            }
+            el.style.transform = `translate(${viewer.translateX}px, ${viewer.translateY}px) scale(${viewer.scale})`;
+            setZoomDisplay();
+            rafId = null;
+        });
     }
 
     function fitToContainer() {
@@ -704,7 +713,9 @@ if ($filePath !== '') {
     viewer.container.addEventListener('touchstart', (e) => {
         if (!viewer.mode) return;
         if (e.touches.length === 1) {
-            if (!viewer.isPanningMode) return;
+            // FIX-2f: en mobile, pan de 1 dedo siempre activo
+            const isMobile = window.innerWidth <= 991;
+            if (!viewer.isPanningMode && !isMobile) return;
             const t = e.touches[0];
             viewer.isDragging = true;
             viewer.dragStartX = t.clientX;
@@ -723,7 +734,10 @@ if ($filePath !== '') {
     viewer.container.addEventListener('touchmove', (e) => {
         if (!viewer.mode) return;
         if (e.touches.length === 1) {
-            if (!viewer.isPanningMode || !viewer.isDragging) return;
+            // FIX-2f: en mobile, pan de 1 dedo sin requerir botón de pan
+            const isMobile = window.innerWidth <= 991;
+            if (!viewer.isPanningMode && !isMobile) return;
+            if (!viewer.isDragging) return;
             const t = e.touches[0];
             const dx = t.clientX - viewer.dragStartX;
             const dy = t.clientY - viewer.dragStartY;
