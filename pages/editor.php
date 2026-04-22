@@ -1700,10 +1700,45 @@ if ($filePath !== '') {
             // FIX: si hay un objeto de Fabric bajo el cursor (stamp, dibujo, texto),
             // NO activar pan — dejar que el evento llegue a Fabric
             if (isEmpty && evt && currentMode === 'smart' && !evt.altKey && evt.button !== 2) {
-                const konvaContainer = konvaStage.container();
-                const rect = konvaContainer.getBoundingClientRect();
-                const fabricTarget = canvas.findTarget({ clientX: evt.clientX - rect.left, clientY: evt.clientY - rect.top });
-                if (fabricTarget) return; // hay objeto Fabric → no pan, Fabric lo maneja
+                let fabricTarget = null;
+                try {
+                    fabricTarget = canvas.findTarget(evt);
+                } catch (_) {
+                    fabricTarget = null;
+                }
+
+                // Si hay objeto Fabric bajo el cursor, ceder control a Fabric
+                if (fabricTarget) {
+                    setKonvaActive(false);
+
+                    const upperCanvas = document.querySelector('.upper-canvas');
+                    if (upperCanvas) {
+                        const forwardedDown = new MouseEvent('mousedown', {
+                            bubbles: true,
+                            cancelable: true,
+                            clientX: evt.clientX,
+                            clientY: evt.clientY,
+                            button: evt.button,
+                            buttons: evt.buttons,
+                            ctrlKey: evt.ctrlKey,
+                            shiftKey: evt.shiftKey,
+                            altKey: evt.altKey,
+                            metaKey: evt.metaKey
+                        });
+                        upperCanvas.dispatchEvent(forwardedDown);
+                    }
+
+                    const reactivateKonva = () => {
+                        if (currentMode === 'smart' || currentMode === 'measure') setKonvaActive(true);
+                        window.removeEventListener('mouseup', reactivateKonva, true);
+                        window.removeEventListener('touchend', reactivateKonva, true);
+                        window.removeEventListener('touchcancel', reactivateKonva, true);
+                    };
+                    window.addEventListener('mouseup', reactivateKonva, true);
+                    window.addEventListener('touchend', reactivateKonva, true);
+                    window.addEventListener('touchcancel', reactivateKonva, true);
+                    return;
+                }
             }
 
             if (evt && ((evt.altKey || evt.button === 2) || (currentMode === 'smart' && isEmpty && !pendingPlacementTool))) {
