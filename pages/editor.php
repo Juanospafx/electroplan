@@ -1000,6 +1000,20 @@ if ($filePath !== '') {
             r.a2.radius(6 * invScale);
             r.label.fontSize(16 * invScale);
             r.label.padding(4 * invScale);
+            // FIX: hitbox táctil estable en pantalla
+            const hitRadius = Math.max(20, 28 * invScale);
+            r.a1.hitFunc(function(context) {
+                context.beginPath();
+                context.arc(0, 0, hitRadius, 0, Math.PI * 2, true);
+                context.closePath();
+                context.fillStrokeShape(this);
+            });
+            r.a2.hitFunc(function(context) {
+                context.beginPath();
+                context.arc(0, 0, hitRadius, 0, Math.PI * 2, true);
+                context.closePath();
+                context.fillStrokeShape(this);
+            });
         });
         konvaLayer.batchDraw();
     }
@@ -1155,7 +1169,14 @@ if ($filePath !== '') {
             fill: '#ffffff',
             stroke: '#22c55e',
             strokeWidth: 2,
-            draggable: true
+            draggable: true,
+            // FIX: hitbox más grande para mobile
+            hitFunc: function(context) {
+                context.beginPath();
+                context.arc(0, 0, 24, 0, Math.PI * 2, true);
+                context.closePath();
+                context.fillStrokeShape(this);
+            }
         });
         const a2 = new Konva.Circle({
             x: p2.x, y: p2.y,
@@ -1163,7 +1184,14 @@ if ($filePath !== '') {
             fill: '#ffffff',
             stroke: '#22c55e',
             strokeWidth: 2,
-            draggable: true
+            draggable: true,
+            // FIX: hitbox más grande para mobile
+            hitFunc: function(context) {
+                context.beginPath();
+                context.arc(0, 0, 24, 0, Math.PI * 2, true);
+                context.closePath();
+                context.fillStrokeShape(this);
+            }
         });
         const label = new Konva.Text({
             x: (p1.x + p2.x) / 2,
@@ -1171,7 +1199,10 @@ if ($filePath !== '') {
             text: '',
             fontSize: 16,
             fill: '#22c55e',
-            padding: 4
+            padding: 4,
+            stroke: '#ffffff',
+            strokeWidth: 3,
+            fillAfterStrokeEnabled: true
         });
 
         group.add(line, a1, a2, label);
@@ -1525,6 +1556,29 @@ if ($filePath !== '') {
     function startInlineNoteEdit(note) {
         if (!note || !konvaStage || !konvaLayer) return;
         konvaSelectedNote = note;
+
+        // FIX: En mobile, autozoom para que la nota sea visible al editar
+        if (window.innerWidth <= 991) {
+            const textNode = note.label;
+            const absPos = textNode.getAbsolutePosition();
+            const containerRect = konvaStage.container().getBoundingClientRect();
+            const containerW = containerRect.width;
+            const containerH = containerRect.height * 0.55;
+
+            const MIN_ZOOM_FOR_EDIT = 1.8;
+            let targetZoom = Math.max(canvas.getZoom(), MIN_ZOOM_FOR_EDIT);
+
+            const worldX = absPos.x;
+            const worldY = absPos.y;
+            const newTx = containerW / 2 - worldX * targetZoom;
+            const newTy = containerH / 2 - worldY * targetZoom;
+
+            canvas.setViewportTransform([targetZoom, 0, 0, targetZoom, newTx, newTy]);
+            document.getElementById('zoom-disp').innerText = Math.round(targetZoom * 100) + '%';
+            updateTextScales(targetZoom);
+            syncKonvaToFabric();
+        }
+
         const container = konvaStage.container();
         const rect = container.getBoundingClientRect();
         const vpt = getFabricVpt();
@@ -1988,47 +2042,87 @@ if ($filePath !== '') {
         showToast("Selection deleted", "success");
     }
 
-    // --- PINCH ZOOM & PAN (GESTOS TÃCTILES MEJORADOS) ---
-    const canvasWrapper = document.querySelector('.upper-canvas');
+    // --- PINCH ZOOM & PAN (GESTOS TÁCTILES) ---
+    // FIX: usar el wrapper del canvas-area porque Konva intercepta events en modo smart/measure
+    const touchTarget = document.querySelector('.canvas-area') || document.querySelector('.upper-canvas');
     let lastDist = 0;
-    let lastClientX = 0;
-    let lastClientY = 0;
+    let lastTouchCX = 0;
+    let lastTouchCY = 0;
+    let singleTouchStart = null;
+    let isPinching = false;
 
-    if(canvasWrapper) {
-        // FIX-2a: 1-finger pan en mobile (modo smart, solo en espacio vacío)
-        let singleTouchStart = null;
-
-        canvasWrapper.addEventListener('touchstart', function(e) {
-            if (e.touches.length === 1 && currentMode === 'smart') {
-                const touch = e.touches[0];
-                const rect = canvasWrapper.getBoundingClientRect();
-                const hit = canvas.findTarget({ clientX: touch.clientX - rect.left, clientY: touch.clientY - rect.top });
-                if (!hit) {
-                    singleTouchStart = {
-                        x: touch.clientX,
-                        y: touch.clientY,
-                        vpt: [...canvas.viewportTransform]
-                    };
-                    e.preventDefault();
-                }
-            }
-
+    if (touchTarget) {
+        touchTarget.addEventListener('touchstart', function(e) {
             if (e.touches.length === 2) {
-                // Calcular distancia inicial
+                isPinching = true;
+                singleTouchStart = null;
+
+                // FIX: si estamos en modo draw y hay 2 dedos, pausar el dibujo
+                if (currentMode === 'draw' && canvas.isDrawingMode) {
+                    canvas.isDrawingMode = false;
+                    canvas._isDrawingModeWasPausedByPinch = true;
+                }
+
                 const dx = e.touches[0].clientX - e.touches[1].clientX;
                 const dy = e.touches[0].clientY - e.touches[1].clientY;
                 lastDist = Math.sqrt(dx * dx + dy * dy);
-
-                // Calcular centro inicial para el Pan
-                lastClientX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
-                lastClientY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
-
+                lastTouchCX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+                lastTouchCY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
                 e.preventDefault();
+            } else if (e.touches.length === 1 && !isPinching) {
+                // FIX: pan de 1 dedo en modo smart (cuando no hay objeto bajo el dedo)
+                if (currentMode !== 'smart') return;
+                const touch = e.touches[0];
+                const rect = touchTarget.getBoundingClientRect();
+                const pointer = new fabric.Point(touch.clientX - rect.left, touch.clientY - rect.top);
+                const hit = canvas.findTarget({ e: e, pointer });
+                if (!hit) {
+                    singleTouchStart = { x: touch.clientX, y: touch.clientY, vpt: [...canvas.viewportTransform] };
+                    e.preventDefault();
+                }
             }
         }, { passive: false });
 
-        canvasWrapper.addEventListener('touchmove', function(e) {
-            if (e.touches.length === 1 && singleTouchStart && currentMode === 'smart') {
+        touchTarget.addEventListener('touchmove', function(e) {
+            if (e.touches.length === 2) {
+                e.preventDefault();
+                isPinching = true;
+
+                const dx = e.touches[0].clientX - e.touches[1].clientX;
+                const dy = e.touches[0].clientY - e.touches[1].clientY;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+
+                const currentCX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+                const currentCY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+
+                // Pan simultáneo con pinch
+                const deltaX = currentCX - lastTouchCX;
+                const deltaY = currentCY - lastTouchCY;
+                const vpt = canvas.viewportTransform;
+                vpt[4] += deltaX;
+                vpt[5] += deltaY;
+
+                // Zoom hacia el centro del pinch
+                if (lastDist > 0) {
+                    const scale = dist / lastDist;
+                    let newZoom = canvas.getZoom() * scale;
+                    if (newZoom > 20) newZoom = 20;
+                    if (newZoom < 0.05) newZoom = 0.05;
+
+                    const rect = touchTarget.getBoundingClientRect();
+                    const point = new fabric.Point(currentCX - rect.left, currentCY - rect.top);
+                    canvas.zoomToPoint(point, newZoom);
+                    document.getElementById('zoom-disp').innerText = Math.round(newZoom * 100) + '%';
+                    updateTextScales(newZoom);
+                    if (useKonvaRuler) syncKonvaToFabric();
+                }
+
+                lastDist = dist;
+                lastTouchCX = currentCX;
+                lastTouchCY = currentCY;
+                canvas.requestRenderAll();
+            } else if (e.touches.length === 1 && singleTouchStart && !isPinching) {
+                // FIX: pan de 1 dedo
                 e.preventDefault();
                 const touch = e.touches[0];
                 const dx = touch.clientX - singleTouchStart.x;
@@ -2038,56 +2132,26 @@ if ($filePath !== '') {
                 vpt[5] = singleTouchStart.vpt[5] + dy;
                 canvas.requestRenderAll();
                 if (useKonvaRuler) syncKonvaToFabric();
-                return;
-            }
-
-            if (e.touches.length === 2) {
-                e.preventDefault();
-
-                // 1. CALCULAR ZOOM (Escala)
-                const dx = e.touches[0].clientX - e.touches[1].clientX;
-                const dy = e.touches[0].clientY - e.touches[1].clientY;
-                const dist = Math.sqrt(dx * dx + dy * dy);
-
-                // 2. CALCULAR PAN (Movimiento)
-                const currentClientX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
-                const currentClientY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
-
-                const deltaX = currentClientX - lastClientX;
-                const deltaY = currentClientY - lastClientY;
-
-                // Aplicar Pan (Mover el canvas)
-                const vpt = canvas.viewportTransform;
-                vpt[4] += deltaX;
-                vpt[5] += deltaY;
-
-                // Aplicar Zoom
-                if(lastDist > 0) {
-                    const scale = dist / lastDist;
-                    let newZoom = canvas.getZoom() * scale;
-                    if (newZoom > 20) newZoom = 20; if (newZoom < 0.1) newZoom = 0.1;
-
-                    // Zoom hacia el punto central de los dedos
-                    const point = new fabric.Point(currentClientX, currentClientY);
-                    canvas.zoomToPoint(point, newZoom);
-
-                    document.getElementById('zoom-disp').innerText = Math.round(newZoom * 100) + '%';
-                    updateTextScales(newZoom);
-                    if (useKonvaRuler) syncKonvaToFabric();
-                }
-
-                // Actualizar referencias para el siguiente frame
-                lastDist = dist;
-                lastClientX = currentClientX;
-                lastClientY = currentClientY;
-
-                canvas.requestRenderAll();
             }
         }, { passive: false });
 
-        canvasWrapper.addEventListener('touchend', function(e) {
-            if (e.touches.length === 0) singleTouchStart = null;
-        });
+        touchTarget.addEventListener('touchend', function(e) {
+            if (e.touches.length < 2) {
+                // FIX: resetear pinch al soltar cualquier dedo
+                lastDist = 0;
+
+                // FIX: restaurar drawing mode si fue pausado por pinch
+                if (canvas._isDrawingModeWasPausedByPinch && currentMode === 'draw') {
+                    canvas.isDrawingMode = true;
+                    canvas._isDrawingModeWasPausedByPinch = false;
+                }
+            }
+            if (e.touches.length === 0) {
+                isPinching = false;
+                singleTouchStart = null;
+                canvas.setViewportTransform(canvas.viewportTransform);
+            }
+        }, { passive: false });
     }
 
     canvas.on('mouse:up', function(opt) {
