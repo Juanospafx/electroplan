@@ -121,6 +121,10 @@ include __DIR__ . '/../views/header.php';
             --text-muted: #94a3b8;
             --border-subtle: #cbd5e1;
         }
+/* Override Bootstrap text-muted con la paleta del proyecto */
+.text-muted { color: var(--text-gray) !important; }
+body.theme-light .text-muted { color: var(--text-gray) !important; }
+
 
         .settings-nav { display: flex; gap: 10px; margin-bottom: 30px; border-bottom: 1px solid var(--border-subtle); padding-bottom: 20px; }
         .nav-pill { padding: 10px 25px; border-radius: 50px; font-weight: 600; font-size: 0.9rem; color: var(--text-gray); transition: 0.2s; border: 1px solid transparent; }
@@ -378,7 +382,7 @@ include __DIR__ . '/../views/header.php';
                         <input type="password" name="password" id="edit_password" class="form-control" placeholder="Leave empty to keep current password">
                         <button class="btn btn-eye-settings" type="button" onclick="togglePassword('edit_password', this)"><i class="fas fa-eye"></i></button>
                     </div>
-                    <div class="form-text text-muted small">Only enter a value if you want to change the user's password.</div>
+                    <div class="form-text text-gray small">Only enter a value if you want to change the user's password.</div>
                 </div>
             </div>
             <div class="modal-footer">

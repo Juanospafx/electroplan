@@ -104,6 +104,10 @@ include __DIR__ . '/../views/header.php';
                 --text-muted: #94a3b8;
                 --border-subtle: #cbd5e1;
             }
+/* Override Bootstrap text-muted con la paleta del proyecto */
+.text-muted { color: var(--text-gray) !important; }
+body.theme-light .text-muted { color: var(--text-gray) !important; }
+
 
              /* ESTILOS TIMELINE */
             .timeline-container { position: relative; max-width: 800px; margin-left: 10px; }
@@ -215,7 +219,7 @@ include __DIR__ . '/../views/header.php';
                     <div class="user-mini">
                         <div class="av" style="background: <?= $rCol ?>"><?= strtoupper(substr($act['user_name'] ?? 'U', 0, 1)) ?></div>
                         <div class="small fw-bold text-white"><?= htmlspecialchars($act['user_name'] ?? 'System') ?></div>
-                        <div class="small text-muted ms-1">performed action: <span class="<?= $colorClass ?>"><?= $actionText ?></span></div>
+                        <div class="small text-gray ms-1">performed action: <span class="<?= $colorClass ?>"><?= $actionText ?></span></div>
                         <div class="user-role-badge"><?= strtoupper($act['user_role'] ?? '') ?></div>
                     </div>
                 </a>

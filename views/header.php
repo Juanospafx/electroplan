@@ -215,7 +215,11 @@
             .mobile-toggle { display: block; }
             .sidebar-toggle { display: none; }
         }
-    </style>
+    
+/* Global override: Bootstrap text-muted → paleta Deep Matte */
+.text-muted { color: var(--text-gray, #94a3b8) !important; }
+body.theme-light .text-muted { color: var(--text-gray, #64748b) !important; }
+</style>
 </head>
 <body>
 <script>
