@@ -372,11 +372,11 @@ include __DIR__ . '/../views/header.php';
     .box-card { background: var(--bg-card); border-radius: var(--radius-box); border: 1px solid var(--border-subtle); transition: 0.3s; }
     .box-card:hover { transform: translateY(-3px); border-color: var(--primary); }
 
-    .btn-main { background-color: var(--primary) !important; border-color: var(--primary) !important; color: white !important; transition: 0.2s; font-weight: 600; }
+    .btn-main { background-color: var(--primary) !important; border-color: var(--primary) !important; color: var(--text-white) !important; transition: 0.2s; font-weight: 600; }
     .btn-main:hover { background-color: var(--primary-hover) !important; border-color: var(--primary-hover) !important; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(251, 90, 58, 0.3); }
 
-    .btn-tools { background-color: var(--color-blue) !important; border-color: var(--color-blue) !important; color: white !important; transition: 0.2s; font-weight: 600; }
-    .btn-tools:hover { filter: brightness(1.1); transform: translateY(-2px); box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3); color: white !important; }
+    .btn-tools { background-color: var(--color-blue) !important; border-color: var(--color-blue) !important; color: var(--text-white) !important; transition: 0.2s; font-weight: 600; }
+    .btn-tools:hover { filter: brightness(1.1); transform: translateY(-2px); box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3); color: var(--text-white) !important; }
 
     .text-purple { color: var(--color-purple) !important; }
     .bg-purple { background-color: rgba(139, 92, 246, var(--bs-bg-opacity, 1)) !important; }
@@ -389,11 +389,11 @@ include __DIR__ . '/../views/header.php';
     .btn-outline-secondary, .btn-outline-info, .btn-outline-primary, .btn-outline-warning, .btn-outline-danger { transition: 0.2s; }
 
     .btn-icon { width: 32px; height: 32px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--border-subtle); color: var(--text-gray); transition: 0.2s; background: var(--bg-card); text-decoration: none; }
-    .btn-icon:hover { background: var(--primary); color: white; border-color: var(--primary); }
+    .btn-icon:hover { background: var(--primary); color: var(--text-white); border-color: var(--primary); }
     .btn-icon.border-primary { color: var(--primary); border-color: var(--primary); }
-    .btn-icon.border-primary:hover { background: var(--primary); color: white; }
+    .btn-icon.border-primary:hover { background: var(--primary); color: var(--text-white); }
     .btn-icon.border-danger { color: #ef4444; border-color: #ef4444; }
-    .btn-icon.border-danger:hover { background: #ef4444; color: white; }
+    .btn-icon.border-danger:hover { background: #ef4444; color: var(--text-white); }
 
     .form-control, .form-select { background: var(--bg-input) !important; border: 1px solid var(--border-subtle) !important; color: var(--text-white) !important; border-radius: 10px; }
     .form-control::placeholder { color: var(--text-gray) !important; opacity: 1; }
@@ -407,6 +407,8 @@ include __DIR__ . '/../views/header.php';
 
     .bg-header { border-bottom-color: var(--border-subtle) !important; }
     .border-secondary { border-color: var(--border-subtle) !important; }
+
+    .project-sidebar { background: var(--bg-card) !important; border-right-color: var(--border-subtle) !important; }
 
     /* --- DROPDOWN MENUS FIX --- */
     .dropdown-menu.bg-card { background-color: var(--bg-card) !important; border-color: var(--border-subtle) !important; }
@@ -498,7 +500,7 @@ include __DIR__ . '/../views/header.php';
         align-items: center;
         justify-content: center;
         text-decoration: none;
-        color: white !important;
+        color: var(--text-white) !important;
         transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), filter 0.2s;
     }
     
@@ -525,7 +527,7 @@ include __DIR__ . '/../views/header.php';
 
     .overlay-mini-btn {
         width: 32px; height: 32px; border-radius: 50%;
-        background: rgba(0,0,0,0.5); color: white;
+        background: rgba(0,0,0,0.5); color: var(--text-white);
         border: none; display: inline-flex; align-items: center; justify-content: center;
         transition: 0.2s; backdrop-filter: blur(2px);
     }
