@@ -1086,7 +1086,7 @@ if ($filePath !== '') {
     }
 
     function saveCurrentPageAnnotations() {
-        const fabricJson = JSON.stringify(canvas.toJSON(['isMeasureLine','labelId','labelOffsetX','labelOffsetY']));
+        const fabricJson = JSON.stringify(canvas.toJSON(['isMeasureLine','labelId','labelOffsetX','labelOffsetY','isStamp','isFreeDraw']));
         if (!useKonvaRuler) {
             allAnnotations[pageNum] = fabricJson;
             persistDraftAnnotations();
@@ -2326,7 +2326,15 @@ if ($filePath !== '') {
                             if(lbl) { obj.label = lbl; lbl.selectable = false; lbl.evented = false; }
                         }
                     } else if (!obj.isMeasureLabel) {
-                        obj.set({ lockMovementX:true, lockMovementY:true, borderColor:'#22c55e' });
+                        if (obj.isStamp) {
+                            // FIX: stamps restaurados quedan movibles
+                            obj.set({ lockMovementX: false, lockMovementY: false, lockRotation: true, lockScalingX: true, lockScalingY: true, hasControls: false, hasBorders: true });
+                        } else if (obj.isFreeDraw) {
+                            // FIX: paths de lápiz restaurados son seleccionables
+                            obj.set({ lockMovementX: false, lockMovementY: false, selectable: true, evented: true, hasBorders: true, hasControls: false, borderColor: '#ef4444', borderDashArray: [5, 5] });
+                        } else {
+                            obj.set({ lockMovementX: true, lockMovementY: true, borderColor: '#22c55e' });
+                        }
                     }
                 });
                   if (useKonvaRuler) loadKonvaForPage(pg, state.konva);
@@ -2347,7 +2355,7 @@ if ($filePath !== '') {
     function saveHistory() {
         if(historyProcessing) return;
         if (historyIndex < undoStack.length - 1) { undoStack = undoStack.slice(0, historyIndex + 1); }
-        const json = JSON.stringify(canvas.toJSON(['isMeasureLine', 'isMeasureLabel', 'labelId', 'id']));
+        const json = JSON.stringify(canvas.toJSON(['isMeasureLine', 'isMeasureLabel', 'labelId', 'id', 'isStamp', 'isFreeDraw']));
         undoStack.push(json);
         historyIndex++;
         if (undoStack.length > MAX_HISTORY) { undoStack.shift(); historyIndex--; }
@@ -2390,6 +2398,12 @@ if ($filePath !== '') {
                     const lbl = objects.find(o => o.isMeasureLabel && o.id === obj.labelId);
                     if(lbl) { obj.label = lbl; lbl.selectable = false; lbl.evented = false; }
                 }
+            } else if (obj.isStamp) {
+                // FIX: stamps restaurados tras undo/redo quedan movibles
+                obj.set({ lockMovementX: false, lockMovementY: false, lockRotation: true, lockScalingX: true, lockScalingY: true, hasControls: false, hasBorders: true });
+            } else if (obj.isFreeDraw) {
+                // FIX: paths restaurados tras undo/redo son seleccionables
+                obj.set({ lockMovementX: false, lockMovementY: false, selectable: true, evented: true, hasBorders: true, hasControls: false, borderColor: '#ef4444', borderDashArray: [5, 5] });
             }
         });
         canvas.requestRenderAll();
@@ -2397,6 +2411,29 @@ if ($filePath !== '') {
 
     // --- EVENTS ---
     canvas.on('object:added', e => { if(!e.target.excludeFromHistory) saveHistory(); });
+    // FIX: Cuando Fabric crea un path de dibujo libre, marcarlo como path dibujado
+    // y asegurarse de que sea seleccionable y no esté bloqueado
+    canvas.on('path:created', function(e) {
+        const path = e.path;
+        if (!path) return;
+        path.set({
+            isFreeDraw: true,
+            selectable: true,
+            evented: true,
+            lockMovementX: false,
+            lockMovementY: false,
+            lockRotation: false,
+            lockScalingX: false,
+            lockScalingY: false,
+            hasBorders: true,
+            hasControls: false,
+            borderColor: '#ef4444',
+            borderDashArray: [5, 5]
+        });
+        canvas.setActiveObject(path);
+        canvas.requestRenderAll();
+        // No llamar saveHistory aquí — object:added ya lo hace
+    });
     canvas.on('object:modified', saveHistory);
     canvas.on('object:removed', e => {
         if(e.target.isMeasureLine && e.target.label) canvas.remove(e.target.label);
@@ -2550,11 +2587,11 @@ if ($filePath !== '') {
         const center = canvas.getVpCenter();
         const rect = new fabric.Rect({ width: 200, height: 80, rx: 10, ry: 10, fill: 'transparent', stroke: color, strokeWidth: 5, originX: 'center', originY: 'center' });
         const lbl = new fabric.Text(text, { fontSize: 40, fill: color, fontWeight: 'bold', fontFamily: 'Arial', originX: 'center', originY: 'center' });
-        // FIX-2b: stamps movibles libremente sin lockObject()
         const group = new fabric.Group([rect, lbl], {
             left: center.x,
             top: center.y,
             opacity: 0.8,
+            // FIX: stamps son movibles libremente, sin lock
             lockMovementX: false,
             lockMovementY: false,
             lockRotation: true,
@@ -2564,9 +2601,10 @@ if ($filePath !== '') {
             hasBorders: true,
             borderColor: color,
             borderDashArray: [5, 5],
-            isStamp: true
+            isStamp: true // marca para excluir del sistema lock/unlock
         });
-        canvas.add(group); canvas.setActiveObject(group);
+        canvas.add(group);
+        canvas.setActiveObject(group);
         document.getElementById('stamp-menu').style.display = 'none';
         saveHistory();
     }
@@ -2641,33 +2679,26 @@ if ($filePath !== '') {
         
         if (opt.target && currentMode === 'smart') {
             if (opt.target.isStamp) {
-                // FIX-2b: stamps no se lockean/desbloquean por doble tap
-                opt.target.set({
-                    lockMovementX: false,
-                    lockMovementY: false,
-                    lockRotation: true,
-                    lockScalingX: true,
-                    lockScalingY: true,
-                    hasControls: false,
-                    hasBorders: true
-                });
+                // FIX: stamps se mueven libremente, ignorar sistema lock/unlock
+                lastTapTarget = opt.target;
+                lastTapTime = now;
             } else if (lastTapTarget === opt.target && (now - lastTapTime < DOUBLE_TAP_DELAY)) {
-                // FIX-2b: no unlock de stamps
-                if (!opt.target.isMeasureLine && !opt.target.isStamp) {
-                    unlockObject(opt.target);
-                    showToast("Movement Unlocked", "warning");
-                    canvas.requestRenderAll();
-                    opt.target.isMoving = true;
+                if (!opt.target.isMeasureLine || !opt.control) {
+                    // FIX: no hacer unlock en paths de dibujo ni stamps (ya son movibles)
+                    if (!opt.target.isFreeDraw && !opt.target.isStamp) {
+                        unlockObject(opt.target);
+                        showToast("Movement Unlocked", "warning");
+                        canvas.requestRenderAll();
+                        opt.target.isMoving = true;
+                    }
                 }
             } else {
-                // FIX-2b: no lock en first tap para stamps
-                if (!opt.target.isStamp) {
-                    if(opt.target.isMeasureLine) {
-                        lockObject(opt.target);
-                        canvas.requestRenderAll();
-                    } else {
-                        lockObject(opt.target);
-                    }
+                if(opt.target.isMeasureLine) {
+                    lockObject(opt.target);
+                    canvas.requestRenderAll();
+                } else if (!opt.target.isStamp && !opt.target.isFreeDraw) {
+                    // FIX: no re-lock stamps ni paths de dibujo libre
+                    lockObject(opt.target);
                 }
             }
             lastTapTarget = opt.target;
