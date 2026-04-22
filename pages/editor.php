@@ -2519,7 +2519,10 @@ if ($filePath !== '') {
     }
 
     // --- EVENTS ---
-    canvas.on('object:added', e => { if(!e.target.excludeFromHistory) saveHistory(); });
+    canvas.on('object:added', e => {
+        if(!e.target.excludeFromHistory) saveHistory();
+        saveCurrentPageAnnotations();
+    });
     // FIX: Cuando Fabric crea un path de dibujo libre, marcarlo como path dibujado
     // y asegurarse de que sea seleccionable y no esté bloqueado
     canvas.on('path:created', function(e) {
@@ -2543,10 +2546,14 @@ if ($filePath !== '') {
         canvas.requestRenderAll();
         // No llamar saveHistory aquí — object:added ya lo hace
     });
-    canvas.on('object:modified', saveHistory);
+    canvas.on('object:modified', () => {
+        saveHistory();
+        saveCurrentPageAnnotations();
+    });
     canvas.on('object:removed', e => {
         if(e.target.isMeasureLine && e.target.label) canvas.remove(e.target.label);
         saveHistory();
+        saveCurrentPageAnnotations();
     });
 
     // Auto-remove empty text on creation
@@ -2716,6 +2723,7 @@ if ($filePath !== '') {
         canvas.setActiveObject(group);
         document.getElementById('stamp-menu').style.display = 'none';
         saveHistory();
+        saveCurrentPageAnnotations();
     }
 
     // --- CANVAS INPUTS ---
