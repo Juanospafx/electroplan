@@ -907,14 +907,8 @@ if ($filePath !== '') {
     }
 
     function refreshMeasureLabels() {
-        canvas.getObjects().forEach(obj => {
-            if (obj.isMeasureLine && obj.label) updateMeasureLabel(obj);
-        });
-        if (useKonvaRuler) {
-            konvaRulers.forEach(r => updateKonvaLabel(r));
-            syncKonvaToFabric();
-        }
-        canvas.requestRenderAll();
+        konvaRulers.forEach(r => updateKonvaLabel(r));
+        syncKonvaToFabric();
     }
 
     function syncCloudStrokeControl(value = cloudStrokeWidth) {
@@ -1138,14 +1132,7 @@ if ($filePath !== '') {
     }
 
     function saveCurrentPageAnnotations() {
-        const fabricJson = JSON.stringify(canvas.toJSON([]));
-        if (!useKonvaRuler) {
-            allAnnotations[pageNum] = fabricJson;
-            persistDraftAnnotations();
-            return;
-        }
         allAnnotations[pageNum] = {
-            fabric: fabricJson,
             konva: serializeKonvaForPage(pageNum)
         };
         persistDraftAnnotations();
@@ -1153,9 +1140,10 @@ if ($filePath !== '') {
 
     function getSavedPageState(pg) {
         const raw = allAnnotations[pg];
-        if (!raw) return { fabric: null, konva: null };
-        if (typeof raw === 'string') return { fabric: raw, konva: null };
-        return { fabric: raw.fabric || null, konva: raw.konva || null };
+        if (!raw) return { konva: null };
+        // Compatibilidad con datos legacy {fabric, konva}
+        if (typeof raw === 'object' && raw.konva !== undefined) return { konva: raw.konva };
+        return { konva: null };
     }
 
     function updateKonvaInteractivity() {
@@ -2417,21 +2405,9 @@ if ($filePath !== '') {
     function loadPageAnnotations(pg) {
         historyProcessing = true;
         const state = getSavedPageState(pg);
-        if (state.fabric) {
-            // REMOVED: restauración de objetos de anotación Fabric
-            canvas.loadFromJSON(state.fabric, function() {
-                if (useKonvaRuler) loadKonvaForPage(pg, state.konva);
-                updateTextScales(canvas.getZoom());
-                canvas.requestRenderAll();
-                refreshMeasureLabels();
-                historyProcessing = false;
-                saveHistory();
-            });
-        } else {
-            if (useKonvaRuler) loadKonvaForPage(pg, state.konva);
-            historyProcessing = false;
-            saveHistory();
-        }
+        loadKonvaForPage(pg, state.konva);
+        historyProcessing = false;
+        saveHistory();
     }
 
     // --- HISTORY ---
@@ -2941,13 +2917,8 @@ if ($filePath !== '') {
     }
 
     function updateTextScales(zoom) {
-        const scale = Math.min(1.5, Math.max(0.2, 1 / zoom));
-        canvas.getObjects().forEach(obj => {
-            if (obj.isMeasureLabel) { obj.set({ scaleX: scale, scaleY: scale }); }
-            if (obj.isMeasureLine) { obj.set({ strokeWidth: 4 * scale }); }
-        });
-        canvas.requestRenderAll();
-        if (useKonvaRuler) syncKonvaToFabric();
+        // Las reglas/anotaciones Konva escalan vía syncKonvaToFabric
+        syncKonvaToFabric();
     }
 
     // REMOVED: selección/transformaciones Fabric legacy
@@ -2955,11 +2926,10 @@ if ($filePath !== '') {
     window.addEventListener('keydown', e => {
         if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); undo(); }
         if ((e.ctrlKey || e.metaKey) && e.key === 'y') { e.preventDefault(); redo(); }
-        if(e.key === 'Delete' || e.key === 'Backspace') {
-            const activeObj = canvas.getActiveObject();
-            if (activeObj && activeObj.isEditing) return; 
+        if (e.key === 'Delete' || e.key === 'Backspace') {
             if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-            e.preventDefault(); deleteSelected(); 
+            e.preventDefault();
+            deleteSelected();
         }
     });
 
