@@ -1936,7 +1936,7 @@ if ($filePath !== '') {
             syncKonvaToFabric();
         });
 
-        konvaStage.on('mousemove touchmove', () => {
+        konvaStage.on('mousemove touchmove', (e) => {
             const pos = konvaStage.getPointerPosition();
             if (pendingPlacementTool && pendingPlacementStart && pendingPlacementPreview && pos) {
                 const world = screenToWorld(pos);
@@ -1959,6 +1959,7 @@ if ($filePath !== '') {
                     konvaLayer.batchDraw();
                     return;
                 }
+                if (e.evt && typeof e.evt.preventDefault === 'function') e.evt.preventDefault();
                 if (!pos) return;
                 const world = screenToWorld(pos);
                 konvaCurrentPoints = konvaCurrentPoints.concat([world.x, world.y]);
@@ -2041,14 +2042,19 @@ if ($filePath !== '') {
                     konvaLayer.batchDraw();
                     return;
                 }
-                konvaCurrentPath.on('click tap', () => {
-                    konvaSelectedNode = { type: 'freedraw', ref: konvaCurrentPath };
-                    konvaCurrentPath.stroke('#ff0000');
+                const completedPath = konvaCurrentPath;
+                const baseColor = drawColor;
+                completedPath.on('click tap', () => {
+                    konvaSelectedNode = { type: 'freedraw', ref: completedPath };
+                    completedPath.stroke('#ff0000');
                     konvaLayer.batchDraw();
                     showPropSection('smart');
                 });
+                completedPath.on('dragstart', () => {
+                    completedPath.stroke(baseColor);
+                });
                 konvaDrawPaths.push({
-                    path: konvaCurrentPath,
+                    path: completedPath,
                     page: pageNum,
                     color: drawColor,
                     width: drawWidth / (getFabricVpt().scaleX),
