@@ -571,11 +571,13 @@ if ($filePath !== '') {
     // FABRIC INIT
     let canvas = new fabric.Canvas('c', { 
         preserveObjectStacking: true,
-        fireRightClick: true,  
-        stopContextMenu: true,
+        // MIGRATED: Fabric queda solo para background PDF
+        fireRightClick: false,
+        stopContextMenu: false,
         allowTouchScrolling: false,
-        renderOnAddRemove: true, // Mantener renderizado automÃ¡tico
-        stateful: false // OptimizaciÃ³n de rendimiento
+        renderOnAddRemove: false,
+        stateful: false,
+        selection: false
     });
     const useKonvaRuler = true;
     const konvaOverlay = document.getElementById('konva-overlay');
@@ -584,10 +586,14 @@ if ($filePath !== '') {
     let konvaRulers = [];
     let konvaNotes = [];
     let konvaClouds = [];
-    let konvaFreeDraws = [];
-    let konvaFreeDrawCurrent = null;
-    let konvaPenColor = '#ef4444';
-    let konvaPenWidth = 3;
+    // MIGRATED: nuevas herramientas Konva
+    let konvaStamps = [];
+    let konvaDrawPaths = [];
+    let isKonvaDrawing = false;
+    let konvaCurrentPath = null;
+    let konvaCurrentPoints = [];
+    let drawColor = '#ef4444';
+    let drawWidth = 3;
     const konvaRulersByPage = {};
     let konvaTransformer = null;
     let konvaEditingTextarea = null;
@@ -617,7 +623,10 @@ if ($filePath !== '') {
     let pendingPlacementTool = null;
     let pendingPlacementStart = null;
     let pendingPlacementPreview = null;
-    let lineState = 0, activeLine = null, startPoint = null;
+    // MIGRATED: calibración visual en Konva
+    let konvaCalLine = null;
+    let konvaCalFinished = null;
+    let konvaCalPoints = null;
     let calLineObject = null; 
     let calMode = 'preset';
     let cloudStrokeWidth = 3; // default actual behavior
@@ -970,11 +979,11 @@ if ($filePath !== '') {
 
     function setKonvaActive(active) {
         if (!konvaOverlay) return;
-        konvaOverlay.style.pointerEvents = active ? 'auto' : 'none';
+        // MIGRATED: Konva siempre activo para anotaciones
+        konvaOverlay.style.pointerEvents = 'auto';
         konvaOverlay.style.display = 'block';
-        // FIX-2d: permitir interacción táctil en smart/measure desde el container de Konva
         if (konvaStage && konvaStage.container()) {
-            konvaStage.container().style.pointerEvents = active ? 'auto' : 'none';
+            konvaStage.container().style.pointerEvents = 'auto';
         }
         if (active) syncKonvaToFabric();
     }
@@ -1067,25 +1076,35 @@ if ($filePath !== '') {
                 scaleY: c.group.scaleY(),
                 strokeWidth: c.shape ? c.shape.strokeWidth() : cloudStrokeWidth
             }));
-        const freeDraws = konvaFreeDraws
-            .filter(d => d.page === pg)
-            .map(d => ({
-                points: d.line.points(),
-                stroke: d.line.stroke(),
-                strokeWidth: d.line.strokeWidth()
+        const stamps = konvaStamps
+            .filter(s => s.page === pg)
+            .map(s => ({
+                x: s.group.x(),
+                y: s.group.y(),
+                text: s.group.getAttr('stampText'),
+                color: s.group.getAttr('stampColor')
             }));
-        return { notes, rulers, clouds, freeDraws };
+        const freePaths = konvaDrawPaths
+            .filter(p => p.page === pg)
+            .map(p => ({
+                points: p.points,
+                color: p.color,
+                width: p.width
+            }));
+        return { notes, rulers, clouds, stamps, freePaths };
     }
 
     function clearKonvaPage(pg) {
         konvaNotes.filter(n => n.page === pg).forEach(n => n.group.destroy());
         konvaRulers.filter(r => r.page === pg).forEach(r => r.group.destroy());
         konvaClouds.filter(c => c.page === pg).forEach(c => c.group.destroy());
-        konvaFreeDraws.filter(d => d.page === pg).forEach(d => d.group.destroy());
+        konvaStamps.filter(s => s.page === pg).forEach(s => s.group.destroy());
+        konvaDrawPaths.filter(p => p.page === pg).forEach(p => p.path.destroy());
         konvaNotes = konvaNotes.filter(n => n.page !== pg);
         konvaRulers = konvaRulers.filter(r => r.page !== pg);
         konvaClouds = konvaClouds.filter(c => c.page !== pg);
-        konvaFreeDraws = konvaFreeDraws.filter(d => d.page !== pg);
+        konvaStamps = konvaStamps.filter(s => s.page !== pg);
+        konvaDrawPaths = konvaDrawPaths.filter(p => p.page !== pg);
     }
 
     function loadKonvaForPage(pg, data) {
@@ -1109,14 +1128,17 @@ if ($filePath !== '') {
             cloud.group.scaleX(c.scaleX || 1);
             cloud.group.scaleY(c.scaleY || 1);
         });
-        (data.freeDraws || []).forEach(d => {
-            createKonvaFreeDrawStroke(d.points || [], d.stroke || '#ef4444', d.strokeWidth || 3, pg);
+        (data.stamps || []).forEach(sd => {
+            createKonvaStamp(sd.x, sd.y, sd.text, sd.color, pg);
+        });
+        (data.freePaths || []).forEach(pd => {
+            createKonvaFreePath(pd.points || [], pd.color || '#ef4444', pd.width || 3, pg);
         });
         setKonvaPage(pg);
     }
 
     function saveCurrentPageAnnotations() {
-        const fabricJson = JSON.stringify(canvas.toJSON(['isMeasureLine','labelId','labelOffsetX','labelOffsetY','isStamp','isFreeDraw']));
+        const fabricJson = JSON.stringify(canvas.toJSON([]));
         if (!useKonvaRuler) {
             allAnnotations[pageNum] = fabricJson;
             persistDraftAnnotations();
@@ -1149,8 +1171,8 @@ if ($filePath !== '') {
         konvaClouds.forEach(c => {
             c.group.draggable(allowEdit);
         });
-        konvaFreeDraws.forEach(d => {
-            d.group.draggable(allowEdit);
+        konvaStamps.forEach(s => {
+            s.group.draggable(allowEdit);
         });
         if (konvaTransformer) {
             if (!allowEdit) konvaTransformer.nodes([]);
@@ -1168,8 +1190,11 @@ if ($filePath !== '') {
         konvaClouds.forEach(c => {
             c.group.visible(c.page === page);
         });
-        konvaFreeDraws.forEach(d => {
-            d.group.visible(d.page === page);
+        konvaStamps.forEach(s => {
+            s.group.visible(s.page === page);
+        });
+        konvaDrawPaths.forEach(p => {
+            p.path.visible(p.page === page);
         });
         if (konvaTransformer) {
             konvaTransformer.nodes([]);
@@ -1179,7 +1204,7 @@ if ($filePath !== '') {
     }
 
     function createKonvaRuler(p1, p2, targetPage = pageNum) {
-        const group = new Konva.Group({ draggable: true });
+        const group = new Konva.Group({ draggable: true, annoType: 'ruler' });
         const line = new Konva.Line({
             points: [p1.x, p1.y, p2.x, p2.y],
             stroke: '#22c55e',
@@ -1245,13 +1270,13 @@ if ($filePath !== '') {
 
         a1.on('dragmove', updateLine);
         a2.on('dragmove', updateLine);
-        a1.on('dragend', saveCurrentPageAnnotations);
-        a2.on('dragend', saveCurrentPageAnnotations);
+        a1.on('dragend', () => { saveCurrentPageAnnotations(); saveHistory(); });
+        a2.on('dragend', () => { saveCurrentPageAnnotations(); saveHistory(); });
         group.on('dragmove', () => {
             updateKonvaLabel(ruler);
             konvaLayer.batchDraw();
         });
-        group.on('dragend', saveCurrentPageAnnotations);
+        group.on('dragend', () => { saveCurrentPageAnnotations(); saveHistory(); });
         group.on('click tap', () => {
             if (currentMode !== 'smart') return;
             if (konvaTransformer) konvaTransformer.nodes([group]);
@@ -1298,11 +1323,12 @@ if ($filePath !== '') {
         return { fontSize: 64, minEditW: 260, minEditH: 72 };
     }
 
-    // FIX-BUG1/FIX-BUG5: detectar targets hijos de notas/nubes para no iniciar pan por error
+    // MIGRATED: detectar anotaciones Konva (incluye stamps y free draw)
     function isKonvaAnnotationTarget(target) {
         let node = target;
         while (node) {
-            if (node.getAttr && (node.getAttr('annoType') === 'note' || node.getAttr('annoType') === 'cloud' || node.getAttr('annoType') === 'draw')) return true;
+            const annoType = node.getAttr && node.getAttr('annoType');
+            if (annoType === 'note' || annoType === 'cloud' || annoType === 'ruler' || annoType === 'stamp' || annoType === 'freedraw') return true;
             node = node.getParent ? node.getParent() : null;
         }
         return false;
@@ -1385,7 +1411,7 @@ if ($filePath !== '') {
                 if ((d.getAttribute('data-col') || '').toLowerCase() === (currentFill || '').toLowerCase()) d.classList.add('active');
             });
         });
-        group.on('dragend', saveCurrentPageAnnotations);
+        group.on('dragend', () => { saveCurrentPageAnnotations(); saveHistory(); });
         label.on('dblclick dbltap', () => {
             if (currentMode !== 'smart') setMode('smart');
             konvaSelectedNote = note;
@@ -1507,7 +1533,7 @@ if ($filePath !== '') {
             syncCloudStrokeControl(cloudStrokeWidth);
             showPropSection('cloud');
         });
-        group.on('dragend', saveCurrentPageAnnotations);
+        group.on('dragend', () => { saveCurrentPageAnnotations(); saveHistory(); });
         syncKonvaCloudHitBox(cloud);
 
         updateKonvaInteractivity();
@@ -1515,36 +1541,68 @@ if ($filePath !== '') {
     }
 
 
-    function createKonvaFreeDrawStroke(points, stroke = '#ef4444', strokeWidth = 3, targetPage = pageNum) {
-        const group = new Konva.Group({ draggable: true, annoType: 'draw' });
-        const line = new Konva.Line({
-            points: points,
-            stroke: stroke,
-            strokeWidth: strokeWidth,
+    // MIGRATED: free draw como Konva.Line directo
+    function createKonvaFreePath(points, color = '#ef4444', width = 3, targetPage = pageNum) {
+        const path = new Konva.Line({
+            points,
+            stroke: color,
+            strokeWidth: width,
             lineCap: 'round',
             lineJoin: 'round',
-            tension: 0,
-            listening: true
+            tension: 0.4
         });
-        group.add(line);
-        konvaLayer.add(group);
+        path.setAttr('annoType', 'freedraw');
+        path.on('click tap', () => {
+            konvaSelectedNode = { type: 'freedraw', ref: path };
+            showPropSection('smart');
+            if (konvaLayer) konvaLayer.batchDraw();
+        });
+        konvaLayer.add(path);
+        const item = { path, page: targetPage, color, width, points: [...points] };
+        konvaDrawPaths.push(item);
+        return item;
+    }
 
-        const draw = { group, line, page: targetPage };
-        konvaFreeDraws.push(draw);
-
-        group.on('mousedown touchstart', (e) => { e.cancelBubble = true; });
+    // MIGRATED: stamp Konva.Group
+    function createKonvaStamp(worldX, worldY, text, color, targetPage = pageNum) {
+        const STAMP_W = 180, STAMP_H = 70;
+        const rect = new Konva.Rect({
+            x: -STAMP_W / 2, y: -STAMP_H / 2,
+            width: STAMP_W, height: STAMP_H,
+            cornerRadius: 8, fill: 'transparent', stroke: color, strokeWidth: 4, opacity: 1
+        });
+        const lbl = new Konva.Text({
+            x: -STAMP_W / 2, y: -STAMP_H / 2,
+            width: STAMP_W, height: STAMP_H,
+            text, fontSize: 28, fontFamily: 'Arial', fontStyle: 'bold', fill: color,
+            align: 'center', verticalAlign: 'middle'
+        });
+        const group = new Konva.Group({ x: worldX, y: worldY, draggable: true, opacity: 0.85 });
+        group.setAttr('annoType', 'stamp');
+        group.setAttr('stampText', text);
+        group.setAttr('stampColor', color);
+        group.add(rect, lbl);
         group.on('click tap', () => {
-            if (currentMode !== 'smart') setMode('smart');
-            if (konvaTransformer) konvaTransformer.nodes([group]);
-            konvaSelectedNode = { type: 'draw', ref: draw };
             canvas.discardActiveObject();
-            canvas.requestRenderAll();
-            showPropSection('draw');
+            if (konvaTransformer) konvaTransformer.nodes([]);
+            konvaSelectedNode = { type: 'stamp', ref: { group, rect, lbl } };
+            rect.strokeWidth(6);
+            rect.dash([8, 4]);
+            konvaLayer.batchDraw();
+            showPropSection('smart');
         });
-        group.on('dragend', saveCurrentPageAnnotations);
-
-        updateKonvaInteractivity();
-        return draw;
+        group.on('dragstart', () => {
+            konvaSelectedNode = { type: 'stamp', ref: { group, rect, lbl } };
+        });
+        group.on('dragend', () => {
+            saveCurrentPageAnnotations();
+            saveHistory();
+        });
+        konvaLayer.add(group);
+        konvaLayer.batchDraw();
+        const stamp = { group, rect, lbl, page: targetPage };
+        konvaStamps.push(stamp);
+        return stamp;
     }
 
     function ensureKonvaTransformer() {
@@ -1600,9 +1658,12 @@ if ($filePath !== '') {
         } else if (type === 'cloud') {
             ref.group.destroy();
             konvaClouds = konvaClouds.filter(c => c !== ref);
-        } else if (type === 'draw') {
+        } else if (type === 'stamp') {
             ref.group.destroy();
-            konvaFreeDraws = konvaFreeDraws.filter(d => d !== ref);
+            konvaStamps = konvaStamps.filter(s => s.group !== ref.group);
+        } else if (type === 'freedraw') {
+            ref.destroy();
+            konvaDrawPaths = konvaDrawPaths.filter(p => p.path !== ref);
         }
         konvaSelectedNode = null;
         if (konvaTransformer) konvaTransformer.nodes([]);
@@ -1745,64 +1806,17 @@ if ($filePath !== '') {
             syncKonvaToFabric();
         }, { passive: false });
 
-        // Pan desde Konva -> Fabric (ALT o botón derecho)
+        // MIGRATED: pan consolidado en Konva
         let panStart = null;
         konvaStage.on('mousedown', (e) => {
             const evt = e.evt;
             const target = e.target;
             const isAnnoTarget = isKonvaAnnotationTarget(target);
             const isEmpty = !target || target === konvaStage;
-            // Nunca iniciar pan si el click fue en nota/nube
             if (pendingPlacementTool || isAnnoTarget) return;
-
-            // FIX: si hay un objeto de Fabric bajo el cursor (stamp, dibujo, texto),
-            // NO activar pan — dejar que el evento llegue a Fabric
-            if (isEmpty && evt && currentMode === 'smart' && !evt.altKey && evt.button !== 2) {
-                let fabricTarget = null;
-                try {
-                    fabricTarget = canvas.findTarget(evt);
-                } catch (_) {
-                    fabricTarget = null;
-                }
-
-                // Si hay objeto Fabric bajo el cursor, ceder control a Fabric
-                if (fabricTarget) {
-                    setKonvaActive(false);
-
-                    const upperCanvas = document.querySelector('.upper-canvas');
-                    if (upperCanvas) {
-                        const forwardedDown = new MouseEvent('mousedown', {
-                            bubbles: true,
-                            cancelable: true,
-                            clientX: evt.clientX,
-                            clientY: evt.clientY,
-                            button: evt.button,
-                            buttons: evt.buttons,
-                            ctrlKey: evt.ctrlKey,
-                            shiftKey: evt.shiftKey,
-                            altKey: evt.altKey,
-                            metaKey: evt.metaKey
-                        });
-                        upperCanvas.dispatchEvent(forwardedDown);
-                    }
-
-                    const reactivateKonva = () => {
-                        if (currentMode === 'smart' || currentMode === 'measure') setKonvaActive(true);
-                        window.removeEventListener('mouseup', reactivateKonva, true);
-                        window.removeEventListener('touchend', reactivateKonva, true);
-                        window.removeEventListener('touchcancel', reactivateKonva, true);
-                    };
-                    window.addEventListener('mouseup', reactivateKonva, true);
-                    window.addEventListener('touchend', reactivateKonva, true);
-                    window.addEventListener('touchcancel', reactivateKonva, true);
-                    return;
-                }
-            }
-
-            // FIX: no iniciar pan normal desde Konva en smart con click izquierdo.
-            // Dejar que Fabric reciba esos clicks para seleccionar/mover stamps, paths y textos.
-            // Konva pan queda solo para ALT o botón derecho.
-            if (evt && (evt.altKey || evt.button === 2)) {
+            if (currentMode === 'draw') return;
+            if (currentMode === 'cal') return;
+            if (evt && ((evt.altKey || evt.button === 2) || (currentMode === 'smart' && isEmpty))) {
                 panStart = { x: evt.clientX, y: evt.clientY };
                 konvaIsPanning = true;
             }
@@ -1828,6 +1842,12 @@ if ($filePath !== '') {
                 konvaLayer.batchDraw();
             }
             if (currentMode === 'smart' && isEmpty) {
+                if (konvaSelectedNode?.type === 'stamp') {
+                    const ref = konvaSelectedNode.ref;
+                    ref.rect.strokeWidth(4);
+                    ref.rect.dash([]);
+                    konvaLayer.batchDraw();
+                }
                 konvaSelectedNode = null;
             }
         });
@@ -1876,18 +1896,50 @@ if ($filePath !== '') {
             const world = screenToWorld(pos);
 
             if (currentMode === 'draw') {
-                const group = new Konva.Group({ draggable: false, annoType: 'draw' });
-                const line = new Konva.Line({
-                    points: [world.x, world.y],
-                    stroke: konvaPenColor,
-                    strokeWidth: konvaPenWidth,
+                isKonvaDrawing = true;
+                konvaCurrentPoints = [world.x, world.y];
+                konvaCurrentPath = new Konva.Line({
+                    points: konvaCurrentPoints,
+                    stroke: drawColor,
+                    strokeWidth: drawWidth / (getFabricVpt().scaleX),
                     lineCap: 'round',
                     lineJoin: 'round',
-                    tension: 0
+                    tension: 0.4,
+                    globalCompositeOperation: 'source-over'
                 });
-                group.add(line);
-                konvaLayer.add(group);
-                konvaFreeDrawCurrent = { group, line, page: pageNum };
+                konvaCurrentPath.setAttr('annoType', 'freedraw');
+                konvaLayer.add(konvaCurrentPath);
+                return;
+            }
+
+            if (currentMode === 'cal') {
+                if (calMode === 'preset') return;
+                if (!konvaCalLine) {
+                    konvaCalPoints = { x1: world.x, y1: world.y, x2: world.x, y2: world.y };
+                    konvaCalLine = new Konva.Line({
+                        points: [world.x, world.y, world.x, world.y],
+                        stroke: '#eab308',
+                        strokeWidth: 3 / getFabricVpt().scaleX,
+                        lineCap: 'round',
+                        dash: [8 / getFabricVpt().scaleX, 4 / getFabricVpt().scaleX]
+                    });
+                    konvaLayer.add(konvaCalLine);
+                } else {
+                    konvaCalPoints.x2 = world.x;
+                    konvaCalPoints.y2 = world.y;
+                    konvaCalLine.points([konvaCalPoints.x1, konvaCalPoints.y1, world.x, world.y]);
+                    konvaCalFinished = konvaCalLine;
+                    konvaCalLine = null;
+                    const dx = konvaCalPoints.x2 - konvaCalPoints.x1;
+                    const dy = konvaCalPoints.y2 - konvaCalPoints.y1;
+                    canvas.tempDist = Math.sqrt(dx * dx + dy * dy);
+                    calLineObject = konvaCalFinished;
+                    document.getElementById('cal-actions').style.display = 'flex';
+                    document.getElementById('cal-hint').style.display = 'none';
+                    document.getElementById('btn-del-cal').style.display = 'inline-block';
+                    document.getElementById('cal-val').focus();
+                    konvaLayer.batchDraw();
+                }
                 return;
             }
 
@@ -1909,12 +1961,28 @@ if ($filePath !== '') {
                 konvaLayer.batchDraw();
                 return;
             }
-            if (konvaFreeDrawCurrent && currentMode === 'draw') {
+            if (currentMode === 'draw' && isKonvaDrawing && konvaCurrentPath) {
+                if (e.evt && e.evt.touches && e.evt.touches.length > 1) {
+                    isKonvaDrawing = false;
+                    if (konvaCurrentPath) {
+                        konvaCurrentPath.destroy();
+                        konvaCurrentPath = null;
+                    }
+                    konvaLayer.batchDraw();
+                    return;
+                }
                 if (!pos) return;
                 const world = screenToWorld(pos);
-                const pts = konvaFreeDrawCurrent.line.points();
-                pts.push(world.x, world.y);
-                konvaFreeDrawCurrent.line.points(pts);
+                konvaCurrentPoints = konvaCurrentPoints.concat([world.x, world.y]);
+                konvaCurrentPath.points(konvaCurrentPoints);
+                konvaLayer.batchDraw();
+                return;
+            }
+
+            if (currentMode === 'cal' && konvaCalLine) {
+                if (!pos) return;
+                const world = screenToWorld(pos);
+                konvaCalLine.points([konvaCalPoints.x1, konvaCalPoints.y1, world.x, world.y]);
                 konvaLayer.batchDraw();
                 return;
             }
@@ -1972,29 +2040,37 @@ if ($filePath !== '') {
                 }
 
                 saveCurrentPageAnnotations();
+                saveHistory();
                 return;
             }
 
-            if (konvaFreeDrawCurrent && currentMode === 'draw') {
-                const points = konvaFreeDrawCurrent.line.points();
-                if (!points || points.length < 4) {
-                    konvaFreeDrawCurrent.group.destroy();
-                } else {
-                    konvaFreeDrawCurrent.group.draggable(true);
-                    konvaFreeDrawCurrent.group.on('mousedown touchstart', (ev) => { ev.cancelBubble = true; });
-                    konvaFreeDrawCurrent.group.on('click tap', () => {
-                        if (currentMode !== 'smart') setMode('smart');
-                        if (konvaTransformer) konvaTransformer.nodes([konvaFreeDrawCurrent.group]);
-                        konvaSelectedNode = { type: 'draw', ref: konvaFreeDrawCurrent };
-                        canvas.discardActiveObject();
-                        canvas.requestRenderAll();
-                        showPropSection('draw');
-                    });
-                    konvaFreeDrawCurrent.group.on('dragend', saveCurrentPageAnnotations);
-                    konvaFreeDraws.push(konvaFreeDrawCurrent);
+            if (currentMode === 'draw' && isKonvaDrawing) {
+                isKonvaDrawing = false;
+                if (!konvaCurrentPath) return;
+                if (konvaCurrentPoints.length < 4) {
+                    konvaCurrentPath.destroy();
+                    konvaCurrentPath = null;
+                    konvaLayer.batchDraw();
+                    return;
                 }
-                konvaFreeDrawCurrent = null;
+                konvaCurrentPath.on('click tap', () => {
+                    konvaSelectedNode = { type: 'freedraw', ref: konvaCurrentPath };
+                    konvaCurrentPath.stroke('#ff0000');
+                    konvaLayer.batchDraw();
+                    showPropSection('smart');
+                });
+                konvaDrawPaths.push({
+                    path: konvaCurrentPath,
+                    page: pageNum,
+                    color: drawColor,
+                    width: drawWidth / (getFabricVpt().scaleX),
+                    points: [...konvaCurrentPoints]
+                });
+                konvaCurrentPath = null;
+                konvaCurrentPoints = [];
+                konvaLayer.batchDraw();
                 saveCurrentPageAnnotations();
+                saveHistory();
                 return;
             }
 
@@ -2012,190 +2088,26 @@ if ($filePath !== '') {
             }
             konvaDrawing = null;
             saveCurrentPageAnnotations();
+            saveHistory();
         });
 
         setKonvaPage(pageNum);
-        setKonvaActive(currentMode === 'smart' || currentMode === 'measure');
+        setKonvaActive(true);
         updateKonvaInteractivity();
     }
 
-    // --- DOUBLE TAP & NODE LOGIC ---
-    let lastTapTime = 0;
-    let lastTapTarget = null;
-    const DOUBLE_TAP_DELAY = 400;
-    
-    // Estado para control de modificaciÃ³n de vÃ©rtices de regla
-    let controlEditMode = false; // Modo de ediciÃ³n activado con doble clic
-    let activeControlPoint = null; // Punto de control activo ('p1' o 'p2')
-    let renderAnimationFrame = null; // Para renderizado suave
+    // REMOVED: lógica double-tap/controles personalizados de Fabric
 
-    // --- CUSTOM CONTROLS FOR LINES (POSITION HANDLER FIXED) ---
-    // Variable para rastrear si estamos manipulando un control
-    let isDraggingControl = false;
-    let controlDragStart = null;
-    
-    function createLineControls(line) {
-        function linePositionHandler(pointName) {
-            return function(dim, finalMatrix, fabricObject) {
-                const points = fabricObject.calcLinePoints();
-                const pt = (pointName === 'p1') ? new fabric.Point(points.x1, points.y1) : new fabric.Point(points.x2, points.y2);
-                return fabric.util.transformPoint(pt, finalMatrix);
-            };
-        }
-        
-        function lineActionHandler(pointName) {
-            return function(e, transform, x, y) {
-                const target = transform.target;
-                
-                // Solo permitir modificaciÃ³n si el modo de ediciÃ³n estÃ¡ activado (doble clic)
-                if (currentMode !== 'measure') {
-                    if (!controlEditMode || activeControlPoint !== pointName) {
-                        return false;
-                    }
-                }
-                
-                // Si el objeto estÃ¡ en modo "moving" (movimiento libre), no permitir modificar controles
-                if (target.isMoving && !isDraggingControl) {
-                    return false;
-                }
-                
-                // Estamos manipulando un control - permitir la acciÃ³n
-                let localPoint = null;
-                if (fabric.controlsUtils && typeof fabric.controlsUtils.getLocalPoint === 'function') {
-                    localPoint = fabric.controlsUtils.getLocalPoint(transform, target.originX || 'center', target.originY || 'center', x, y);
-                } else {
-                    const pt = new fabric.Point(x, y);
-                    localPoint = target.toLocalPoint(pt, target.originX || 'center', target.originY || 'center');
-                }
-                if (!localPoint) return false;
-                
-                // Actualizar las coordenadas del punto correspondiente
-                if (pointName === 'p1') { 
-                    target.set({ x1: localPoint.x, y1: localPoint.y }); 
-                } else { 
-                    target.set({ x2: localPoint.x, y2: localPoint.y }); 
-                }
-                
-                // Forzar actualizaciÃ³n de coordenadas antes de actualizar la etiqueta
-                target.setCoords();
-                
-                // Usar requestAnimationFrame para renderizado suave sin trazos impresos
-                if (renderAnimationFrame) {
-                    cancelAnimationFrame(renderAnimationFrame);
-                }
-                renderAnimationFrame = requestAnimationFrame(() => {
-                    // Actualizar la etiqueta de mediciÃ³n inmediatamente
-                    updateMeasureLabel(target);
-                    // Renderizado suave usando requestRenderAll en lugar de renderAll
-                    canvas.requestRenderAll();
-                    renderAnimationFrame = null;
-                });
-                
-                return true;
-            };
-        }
-        
-        // Crear controles con Ã¡rea de detecciÃ³n mÃ¡s precisa
-        const controlSize = 20; // TamaÃ±o del Ã¡rea de detecciÃ³n del control (mÃ¡s grande para facilitar el clic)
-        
-        // FunciÃ³n para verificar si el clic fue sobre un control
-        function isControlClick(opt) {
-            if (!opt.target || !opt.target.isMeasureLine) return false;
-            if (!opt.control) return false;
-            return opt.control === 'p1' || opt.control === 'p2';
-        }
-        
-        line.controls = {
-            p1: new fabric.Control({ 
-                positionHandler: linePositionHandler('p1'), 
-                actionHandler: lineActionHandler('p1'), 
-                cursorStyle: 'crosshair', 
-                render: renderCircleControl,
-                sizeX: controlSize,
-                sizeY: controlSize,
-                // Asegurar que el control solo se active cuando se hace clic directamente sobre Ã©l
-                mouseUpHandler: function(e, transformData, x, y) {
-                    isDraggingControl = false;
-                    controlDragStart = null;
-                    return true;
-                }
-            }),
-            p2: new fabric.Control({ 
-                positionHandler: linePositionHandler('p2'), 
-                actionHandler: lineActionHandler('p2'), 
-                cursorStyle: 'crosshair', 
-                render: renderCircleControl,
-                sizeX: controlSize,
-                sizeY: controlSize,
-                mouseUpHandler: function(e, transformData, x, y) {
-                    isDraggingControl = false;
-                    controlDragStart = null;
-                    return true;
-                }
-            })
-        };
-    }
-
-    function renderCircleControl(ctx, left, top, styleOverride, fabricObject) {
-        ctx.save(); ctx.translate(left, top); ctx.beginPath();
-        ctx.arc(0, 0, 8, 0, Math.PI * 2, false); 
-        ctx.fillStyle = "#ffffff"; ctx.strokeStyle = "#22c55e"; ctx.lineWidth = 2;
-        ctx.fill(); ctx.stroke(); ctx.restore();
-    }
-
-    // --- LOCK HELPERS ---
-    function lockObject(obj) {
-        if(!obj) return;
-        obj.set({
-            lockMovementX: obj.isMeasureLine ? false : true,
-            lockMovementY: obj.isMeasureLine ? false : true,
-            lockRotation: true, lockScalingX: true, lockScalingY: true,
-            borderColor: '#22c55e', cornerColor: 'transparent', hasBorders: false, hasControls: true
-        });
-        if (obj.isMeasureLine) {
-            createLineControls(obj);
-            // Asegurar que el objeto puede moverse normalmente cuando no se estÃ¡ manipulando un control
-            obj.set({ lockMovementX: false, lockMovementY: false });
-        }
-    }
-
-    function unlockObject(obj) {
-        if(!obj) return;
-        obj.set({
-            lockMovementX: false, lockMovementY: false, lockRotation: true,
-            borderColor: '#ef4444', hasBorders: true, hasControls: false, borderDashArray: [5, 5]
-        });
-    }
+    // REMOVED: lock/unlock legacy de Fabric (anotaciones migradas a Konva)
+    function lockObject(obj) { return; }
+    function unlockObject(obj) { return; }
 
     // --- DELETE FUNCTIONALITY ---
     function deleteSelected() {
-        if (useKonvaRuler && deleteKonvaSelection()) {
+        if (deleteKonvaSelection()) {
+            saveHistory();
             showToast("Selection deleted", "success");
-            return;
         }
-        const activeObjects = canvas.getActiveObjects();
-        if(!activeObjects.length) return;
-        
-        // MODIFICADO: Eliminado confirm() y agrupado el historial
-        historyProcessing = true; // Pausar guardado automÃ¡tico por objeto para agrupar la acciÃ³n
-        
-        canvas.discardActiveObject(); // Limpiar selecciÃ³n visual
-        
-        activeObjects.forEach(obj => {
-            // Limpieza de dependencias (Etiquetas de medidas)
-            if(obj.isMeasureLine && obj.label) canvas.remove(obj.label);
-            
-            // Limpieza inversa (Si borro etiqueta, buscar y borrar linea)
-            if(obj.isMeasureLabel) {
-                 const line = canvas.getObjects().find(o => o.labelId === obj.id);
-                 if(line) canvas.remove(line);
-            }
-            canvas.remove(obj);
-        });
-        
-        historyProcessing = false; // Reactivar historial
-        saveHistory(); // Guardar el estado UNA vez con todos los objetos borrados
-        showToast("Selection deleted", "success");
     }
 
     // --- PINCH ZOOM & PAN (GESTOS TÁCTILES) ---
@@ -2213,11 +2125,7 @@ if ($filePath !== '') {
                 isPinching = true;
                 singleTouchStart = null;
 
-                // FIX: si estamos en modo draw y hay 2 dedos, pausar el dibujo
-                if (currentMode === 'draw' && canvas.isDrawingMode) {
-                    canvas.isDrawingMode = false;
-                    canvas._isDrawingModeWasPausedByPinch = true;
-                }
+                // MIGRATED: draw es Konva, no se pausa Fabric
 
                 const dx = e.touches[0].clientX - e.touches[1].clientX;
                 const dy = e.touches[0].clientY - e.touches[1].clientY;
@@ -2296,11 +2204,7 @@ if ($filePath !== '') {
                 // FIX: resetear pinch al soltar cualquier dedo
                 lastDist = 0;
 
-                // FIX: restaurar drawing mode si fue pausado por pinch
-                if (canvas._isDrawingModeWasPausedByPinch && currentMode === 'draw') {
-                    canvas.isDrawingMode = true;
-                    canvas._isDrawingModeWasPausedByPinch = false;
-                }
+                // MIGRATED: draw es Konva, no hay restore de Fabric
             }
             if (e.touches.length === 0) {
                 isPinching = false;
@@ -2310,29 +2214,7 @@ if ($filePath !== '') {
         }, { passive: false });
     }
 
-    canvas.on('mouse:up', function(opt) {
-        this.setViewportTransform(this.viewportTransform);
-        this.isDragging = false;
-        if (currentMode === 'smart') this.selection = true;
-        if(this.isDrawingModeWasOn) { canvas.isDrawingMode = true; this.isDrawingModeWasOn = false; }
-        
-        // MODIFICADO: Refuerzo contra falsos positivos (lÃ­neas cortas/basura)
-        if (lineState === 1 && activeLine) {
-            const ptr = canvas.getPointer(opt.e);
-            const dist = Math.sqrt(Math.pow(ptr.x - startPoint.x, 2) + Math.pow(ptr.y - startPoint.y, 2));
-            
-            if (dist > 10) {
-                finishLineLogic();
-            } else {
-                // BUG FIX: Si la distancia es muy corta (misclick), limpiar el objeto temporal
-                canvas.remove(activeLine);
-                activeLine = null;
-                lineState = 0;
-                canvas.requestRenderAll();
-            }
-        }
-        canvas.setCursor('default');
-    });
+    // REMOVED: mouse:up legacy de Fabric para líneas/calibración
 
     // --- LOAD LOGIC ---
     if(fileExt === 'pdf') {
@@ -2535,70 +2417,62 @@ if ($filePath !== '') {
     function loadPageAnnotations(pg) {
         historyProcessing = true;
         const state = getSavedPageState(pg);
-        if(state.fabric) {
-            canvas.loadFromJSON(state.fabric, function() { 
-                const objects = canvas.getObjects();
-                objects.forEach(obj => {
-                    if (obj.isMeasureLine) {
-                        lockObject(obj);
-                        if(obj.labelId) {
-                            const lbl = objects.find(o => o.isMeasureLabel && o.id === obj.labelId);
-                            if(lbl) { obj.label = lbl; lbl.selectable = false; lbl.evented = false; }
-                        }
-                    } else if (!obj.isMeasureLabel) {
-                        if (obj.isStamp) {
-                            // FIX: stamps restaurados quedan movibles (y redimensionables)
-                            obj.set({ lockMovementX: false, lockMovementY: false, lockRotation: true, lockScalingX: false, lockScalingY: false, hasControls: true, hasBorders: true, cornerStyle: 'circle', transparentCorners: false });
-                        } else if (obj.isFreeDraw) {
-                            // FIX: paths de lápiz restaurados son seleccionables
-                            obj.set({ lockMovementX: false, lockMovementY: false, selectable: true, evented: true, hasBorders: true, hasControls: false, borderColor: '#ef4444', borderDashArray: [5, 5] });
-                        } else {
-                            obj.set({ lockMovementX: true, lockMovementY: true, borderColor: '#22c55e' });
-                        }
-                    }
-                });
-                  if (useKonvaRuler) loadKonvaForPage(pg, state.konva);
-                  updateTextScales(canvas.getZoom()); 
-                  canvas.requestRenderAll(); 
-                  refreshMeasureLabels();
-                  historyProcessing = false; 
-                  saveHistory(); 
-              });
+        if (state.fabric) {
+            // REMOVED: restauración de objetos de anotación Fabric
+            canvas.loadFromJSON(state.fabric, function() {
+                if (useKonvaRuler) loadKonvaForPage(pg, state.konva);
+                updateTextScales(canvas.getZoom());
+                canvas.requestRenderAll();
+                refreshMeasureLabels();
+                historyProcessing = false;
+                saveHistory();
+            });
         } else {
             if (useKonvaRuler) loadKonvaForPage(pg, state.konva);
             historyProcessing = false;
-            saveHistory(); 
+            saveHistory();
         }
     }
 
     // --- HISTORY ---
     function saveHistory() {
-        if(historyProcessing) return;
-        if (historyIndex < undoStack.length - 1) { undoStack = undoStack.slice(0, historyIndex + 1); }
-        const json = JSON.stringify(canvas.toJSON(['isMeasureLine', 'isMeasureLabel', 'labelId', 'id', 'isStamp', 'isFreeDraw']));
-        undoStack.push(json);
+        if (historyProcessing) return;
+        if (historyIndex < undoStack.length - 1) {
+            undoStack = undoStack.slice(0, historyIndex + 1);
+        }
+        // MIGRATED: historial basado en estado Konva por página
+        const state = {
+            konva: serializeKonvaForPage(pageNum),
+            pageNum
+        };
+        undoStack.push(JSON.stringify(state));
         historyIndex++;
-        if (undoStack.length > MAX_HISTORY) { undoStack.shift(); historyIndex--; }
+        if (undoStack.length > MAX_HISTORY) {
+            undoStack.shift();
+            historyIndex--;
+        }
         updateHistoryButtons();
     }
 
     function undo() {
         if (historyIndex > 0) {
-            historyProcessing = true; historyIndex--;
-            const state = undoStack[historyIndex];
-            canvas.loadFromJSON(state, () => {
-                reLinkObjects(); historyProcessing = false; updateTextScales(canvas.getZoom()); updateHistoryButtons();
-            });
+            historyProcessing = true;
+            historyIndex--;
+            const state = JSON.parse(undoStack[historyIndex]);
+            loadKonvaForPage(state.pageNum, state.konva);
+            historyProcessing = false;
+            updateHistoryButtons();
         }
     }
 
     function redo() {
         if (historyIndex < undoStack.length - 1) {
-            historyProcessing = true; historyIndex++;
-            const state = undoStack[historyIndex];
-            canvas.loadFromJSON(state, () => {
-                reLinkObjects(); historyProcessing = false; updateTextScales(canvas.getZoom()); updateHistoryButtons();
-            });
+            historyProcessing = true;
+            historyIndex++;
+            const state = JSON.parse(undoStack[historyIndex]);
+            loadKonvaForPage(state.pageNum, state.konva);
+            historyProcessing = false;
+            updateHistoryButtons();
         }
     }
 
@@ -2609,117 +2483,11 @@ if ($filePath !== '') {
         if(historyIndex < undoStack.length - 1) btnRedo.classList.remove('btn-disabled'); else btnRedo.classList.add('btn-disabled');
     }
 
-    function reLinkObjects() {
-        const objects = canvas.getObjects();
-        objects.forEach(obj => {
-            if (obj.isMeasureLine) {
-                lockObject(obj);
-                if(obj.labelId) {
-                    const lbl = objects.find(o => o.isMeasureLabel && o.id === obj.labelId);
-                    if(lbl) { obj.label = lbl; lbl.selectable = false; lbl.evented = false; }
-                }
-            } else if (obj.isStamp) {
-                // FIX: stamps restaurados tras undo/redo quedan movibles (y redimensionables)
-                obj.set({ lockMovementX: false, lockMovementY: false, lockRotation: true, lockScalingX: false, lockScalingY: false, hasControls: true, hasBorders: true, cornerStyle: 'circle', transparentCorners: false });
-            } else if (obj.isFreeDraw) {
-                // FIX: paths restaurados tras undo/redo son seleccionables
-                obj.set({ lockMovementX: false, lockMovementY: false, selectable: true, evented: true, hasBorders: true, hasControls: false, borderColor: '#ef4444', borderDashArray: [5, 5] });
-            }
-        });
-        canvas.requestRenderAll();
-    }
+    // REMOVED: relink de objetos Fabric ya no aplica
+    function reLinkObjects() { return; }
 
     // --- EVENTS ---
-    canvas.on('object:added', e => {
-        if(!e.target.excludeFromHistory) saveHistory();
-        saveCurrentPageAnnotations();
-    });
-    // FIX: Cuando Fabric crea un path de dibujo libre, marcarlo como path dibujado
-    // y asegurarse de que sea seleccionable y no esté bloqueado
-    canvas.on('path:created', function(e) {
-        const path = e.path;
-        if (!path) return;
-        path.set({
-            isFreeDraw: true,
-            selectable: true,
-            evented: true,
-            lockMovementX: false,
-            lockMovementY: false,
-            lockRotation: false,
-            lockScalingX: false,
-            lockScalingY: false,
-            hasBorders: true,
-            hasControls: false,
-            borderColor: '#ef4444',
-            borderDashArray: [5, 5]
-        });
-        canvas.setActiveObject(path);
-        canvas.requestRenderAll();
-        // No llamar saveHistory aquí — object:added ya lo hace
-    });
-    canvas.on('object:modified', () => {
-        saveHistory();
-        saveCurrentPageAnnotations();
-    });
-    canvas.on('object:removed', e => {
-        if(e.target.isMeasureLine && e.target.label) canvas.remove(e.target.label);
-        saveHistory();
-        saveCurrentPageAnnotations();
-    });
-
-    // Auto-remove empty text on creation
-    canvas.on('text:editing:exited', function(e) {
-        const obj = e.target;
-        if(obj && obj.isNew) {
-            if((obj.text || '').trim() === '') {
-                canvas.remove(obj);
-                canvas.requestRenderAll();
-                showToast("Empty note discarded", "warning");
-            } else {
-                delete obj.isNew;
-            }
-        }
-    });
-
-    function updateMeasureLabel(line) {
-        if (!line || !line.label) return;
-        const points = line.calcLinePoints();
-        const matrix = line.calcTransformMatrix();
-        const p1 = fabric.util.transformPoint(new fabric.Point(points.x1, points.y1), matrix);
-        const p2 = fabric.util.transformPoint(new fabric.Point(points.x2, points.y2), matrix);
-        const distPx = Math.hypot(p2.x - p1.x, p2.y - p1.y);
-        let textVal = "";
-        if (pixelsPerFoot > 0) { 
-            const feet = distPx / pixelsPerFoot; 
-            textVal = formatFeetForDisplay(feet);
-        } else { 
-            textVal = Math.round(distPx) + " px"; 
-        }
-        line.label.set({ text: textVal });
-        const midX = (p1.x + p2.x) / 2;
-        const midY = (p1.y + p2.y) / 2;
-        line.label.set({ left: midX, top: midY - 15 });
-        line.setCoords(); 
-        line.label.setCoords();
-        // NO llamar requestRenderAll aquÃ­ - se maneja en los eventos con requestAnimationFrame
-    }
-
-    canvas.on('object:moving', function(e) {
-        const obj = e.target;
-        if (obj.isMeasureLine && obj.label) {
-            // Cuando se mueve el objeto completo, solo actualizar posiciÃ³n de la etiqueta
-            // No actualizar el valor porque la distancia no cambia
-            const center = obj.getCenterPoint();
-            obj.label.set({ left: center.x, top: center.y - 15 });
-            obj.label.setCoords();
-            // Renderizado suave durante el movimiento
-            if (renderAnimationFrame) cancelAnimationFrame(renderAnimationFrame);
-            renderAnimationFrame = requestAnimationFrame(() => {
-                canvas.requestRenderAll();
-                renderAnimationFrame = null;
-            });
-        }
-    });
+    // REMOVED: listeners de anotaciones Fabric (added/modified/removed/path/text/moving)
 
     // --- TOOL SWITCHING ---
     function setMode(mode) {
@@ -2739,8 +2507,9 @@ if ($filePath !== '') {
         resetToolState();
         currentMode = mode;
         canvas.discardActiveObject(); canvas.requestRenderAll();
-        canvas.isDrawingMode = false; // lápiz migrado a Konva
-        canvas.selection = (mode === 'smart'); 
+        // MIGRATED: Fabric nunca dibuja ni selecciona anotaciones
+        canvas.isDrawingMode = false;
+        canvas.selection = false; 
         document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
         if(mode !== 'smart') {
             const btn = document.getElementById('btn-' + mode);
@@ -2765,12 +2534,8 @@ if ($filePath !== '') {
         else { canvas.defaultCursor = 'default'; }
 
         if (useKonvaRuler) {
-            if (mode === 'measure' || mode === 'smart' || mode === 'draw') {
-                initKonvaRuler();
-                setKonvaActive(true);
-            } else {
-                setKonvaActive(false);
-            }
+            initKonvaRuler();
+            setKonvaActive(true);
             updateKonvaInteractivity();
         }
         
@@ -2786,7 +2551,7 @@ if ($filePath !== '') {
     }
 
     function resetToolState() {
-        if (activeLine && !calLineObject) { canvas.remove(activeLine); activeLine = null; }
+        // REMOVED: limpieza de líneas temporales Fabric
         if(currentMode !== 'cal') {
              document.getElementById('cal-actions').style.display = 'none';
              document.getElementById('cal-hint').style.display = 'block';
@@ -2794,7 +2559,6 @@ if ($filePath !== '') {
              resetScalePresetSelection();
              updateCalHint();
         }
-        lineState = 0;
     }
     
     function showPropSection(idPart) {
@@ -2811,255 +2575,39 @@ if ($filePath !== '') {
 
     function addStamp(text, color) {
         setMode('smart');
-        const center = canvas.getVpCenter();
-        const rect = new fabric.Rect({ width: 200, height: 80, rx: 10, ry: 10, fill: 'transparent', stroke: color, strokeWidth: 5, originX: 'center', originY: 'center' });
-        const lbl = new fabric.Text(text, { fontSize: 40, fill: color, fontWeight: 'bold', fontFamily: 'Arial', originX: 'center', originY: 'center' });
-        const group = new fabric.Group([rect, lbl], {
-            left: center.x,
-            top: center.y,
-            opacity: 0.8,
-            // FIX: stamps son movibles libremente, sin lock
-            lockMovementX: false,
-            lockMovementY: false,
-            lockRotation: true,
-            lockScalingX: false,
-            lockScalingY: false,
-            hasControls: true,
-            hasBorders: true,
-            borderColor: color,
-            borderDashArray: [5, 5],
-            isStamp: true // marca para excluir del sistema lock/unlock
-        });
-        canvas.add(group);
-        canvas.setActiveObject(group);
+        if (!konvaStage) initKonvaRuler();
+        setKonvaActive(true);
+        const vpt = getFabricVpt();
+        const wrapper = document.getElementById('canvas-wrapper');
+        const cx = (wrapper.clientWidth / 2 - vpt.translateX) / vpt.scaleX;
+        const cy = (wrapper.clientHeight / 2 - vpt.translateY) / vpt.scaleY;
+        const stamp = createKonvaStamp(cx, cy, text, color);
+        konvaSelectedNode = { type: 'stamp', ref: stamp };
         document.getElementById('stamp-menu').style.display = 'none';
-        saveHistory();
         saveCurrentPageAnnotations();
+        saveHistory();
+        showToast(`${text} stamp placed`, 'success');
     }
 
     // --- CANVAS INPUTS ---
-    canvas.on('mouse:down', function(opt) {
-        const evt = opt.e;
-        const now = new Date().getTime();
-
-        if (currentMode === 'measure' && useKonvaRuler) {
-            return;
-        }
-        
-        // Verificar si el clic fue sobre un control de una lÃ­nea de medida
-        if (opt.target && opt.target.isMeasureLine) {
-            const activeControl = opt.control;
-            
-                        // Verificar si es clic en un control (vértice)
-            if (activeControl && (activeControl === 'p1' || activeControl === 'p2')) {
-                if (currentMode === 'measure') {
-                    // En modo medida, permitir editar directamente sin doble clic
-                    controlEditMode = true;
-                    activeControlPoint = activeControl;
-                    isDraggingControl = true;
-                    controlDragStart = { 
-                        x: evt.clientX || (evt.touches && evt.touches[0].clientX), 
-                        y: evt.clientY || (evt.touches && evt.touches[0].clientY) 
-                    };
-                    opt.target.set({ lockMovementX: true, lockMovementY: true });
-                    opt.target.isMoving = false;
-                    showToast("Edit mode: Drag vertex to resize", "success");
-                } else {
-                    const isDoubleClick = (lastTapTarget === opt.target && 
-                                          lastTapTarget.control === activeControl && 
-                                          (now - lastTapTime < DOUBLE_TAP_DELAY));
-                    
-                    if (isDoubleClick) {
-                        // Doble clic en vértice - activar modo de edición
-                        controlEditMode = true;
-                        activeControlPoint = activeControl;
-                        isDraggingControl = true;
-                        controlDragStart = { 
-                            x: evt.clientX || (evt.touches && evt.touches[0].clientX), 
-                            y: evt.clientY || (evt.touches && evt.touches[0].clientY) 
-                        };
-                        // Prevenir que el objeto se mueva cuando arrastramos un control
-                        opt.target.set({ lockMovementX: true, lockMovementY: true });
-                        opt.target.isMoving = false;
-                        showToast("Edit mode: Drag vertex to resize", "success");
-                    } else {
-                        // Primer clic en control - solo seleccionar, no activar edición
-                        controlEditMode = false;
-                        activeControlPoint = null;
-                        isDraggingControl = false;
-                    }
-                }
-            } else {
-                // El clic fue sobre el cuerpo de la lÃ­nea, no sobre un control
-                controlEditMode = false;
-                activeControlPoint = null;
-                isDraggingControl = false;
-                controlDragStart = null;
-                opt.target.set({ lockMovementX: false, lockMovementY: false });
-            }
-        } else {
-            // No es una lÃ­nea de medida, resetear estado
-            controlEditMode = false;
-            activeControlPoint = null;
-            isDraggingControl = false;
-            controlDragStart = null;
-        }
-        
-        if (opt.target && currentMode === 'smart') {
-            if (opt.target.isStamp) {
-                // FIX: stamps se mueven libremente, ignorar sistema lock/unlock
-                lastTapTarget = opt.target;
-                lastTapTime = now;
-            } else if (lastTapTarget === opt.target && (now - lastTapTime < DOUBLE_TAP_DELAY)) {
-                if (!opt.target.isMeasureLine || !opt.control) {
-                    // FIX: no hacer unlock en paths de dibujo ni stamps (ya son movibles)
-                    if (!opt.target.isFreeDraw && !opt.target.isStamp) {
-                        unlockObject(opt.target);
-                        showToast("Movement Unlocked", "warning");
-                        canvas.requestRenderAll();
-                        opt.target.isMoving = true;
-                    }
-                }
-            } else {
-                if(opt.target.isMeasureLine) {
-                    lockObject(opt.target);
-                    canvas.requestRenderAll();
-                } else if (!opt.target.isStamp && !opt.target.isFreeDraw) {
-                    // FIX: no re-lock stamps ni paths de dibujo libre
-                    lockObject(opt.target);
-                }
-            }
-            lastTapTarget = opt.target;
-            lastTapTime = now;
-        }
-        const isTouch = evt.type.startsWith('touch');
-        let clientX, clientY;
-        if(isTouch) { clientX = evt.touches[0].clientX; clientY = evt.touches[0].clientY; } else { clientX = evt.clientX; clientY = evt.clientY; }
-
-        if(evt.button === 2 || (currentMode === 'smart' && evt.altKey)) {
-            evt.preventDefault(); evt.stopPropagation();
-            this.isDragging = true; this.selection = false;
-            this.lastPosX = clientX; this.lastPosY = clientY;
-            if(canvas.isDrawingMode) { canvas.isDrawingMode = false; this.isDrawingModeWasOn = true; }
-            canvas.setCursor('grabbing'); 
-            return;
-        }
-
-        if(currentMode === 'cal' || currentMode === 'measure') {
-            if(currentMode === 'cal' && calMode === 'preset') { showToast("Switch to Manual to draw a calibration line", "warning"); return; }
-            if(currentMode === 'cal' && calLineObject) { showToast("Delete existing line first", "error"); return; }
-            const ptr = canvas.getPointer(evt);
-            if (lineState === 0) {
-                startPoint = ptr;
-                activeLine = new fabric.Line([ptr.x, ptr.y, ptr.x, ptr.y], {
-                    stroke: (currentMode === 'cal' ? '#eab308' : '#22c55e'), strokeWidth: 3, 
-                    selectable: false, evented: false, excludeFromHistory: true, originX: 'center', originY: 'center' 
-                });
-                canvas.add(activeLine); lineState = 1; 
-            } else finishLineLogic();
-            return;
-        }
-        if(currentMode === 'smart' && (!opt.target || evt.altKey)) {
-            this.isDragging = true; this.selection = false;
-            this.lastPosX = clientX; this.lastPosY = clientY; canvas.defaultCursor = 'grabbing';
-        }
-    });
-
-    canvas.on('mouse:move', function(opt) {
-        const evt = opt.e;
-        const isTouch = evt.type.startsWith('touch');
-        if (currentMode === 'measure' && useKonvaRuler) return;
-        if(this.isDragging) {
-            let clientX, clientY;
-            if(isTouch) { evt.preventDefault(); clientX = evt.touches[0].clientX; clientY = evt.touches[0].clientY; } 
-            else { clientX = evt.clientX; clientY = evt.clientY; }
-                const vpt = this.viewportTransform;
-                vpt[4] += clientX - this.lastPosX; vpt[5] += clientY - this.lastPosY;
-                this.requestRenderAll();
-                this.lastPosX = clientX; this.lastPosY = clientY;
-                if (useKonvaRuler) syncKonvaToFabric();
-            } else if (lineState === 1 && activeLine) {
-            const ptr = canvas.getPointer(evt);
-            activeLine.set({ x2: ptr.x, y2: ptr.y });
-            // Usar requestAnimationFrame para renderizado suave durante el dibujo
-            if (renderAnimationFrame) cancelAnimationFrame(renderAnimationFrame);
-            renderAnimationFrame = requestAnimationFrame(() => {
-                canvas.requestRenderAll();
-                renderAnimationFrame = null;
-            });
-        }
-    });
-
-    canvas.on('mouse:up', function(opt) {
-        this.setViewportTransform(this.viewportTransform);
-        this.isDragging = false;
-        if (currentMode === 'measure' && useKonvaRuler) return;
-        
-        // Resetear el estado de arrastre de control y restaurar movimiento del objeto
-        if (isDraggingControl && opt.target && opt.target.isMeasureLine) {
-            // Restaurar el movimiento del objeto
-            opt.target.set({ lockMovementX: false, lockMovementY: false });
-            // Desactivar modo de ediciÃ³n
-            controlEditMode = false;
-            activeControlPoint = null;
-        }
-        
-        isDraggingControl = false;
-        controlDragStart = null;
-        
-        // Cancelar cualquier renderizado pendiente
-        if (renderAnimationFrame) {
-            cancelAnimationFrame(renderAnimationFrame);
-            renderAnimationFrame = null;
-        }
-        
-        if (currentMode === 'smart') this.selection = true;
-        if(this.isDrawingModeWasOn) { canvas.isDrawingMode = true; this.isDrawingModeWasOn = false; }
-        if (lineState === 1 && activeLine) {
-            const ptr = canvas.getPointer(opt.e);
-            const dist = Math.sqrt(Math.pow(ptr.x - startPoint.x, 2) + Math.pow(ptr.y - startPoint.y, 2));
-            if (dist > 10) finishLineLogic();
-        }
-        canvas.setCursor('default');
-    });
-
+    // REMOVED: interacción de anotaciones en Fabric (migrada a Konva)
     function finishLineLogic() {
-        if (currentMode === 'measure' && useKonvaRuler) {
-            lineState = 0;
-            activeLine = null;
-            return;
-        }
-        lineState = 0;
-        const dx = activeLine.x2 - activeLine.x1; const dy = activeLine.y2 - activeLine.y1;
-        const distPx = Math.sqrt(dx*dx + dy*dy);
-        if (currentMode === 'cal') {
-            document.getElementById('cal-actions').style.display = 'flex';
-            document.getElementById('cal-hint').style.display = 'none';
-            document.getElementById('btn-del-cal').style.display = 'inline-block';
-            document.getElementById('cal-val').focus();
-            canvas.tempDist = distPx; calLineObject = activeLine; 
-        } else if (currentMode === 'measure') {
-            const feet = distPx / pixelsPerFoot;
-            const textVal = formatFeetForDisplay(feet);
-            const midX = (activeLine.x1 + activeLine.x2) / 2;
-            const midY = (activeLine.y1 + activeLine.y2) / 2;
-            const uniqueId = Date.now();
-            const lbl = new fabric.Text(textVal, { left: midX, top: midY - 15, fontSize: 24, fill: '#22c55e', backgroundColor: '#0f172a', originX: 'center', originY: 'center', selectable: false, evented: false, isMeasureLabel: true, id: uniqueId + '_lbl' });
-            const line = new fabric.Line([activeLine.x1, activeLine.y1, activeLine.x2, activeLine.y2], { stroke: '#22c55e', strokeWidth: 4, selectable: true, evented: true, originX: 'center', originY: 'center', isMeasureLine: true, labelId: lbl.id, label: lbl, id: uniqueId + '_line' });
-            canvas.remove(activeLine); canvas.add(line); canvas.add(lbl);
-            lockObject(line); canvas.setActiveObject(line);
-            activeLine = null; saveHistory();
-        }
+        // REMOVED: calibración/medición legacy en Fabric
     }
 
     function clearCalLine() {
-        if(calLineObject) { canvas.remove(calLineObject); calLineObject = null; }
+        if (konvaCalLine) { konvaCalLine.destroy(); konvaCalLine = null; }
+        if (konvaCalFinished) { konvaCalFinished.destroy(); konvaCalFinished = null; }
+        konvaCalPoints = null;
+        calLineObject = null;
+        canvas.tempDist = 0;
+        if (konvaLayer) konvaLayer.batchDraw();
         document.getElementById('cal-actions').style.display = 'none';
         document.getElementById('cal-hint').style.display = 'block';
         document.getElementById('cal-val').value = '';
         resetScalePresetSelection();
         updateCalHint();
-        lineState = 0; activeLine = null; canvas.requestRenderAll();
+        canvas.requestRenderAll();
     }
     
     function finishCal(save) {
@@ -3079,8 +2627,10 @@ if ($filePath !== '') {
     }
 
     // --- UTILS ---
-    function setPenColor(c, el) { konvaPenColor = c; document.querySelectorAll('#prop-draw .color-dot').forEach(d => d.classList.remove('active')); if (el) el.classList.add('active'); }
-    function setPenWidth(w) { konvaPenWidth = parseInt(w); }
+    function setPenColor(c, el) { drawColor = c; document.querySelectorAll('#prop-draw .color-dot').forEach(d => d.classList.remove('active')); if (el) el.classList.add('active'); }
+    function setPenWidth(w) { drawWidth = parseFloat(w) || 3; }
+    function setDrawColor(color) { drawColor = color; }
+    function setDrawWidth(val) { drawWidth = parseFloat(val) || 3; }
 
     function startPlacementTool(tool) {
         pendingPlacementTool = tool;
@@ -3124,7 +2674,8 @@ if ($filePath !== '') {
             originY: 'center',
             isNew: true
         });
-        lockObject(t); canvas.add(t); canvas.setActiveObject(t); t.selectAll(); t.enterEditing();
+        // REMOVED: lockObject legacy
+        canvas.add(t); canvas.setActiveObject(t); t.selectAll(); t.enterEditing();
         showPropSection('text');
         document.getElementById('text-size-input').value = preset.fontSize;
         document.querySelectorAll('#prop-text .color-dot').forEach(d => d.classList.remove('active'));
@@ -3399,95 +2950,7 @@ if ($filePath !== '') {
         if (useKonvaRuler) syncKonvaToFabric();
     }
 
-    function handleSelectionChange() {
-        const active = canvas.getActiveObject();
-        if (active) {
-            if(active.type === 'i-text' || active.type === 'text' || active.type === 'textbox') {
-                const sInp = document.getElementById('text-size-input');
-                if(sInp) sInp.value = active.fontSize;
-                const currentColor = active.fill;
-                document.querySelectorAll('#prop-text .color-dot').forEach(d => {
-                    d.classList.remove('active');
-                    if(d.getAttribute('data-col').toLowerCase() === currentColor.toLowerCase()) { d.classList.add('active'); }
-                });
-                showPropSection('text');
-            } else { showPropSection('smart'); }
-        } else { showPropSection(currentMode); }
-        keepScaleDisplayVisible();
-    }
-
-    canvas.on('selection:created', handleSelectionChange);
-    canvas.on('selection:updated', handleSelectionChange);
-    canvas.on('selection:cleared', handleSelectionChange);
-    
-    // Interceptar transformaciones para verificar si estamos manipulando un control
-    canvas.on('before:transform', function(e) {
-        const obj = e.target;
-        if (obj && obj.isMeasureLine) {
-            // Asegurar que las transformaciones no deseadas estÃ©n bloqueadas
-            obj.set({ lockRotation: true, lockScalingX: true, lockScalingY: true });
-            
-            // Si estamos en modo de ediciÃ³n (doble clic en vÃ©rtice), bloquear movimiento del objeto
-            if (isDraggingControl && controlEditMode) {
-                obj.set({ lockMovementX: true, lockMovementY: true });
-            } else {
-                // Si no es modo de ediciÃ³n, permitir movimiento del objeto
-                obj.set({ lockMovementX: false, lockMovementY: false });
-            }
-        }
-    });
-    
-    // Detectar cuando se estÃ¡ modificando (durante el arrastre)
-    canvas.on('object:modifying', function(e) {
-        const obj = e.target;
-        if (obj && obj.isMeasureLine && isDraggingControl && controlEditMode) {
-            // Cancelar renderizado anterior si existe
-            if (renderAnimationFrame) {
-                cancelAnimationFrame(renderAnimationFrame);
-            }
-            
-            // Usar requestAnimationFrame para renderizado suave sin trazos impresos
-            renderAnimationFrame = requestAnimationFrame(() => {
-                // Actualizar la etiqueta de mediciÃ³n en tiempo real mientras se arrastra un control
-                updateMeasureLabel(obj);
-                // Usar requestRenderAll para renderizado suave
-                canvas.requestRenderAll();
-                renderAnimationFrame = null;
-            });
-        }
-    });
-    
-    // Detectar cuando se completa una transformaciÃ³n para restaurar el estado
-    canvas.on('object:modified', function(e) {
-        const obj = e.target;
-        if (obj && obj.isMeasureLine) {
-            // Cancelar cualquier renderizado pendiente
-            if (renderAnimationFrame) {
-                cancelAnimationFrame(renderAnimationFrame);
-                renderAnimationFrame = null;
-            }
-            
-            // Actualizar la etiqueta final con renderizado suave
-            requestAnimationFrame(() => {
-                updateMeasureLabel(obj);
-                canvas.requestRenderAll();
-            });
-            
-            // Restaurar el movimiento del objeto despuÃ©s de modificar
-            obj.set({ lockMovementX: false, lockMovementY: false });
-            
-            // Guardar en historial si fue una modificaciÃ³n de control
-            if (isDraggingControl && controlEditMode) {
-                saveHistory();
-            }
-            
-            // Resetear estado de ediciÃ³n
-            controlEditMode = false;
-            activeControlPoint = null;
-            isDraggingControl = false;
-            controlDragStart = null;
-        }
-    }); 
+    // REMOVED: selección/transformaciones Fabric legacy
 
     window.addEventListener('keydown', e => {
         if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); undo(); }
@@ -3500,15 +2963,7 @@ if ($filePath !== '') {
         }
     });
 
-    canvas.on('mouse:wheel', function(opt) {
-        let delta = opt.e.deltaY; let zoom = canvas.getZoom() * (0.999 ** delta);
-        if (zoom > 20) zoom = 20; if (zoom < 0.05) zoom = 0.05;
-        canvas.zoomToPoint({ x: opt.e.offsetX, y: opt.e.offsetY }, zoom);
-        document.getElementById('zoom-disp').innerText = Math.round(zoom * 100) + '%';
-        if (useKonvaRuler) syncKonvaToFabric();
-        updateTextScales(zoom);
-        opt.e.preventDefault(); opt.e.stopPropagation();
-    });
+    // REMOVED: wheel de Fabric, se usa wheel listener de Konva
 
     // UI Isaac_work: auto mostrar barra de herramientas en móvil al cargar
     document.addEventListener('DOMContentLoaded', () => {
