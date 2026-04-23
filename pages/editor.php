@@ -2467,62 +2467,45 @@ if ($filePath !== '') {
 
     // --- TOOL SWITCHING ---
     function setMode(mode) {
-        if (calLineObject && mode !== 'cal') clearCalLine(); 
-
+        if (calLineObject && mode !== 'cal') clearCalLine();
         discardEmptyActiveKonvaNote();
-
-        // FIX: Check for new note before switching tool
-        const activeObj = canvas.getActiveObject();
-        if(activeObj && activeObj.isNew && (activeObj.type === 'i-text' || activeObj.type === 'text' || activeObj.type === 'textbox')) {
-             canvas.remove(activeObj);
-             canvas.requestRenderAll();
-             showToast("Empty note discarded", "warning");
-        }
-
         if (mode !== 'smart' && pendingPlacementTool) clearPlacementTool();
         resetToolState();
         currentMode = mode;
-        canvas.discardActiveObject(); canvas.requestRenderAll();
-        // MIGRATED: Fabric nunca dibuja ni selecciona anotaciones
-        canvas.isDrawingMode = false;
-        canvas.selection = false; 
+
         document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
-        if(mode !== 'smart') {
+        if (mode !== 'smart') {
             const btn = document.getElementById('btn-' + mode);
-            if(btn) btn.classList.add('active'); 
-        } else { document.getElementById('btn-smart').classList.add('active'); }
+            if (btn) btn.classList.add('active');
+        } else {
+            document.getElementById('btn-smart').classList.add('active');
+        }
+
         document.querySelectorAll('.prop-section').forEach(p => p.classList.remove('active'));
         const propEl = document.getElementById('prop-' + mode);
-        if(propEl) propEl.classList.add('active');
+        if (propEl) propEl.classList.add('active');
         document.getElementById('stamp-menu').style.display = 'none';
-        
-        // CURSOR LOGIC SIMPLIFIED (No 'pan' mode check needed for cursor style here)
-        if(mode === 'draw') { canvas.defaultCursor = 'crosshair'; } 
-        else if(mode === 'measure') {
-            if(pixelsPerFoot <= 0) { showToast("Please calibrate first!", "error"); setMode('cal'); return; }
-            canvas.defaultCursor = 'crosshair';
-        } else if(mode === 'cal') {
-            updateCalHint();
-            if (window.innerWidth <= 991) {
-                openMobileCalModal();
-            }
-        } 
-        else { canvas.defaultCursor = 'default'; }
 
-        if (useKonvaRuler) {
-            initKonvaRuler();
-            setKonvaActive(true);
-            updateKonvaInteractivity();
+        if (mode === 'measure' && pixelsPerFoot <= 0) {
+            showToast("Please calibrate first!", "error");
+            setMode('cal');
+            return;
         }
-        
-        if(mode === 'smart') {
-            const active = canvas.getActiveObject();
-            if(active && (active.type === 'i-text' || active.type === 'text' || active.type === 'textbox')) showPropSection('text');
+        if (mode === 'cal') {
+            updateCalHint();
+            if (window.innerWidth <= 991) openMobileCalModal();
         }
-        
-        // Auto-close tools on mobile after selecting a tool (Optional UX improvement)
-        if(window.innerWidth <= 991 && mode !== 'stamp') {
-             // setTimeout(toggleMobileTools, 300); // Uncomment if you prefer auto-close
+
+        initKonvaRuler();
+        setKonvaActive(true);
+        updateKonvaInteractivity();
+
+        if (konvaStage && konvaStage.container()) {
+            if (mode === 'draw' || mode === 'measure' || mode === 'cal') {
+                konvaStage.container().style.cursor = 'crosshair';
+            } else {
+                konvaStage.container().style.cursor = 'default';
+            }
         }
     }
 
@@ -2634,28 +2617,7 @@ if ($filePath !== '') {
 
     function addText() {
         setMode('smart');
-        if (useKonvaRuler) {
-            startPlacementTool('note');
-            return;
-        }
-        const center = canvas.getVpCenter();
-        const preset = getResponsiveNotePreset();
-        const t = new fabric.Textbox('annotation', {
-            left: center.x,
-            top: center.y,
-            fill: '#ef4444',
-            fontSize: preset.fontSize,
-            fontWeight: 'normal',
-            originX: 'center',
-            originY: 'center',
-            isNew: true
-        });
-        // REMOVED: lockObject legacy
-        canvas.add(t); canvas.setActiveObject(t); t.selectAll(); t.enterEditing();
-        showPropSection('text');
-        document.getElementById('text-size-input').value = preset.fontSize;
-        document.querySelectorAll('#prop-text .color-dot').forEach(d => d.classList.remove('active'));
-        document.querySelector('#prop-text .color-dot[data-col="#ef4444"]').classList.add('active');
+        startPlacementTool('note');
     }
 
     function addCloud() {
@@ -2821,6 +2783,24 @@ if ($filePath !== '') {
         new bootstrap.Modal(document.getElementById('reportModal')).show();
     }
 
+    async function captureEditorSnapshot() {
+        const wrapper = document.getElementById('canvas-wrapper');
+        const w = wrapper.clientWidth;
+        const h = wrapper.clientHeight;
+        const offscreen = document.createElement('canvas');
+        offscreen.width = w;
+        offscreen.height = h;
+        const ctx = offscreen.getContext('2d');
+
+        const fabricEl = document.querySelector('#canvas-wrapper canvas.lower-canvas') || document.getElementById('c');
+        if (fabricEl) ctx.drawImage(fabricEl, 0, 0, w, h);
+
+        const konvaCanvas = konvaStage ? konvaStage.toCanvas() : null;
+        if (konvaCanvas) ctx.drawImage(konvaCanvas, 0, 0, w, h);
+
+        return offscreen.toDataURL('image/jpeg', 0.8);
+    }
+
     async function submitReport() {
         const btn = document.getElementById('btn-generate');
         btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> Generating...';
@@ -2845,7 +2825,7 @@ if ($filePath !== '') {
                 doc.setFontSize(10);
                 doc.text(doc.splitTextToSize(names.join('\n'), 170), 20, 126);
             }
-            const dataUrl = canvas.toDataURL({ format: 'jpeg', quality: 0.8 });
+            const dataUrl = await captureEditorSnapshot();
             doc.addPage();
             doc.text("Plan Snapshot (Current View)", 20, 20);
             const imgProps = doc.getImageProperties(dataUrl);
@@ -2884,8 +2864,8 @@ if ($filePath !== '') {
     }
 
     function updateTextProp(prop, val) {
-        if (konvaSelectedNote && konvaSelectedNote.label) {
-            if (prop === 'fill') {
+        if (!konvaSelectedNote || !konvaSelectedNote.label) return;
+        if (prop === 'fill') {
                 konvaSelectedNote.label.fill(val);
                 // FIX-BUG2 / NEW-FEAT1: sincronizar color de fondo sticky al cambiar color de texto
                 const bgMap = {
@@ -2906,14 +2886,10 @@ if ($filePath !== '') {
                     konvaSelectedNote.bg.stroke(val);
                 }
             }
-            if (prop === 'fontSize') konvaSelectedNote.label.fontSize(parseInt(val, 10) || konvaSelectedNote.label.fontSize());
-            updateKonvaNoteBox(konvaSelectedNote);
-            if (konvaLayer) konvaLayer.batchDraw();
-            saveCurrentPageAnnotations();
-            return;
-        }
-        const active = canvas.getActiveObject();
-        if(active && (active.type === 'i-text' || active.type === 'text' || active.type === 'textbox')) { active.set(prop, val); canvas.requestRenderAll(); }
+        if (prop === 'fontSize') konvaSelectedNote.label.fontSize(parseInt(val, 10) || konvaSelectedNote.label.fontSize());
+        updateKonvaNoteBox(konvaSelectedNote);
+        if (konvaLayer) konvaLayer.batchDraw();
+        saveCurrentPageAnnotations();
     }
 
     function updateTextScales(zoom) {
