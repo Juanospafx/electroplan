@@ -2092,183 +2092,18 @@ if ($filePath !== '') {
         updateKonvaInteractivity();
     }
 
-    // --- DOUBLE TAP & NODE LOGIC ---
-    let lastTapTime = 0;
-    let lastTapTarget = null;
-    const DOUBLE_TAP_DELAY = 400;
-    
-    // Estado para control de modificaciÃ³n de vÃ©rtices de regla
-    let controlEditMode = false; // Modo de ediciÃ³n activado con doble clic
-    let activeControlPoint = null; // Punto de control activo ('p1' o 'p2')
-    let renderAnimationFrame = null; // Para renderizado suave
+    // REMOVED: lógica double-tap/controles personalizados de Fabric
 
-    // --- CUSTOM CONTROLS FOR LINES (POSITION HANDLER FIXED) ---
-    // Variable para rastrear si estamos manipulando un control
-    let isDraggingControl = false;
-    let controlDragStart = null;
-    
-    function createLineControls(line) {
-        function linePositionHandler(pointName) {
-            return function(dim, finalMatrix, fabricObject) {
-                const points = fabricObject.calcLinePoints();
-                const pt = (pointName === 'p1') ? new fabric.Point(points.x1, points.y1) : new fabric.Point(points.x2, points.y2);
-                return fabric.util.transformPoint(pt, finalMatrix);
-            };
-        }
-        
-        function lineActionHandler(pointName) {
-            return function(e, transform, x, y) {
-                const target = transform.target;
-                
-                // Solo permitir modificaciÃ³n si el modo de ediciÃ³n estÃ¡ activado (doble clic)
-                if (currentMode !== 'measure') {
-                    if (!controlEditMode || activeControlPoint !== pointName) {
-                        return false;
-                    }
-                }
-                
-                // Si el objeto estÃ¡ en modo "moving" (movimiento libre), no permitir modificar controles
-                if (target.isMoving && !isDraggingControl) {
-                    return false;
-                }
-                
-                // Estamos manipulando un control - permitir la acciÃ³n
-                let localPoint = null;
-                if (fabric.controlsUtils && typeof fabric.controlsUtils.getLocalPoint === 'function') {
-                    localPoint = fabric.controlsUtils.getLocalPoint(transform, target.originX || 'center', target.originY || 'center', x, y);
-                } else {
-                    const pt = new fabric.Point(x, y);
-                    localPoint = target.toLocalPoint(pt, target.originX || 'center', target.originY || 'center');
-                }
-                if (!localPoint) return false;
-                
-                // Actualizar las coordenadas del punto correspondiente
-                if (pointName === 'p1') { 
-                    target.set({ x1: localPoint.x, y1: localPoint.y }); 
-                } else { 
-                    target.set({ x2: localPoint.x, y2: localPoint.y }); 
-                }
-                
-                // Forzar actualizaciÃ³n de coordenadas antes de actualizar la etiqueta
-                target.setCoords();
-                
-                // Usar requestAnimationFrame para renderizado suave sin trazos impresos
-                if (renderAnimationFrame) {
-                    cancelAnimationFrame(renderAnimationFrame);
-                }
-                renderAnimationFrame = requestAnimationFrame(() => {
-                    // Actualizar la etiqueta de mediciÃ³n inmediatamente
-                    updateMeasureLabel(target);
-                    // Renderizado suave usando requestRenderAll en lugar de renderAll
-                    canvas.requestRenderAll();
-                    renderAnimationFrame = null;
-                });
-                
-                return true;
-            };
-        }
-        
-        // Crear controles con Ã¡rea de detecciÃ³n mÃ¡s precisa
-        const controlSize = 20; // TamaÃ±o del Ã¡rea de detecciÃ³n del control (mÃ¡s grande para facilitar el clic)
-        
-        // FunciÃ³n para verificar si el clic fue sobre un control
-        function isControlClick(opt) {
-            if (!opt.target || !opt.target.isMeasureLine) return false;
-            if (!opt.control) return false;
-            return opt.control === 'p1' || opt.control === 'p2';
-        }
-        
-        line.controls = {
-            p1: new fabric.Control({ 
-                positionHandler: linePositionHandler('p1'), 
-                actionHandler: lineActionHandler('p1'), 
-                cursorStyle: 'crosshair', 
-                render: renderCircleControl,
-                sizeX: controlSize,
-                sizeY: controlSize,
-                // Asegurar que el control solo se active cuando se hace clic directamente sobre Ã©l
-                mouseUpHandler: function(e, transformData, x, y) {
-                    isDraggingControl = false;
-                    controlDragStart = null;
-                    return true;
-                }
-            }),
-            p2: new fabric.Control({ 
-                positionHandler: linePositionHandler('p2'), 
-                actionHandler: lineActionHandler('p2'), 
-                cursorStyle: 'crosshair', 
-                render: renderCircleControl,
-                sizeX: controlSize,
-                sizeY: controlSize,
-                mouseUpHandler: function(e, transformData, x, y) {
-                    isDraggingControl = false;
-                    controlDragStart = null;
-                    return true;
-                }
-            })
-        };
-    }
-
-    function renderCircleControl(ctx, left, top, styleOverride, fabricObject) {
-        ctx.save(); ctx.translate(left, top); ctx.beginPath();
-        ctx.arc(0, 0, 8, 0, Math.PI * 2, false); 
-        ctx.fillStyle = "#ffffff"; ctx.strokeStyle = "#22c55e"; ctx.lineWidth = 2;
-        ctx.fill(); ctx.stroke(); ctx.restore();
-    }
-
-    // --- LOCK HELPERS ---
-    function lockObject(obj) {
-        if(!obj) return;
-        obj.set({
-            lockMovementX: obj.isMeasureLine ? false : true,
-            lockMovementY: obj.isMeasureLine ? false : true,
-            lockRotation: true, lockScalingX: true, lockScalingY: true,
-            borderColor: '#22c55e', cornerColor: 'transparent', hasBorders: false, hasControls: true
-        });
-        if (obj.isMeasureLine) {
-            createLineControls(obj);
-            // Asegurar que el objeto puede moverse normalmente cuando no se estÃ¡ manipulando un control
-            obj.set({ lockMovementX: false, lockMovementY: false });
-        }
-    }
-
-    function unlockObject(obj) {
-        if(!obj) return;
-        obj.set({
-            lockMovementX: false, lockMovementY: false, lockRotation: true,
-            borderColor: '#ef4444', hasBorders: true, hasControls: false, borderDashArray: [5, 5]
-        });
-    }
+    // REMOVED: lock/unlock legacy de Fabric (anotaciones migradas a Konva)
+    function lockObject(obj) { return; }
+    function unlockObject(obj) { return; }
 
     // --- DELETE FUNCTIONALITY ---
     function deleteSelected() {
-        if (useKonvaRuler && deleteKonvaSelection()) {
+        if (deleteKonvaSelection()) {
+            saveHistory();
             showToast("Selection deleted", "success");
-            return;
         }
-        const activeObjects = canvas.getActiveObjects();
-        if(!activeObjects.length) return;
-        
-        // MODIFICADO: Eliminado confirm() y agrupado el historial
-        historyProcessing = true; // Pausar guardado automÃ¡tico por objeto para agrupar la acciÃ³n
-        
-        canvas.discardActiveObject(); // Limpiar selecciÃ³n visual
-        
-        activeObjects.forEach(obj => {
-            // Limpieza de dependencias (Etiquetas de medidas)
-            if(obj.isMeasureLine && obj.label) canvas.remove(obj.label);
-            
-            // Limpieza inversa (Si borro etiqueta, buscar y borrar linea)
-            if(obj.isMeasureLabel) {
-                 const line = canvas.getObjects().find(o => o.labelId === obj.id);
-                 if(line) canvas.remove(line);
-            }
-            canvas.remove(obj);
-        });
-        
-        historyProcessing = false; // Reactivar historial
-        saveHistory(); // Guardar el estado UNA vez con todos los objetos borrados
-        showToast("Selection deleted", "success");
     }
 
     // --- PINCH ZOOM & PAN (GESTOS TÁCTILES) ---
@@ -2286,11 +2121,7 @@ if ($filePath !== '') {
                 isPinching = true;
                 singleTouchStart = null;
 
-                // FIX: si estamos en modo draw y hay 2 dedos, pausar el dibujo
-                if (currentMode === 'draw' && canvas.isDrawingMode) {
-                    canvas.isDrawingMode = false;
-                    canvas._isDrawingModeWasPausedByPinch = true;
-                }
+                // MIGRATED: draw es Konva, no se pausa Fabric
 
                 const dx = e.touches[0].clientX - e.touches[1].clientX;
                 const dy = e.touches[0].clientY - e.touches[1].clientY;
@@ -2369,11 +2200,7 @@ if ($filePath !== '') {
                 // FIX: resetear pinch al soltar cualquier dedo
                 lastDist = 0;
 
-                // FIX: restaurar drawing mode si fue pausado por pinch
-                if (canvas._isDrawingModeWasPausedByPinch && currentMode === 'draw') {
-                    canvas.isDrawingMode = true;
-                    canvas._isDrawingModeWasPausedByPinch = false;
-                }
+                // MIGRATED: draw es Konva, no hay restore de Fabric
             }
             if (e.touches.length === 0) {
                 isPinching = false;
@@ -2383,29 +2210,7 @@ if ($filePath !== '') {
         }, { passive: false });
     }
 
-    canvas.on('mouse:up', function(opt) {
-        this.setViewportTransform(this.viewportTransform);
-        this.isDragging = false;
-        if (currentMode === 'smart') this.selection = true;
-        if(this.isDrawingModeWasOn) { canvas.isDrawingMode = true; this.isDrawingModeWasOn = false; }
-        
-        // MODIFICADO: Refuerzo contra falsos positivos (lÃ­neas cortas/basura)
-        if (lineState === 1 && activeLine) {
-            const ptr = canvas.getPointer(opt.e);
-            const dist = Math.sqrt(Math.pow(ptr.x - startPoint.x, 2) + Math.pow(ptr.y - startPoint.y, 2));
-            
-            if (dist > 10) {
-                finishLineLogic();
-            } else {
-                // BUG FIX: Si la distancia es muy corta (misclick), limpiar el objeto temporal
-                canvas.remove(activeLine);
-                activeLine = null;
-                lineState = 0;
-                canvas.requestRenderAll();
-            }
-        }
-        canvas.setCursor('default');
-    });
+    // REMOVED: mouse:up legacy de Fabric para líneas/calibración
 
     // --- LOAD LOGIC ---
     if(fileExt === 'pdf') {
@@ -2693,117 +2498,11 @@ if ($filePath !== '') {
         if(historyIndex < undoStack.length - 1) btnRedo.classList.remove('btn-disabled'); else btnRedo.classList.add('btn-disabled');
     }
 
-    function reLinkObjects() {
-        const objects = canvas.getObjects();
-        objects.forEach(obj => {
-            if (obj.isMeasureLine) {
-                lockObject(obj);
-                if(obj.labelId) {
-                    const lbl = objects.find(o => o.isMeasureLabel && o.id === obj.labelId);
-                    if(lbl) { obj.label = lbl; lbl.selectable = false; lbl.evented = false; }
-                }
-            } else if (obj.isStamp) {
-                // FIX: stamps restaurados tras undo/redo quedan movibles (y redimensionables)
-                obj.set({ lockMovementX: false, lockMovementY: false, lockRotation: true, lockScalingX: false, lockScalingY: false, hasControls: true, hasBorders: true, cornerStyle: 'circle', transparentCorners: false });
-            } else if (obj.isFreeDraw) {
-                // FIX: paths restaurados tras undo/redo son seleccionables
-                obj.set({ lockMovementX: false, lockMovementY: false, selectable: true, evented: true, hasBorders: true, hasControls: false, borderColor: '#ef4444', borderDashArray: [5, 5] });
-            }
-        });
-        canvas.requestRenderAll();
-    }
+    // REMOVED: relink de objetos Fabric ya no aplica
+    function reLinkObjects() { return; }
 
     // --- EVENTS ---
-    canvas.on('object:added', e => {
-        if(!e.target.excludeFromHistory) saveHistory();
-        saveCurrentPageAnnotations();
-    });
-    // FIX: Cuando Fabric crea un path de dibujo libre, marcarlo como path dibujado
-    // y asegurarse de que sea seleccionable y no esté bloqueado
-    canvas.on('path:created', function(e) {
-        const path = e.path;
-        if (!path) return;
-        path.set({
-            isFreeDraw: true,
-            selectable: true,
-            evented: true,
-            lockMovementX: false,
-            lockMovementY: false,
-            lockRotation: false,
-            lockScalingX: false,
-            lockScalingY: false,
-            hasBorders: true,
-            hasControls: false,
-            borderColor: '#ef4444',
-            borderDashArray: [5, 5]
-        });
-        canvas.setActiveObject(path);
-        canvas.requestRenderAll();
-        // No llamar saveHistory aquí — object:added ya lo hace
-    });
-    canvas.on('object:modified', () => {
-        saveHistory();
-        saveCurrentPageAnnotations();
-    });
-    canvas.on('object:removed', e => {
-        if(e.target.isMeasureLine && e.target.label) canvas.remove(e.target.label);
-        saveHistory();
-        saveCurrentPageAnnotations();
-    });
-
-    // Auto-remove empty text on creation
-    canvas.on('text:editing:exited', function(e) {
-        const obj = e.target;
-        if(obj && obj.isNew) {
-            if((obj.text || '').trim() === '') {
-                canvas.remove(obj);
-                canvas.requestRenderAll();
-                showToast("Empty note discarded", "warning");
-            } else {
-                delete obj.isNew;
-            }
-        }
-    });
-
-    function updateMeasureLabel(line) {
-        if (!line || !line.label) return;
-        const points = line.calcLinePoints();
-        const matrix = line.calcTransformMatrix();
-        const p1 = fabric.util.transformPoint(new fabric.Point(points.x1, points.y1), matrix);
-        const p2 = fabric.util.transformPoint(new fabric.Point(points.x2, points.y2), matrix);
-        const distPx = Math.hypot(p2.x - p1.x, p2.y - p1.y);
-        let textVal = "";
-        if (pixelsPerFoot > 0) { 
-            const feet = distPx / pixelsPerFoot; 
-            textVal = formatFeetForDisplay(feet);
-        } else { 
-            textVal = Math.round(distPx) + " px"; 
-        }
-        line.label.set({ text: textVal });
-        const midX = (p1.x + p2.x) / 2;
-        const midY = (p1.y + p2.y) / 2;
-        line.label.set({ left: midX, top: midY - 15 });
-        line.setCoords(); 
-        line.label.setCoords();
-        // NO llamar requestRenderAll aquÃ­ - se maneja en los eventos con requestAnimationFrame
-    }
-
-    canvas.on('object:moving', function(e) {
-        const obj = e.target;
-        if (obj.isMeasureLine && obj.label) {
-            // Cuando se mueve el objeto completo, solo actualizar posiciÃ³n de la etiqueta
-            // No actualizar el valor porque la distancia no cambia
-            const center = obj.getCenterPoint();
-            obj.label.set({ left: center.x, top: center.y - 15 });
-            obj.label.setCoords();
-            // Renderizado suave durante el movimiento
-            if (renderAnimationFrame) cancelAnimationFrame(renderAnimationFrame);
-            renderAnimationFrame = requestAnimationFrame(() => {
-                canvas.requestRenderAll();
-                renderAnimationFrame = null;
-            });
-        }
-    });
+    // REMOVED: listeners de anotaciones Fabric (added/modified/removed/path/text/moving)
 
     // --- TOOL SWITCHING ---
     function setMode(mode) {
