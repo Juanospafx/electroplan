@@ -70,6 +70,20 @@ if ($filePath !== '') {
     
     <script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js"></script>
 
+    <script>
+    if (!HTMLCanvasElement.prototype.toBlob) {
+        Object.defineProperty(HTMLCanvasElement.prototype, 'toBlob', {
+            value: function(callback, type, quality) {
+                const dataURL = this.toDataURL(type, quality);
+                const binStr = atob(dataURL.split(',')[1]);
+                const arr = new Uint8Array(binStr.length);
+                for (let i = 0; i < binStr.length; i++) arr[i] = binStr.charCodeAt(i);
+                callback(new Blob([arr], { type: type || 'image/png' }));
+            }
+        });
+    }
+    </script>
+
     <link rel="stylesheet" href="../assets/editor/editor.css">
 
     
@@ -1892,6 +1906,18 @@ if ($filePath !== '') {
             width: w.clientWidth,
             height: w.clientHeight
         });
+        if (konvaStage.container()) {
+            konvaStage.container().style.touchAction = 'none';
+            konvaStage.container().style.webkitUserSelect = 'none';
+            konvaStage.container().style.userSelect = 'none';
+            const firstCanvas = konvaStage.container().querySelector('canvas');
+            if (firstCanvas) firstCanvas.style.touchAction = 'none';
+            const ctx = firstCanvas?.getContext('2d');
+            if (ctx) {
+                ctx.imageSmoothingEnabled = true;
+                if ('imageSmoothingQuality' in ctx) ctx.imageSmoothingQuality = 'high';
+            }
+        }
         bgLayer = new Konva.Layer({ listening: false });
         konvaStage.add(bgLayer);
         konvaLayer = new Konva.Layer();
@@ -2251,6 +2277,7 @@ if ($filePath !== '') {
     let singleTouchStart = null, isPinching = false;
 
     document.getElementById('canvas-wrapper')?.addEventListener('touchstart', function(e) {
+        if (!konvaStage) initKonvaRuler();
         const container = touchContainer();
         if (!container || !konvaStage) return;
         if (e.touches.length === 2) {
@@ -2324,7 +2351,10 @@ if ($filePath !== '') {
             url: fileUrl,
             rangeChunkSize: 262144,
             disableStream: false,
-            disableAutoFetch: true
+            disableAutoFetch: true,
+            cMapUrl: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/cmaps/',
+            cMapPacked: true,
+            standardFontDataUrl: 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/standard_fonts/'
         });
         loadingTask.promise.then(pdf => {
             pdfDoc = pdf;
@@ -2939,12 +2969,32 @@ if ($filePath !== '') {
 
     async function captureEditorSnapshot() {
         if (!konvaStage) return null;
-        return await new Promise(resolve => {
-            konvaStage.toDataURL({
-                mimeType: 'image/jpeg',
-                quality: 0.8,
-                callback: resolve
-            });
+        return await new Promise((resolve, reject) => {
+            try {
+                konvaStage.toDataURL({
+                    mimeType: 'image/jpeg',
+                    quality: 0.8,
+                    callback: function(dataUrl) {
+                        if (dataUrl) resolve(dataUrl);
+                        else reject(new Error('toDataURL returned empty'));
+                    }
+                });
+            } catch (err) {
+                try {
+                    const wrapper = document.getElementById('canvas-wrapper');
+                    const offscreen = document.createElement('canvas');
+                    offscreen.width = wrapper?.clientWidth || konvaStage.width();
+                    offscreen.height = wrapper?.clientHeight || konvaStage.height();
+                    const ctx = offscreen.getContext('2d');
+                    konvaStage.getLayers().forEach(layer => {
+                        const layerCanvas = layer.getCanvas()?._canvas;
+                        if (layerCanvas) ctx.drawImage(layerCanvas, 0, 0);
+                    });
+                    resolve(offscreen.toDataURL('image/jpeg', 0.8));
+                } catch (e2) {
+                    reject(e2);
+                }
+            }
         });
     }
 
@@ -3060,6 +3110,7 @@ if ($filePath !== '') {
 
     // UI Isaac_work: auto mostrar barra de herramientas en móvil al cargar
     document.addEventListener('DOMContentLoaded', () => {
+        initKonvaRuler();
         if (window.innerWidth <= 991) {
             setTimeout(() => {
                 const sbRight = document.getElementById('sidebarRight');
