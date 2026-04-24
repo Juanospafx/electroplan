@@ -595,6 +595,8 @@ if ($filePath !== '') {
     let drawColor = '#ef4444';
     let drawWidth = 3;
     let drawEraserMode = false;
+    let konvaIsErasing = false;
+    let konvaErasedInGesture = false;
     const konvaRulersByPage = {};
     let konvaTransformer = null;
     let konvaEditingTextarea = null;
@@ -1620,14 +1622,27 @@ if ($filePath !== '') {
         showPropSection('smart');
     }
 
-    function eraseFreeDrawPath(path) {
-        if (!path) return;
+    function eraseFreeDrawPath(path, deferHistory = false) {
+        if (!path) return false;
+        const exists = konvaDrawPaths.some(p => p.path === path);
+        if (!exists) return false;
         if (konvaSelectedNode?.type === 'freedraw' && konvaSelectedNode.ref === path) konvaSelectedNode = null;
         path.destroy();
         konvaDrawPaths = konvaDrawPaths.filter(p => p.path !== path);
         saveCurrentPageAnnotations();
-        saveHistory();
+        if (!deferHistory) saveHistory();
         if (konvaLayer) konvaLayer.batchDraw();
+        return true;
+    }
+
+    function eraseFreeDrawAtPointer(pos) {
+        if (!konvaLayer || !pos) return false;
+        const hit = konvaLayer.getIntersection(pos);
+        const annoType = hit?.getAttr ? hit.getAttr('annoType') : null;
+        if (annoType === 'freedraw') {
+            return eraseFreeDrawPath(hit, true);
+        }
+        return false;
     }
 
     // MIGRATED: stamp Konva.Group
@@ -1967,8 +1982,14 @@ if ($filePath !== '') {
 
             if (currentMode === 'draw') {
                 const annoType = target?.getAttr ? target.getAttr('annoType') : null;
-                if (drawEraserMode && annoType === 'freedraw') {
-                    eraseFreeDrawPath(target);
+                if (drawEraserMode) {
+                    konvaIsErasing = true;
+                    konvaErasedInGesture = false;
+                    if (annoType === 'freedraw' && eraseFreeDrawPath(target, true)) {
+                        konvaErasedInGesture = true;
+                    } else if (eraseFreeDrawAtPointer(pos)) {
+                        konvaErasedInGesture = true;
+                    }
                     return;
                 }
                 isKonvaDrawing = true;
@@ -2037,6 +2058,13 @@ if ($filePath !== '') {
                 konvaLayer.batchDraw();
                 return;
             }
+            if (currentMode === 'draw' && drawEraserMode && konvaIsErasing) {
+                if (!pos) return;
+                if (eraseFreeDrawAtPointer(pos)) konvaErasedInGesture = true;
+                if (e.evt && typeof e.evt.preventDefault === 'function') e.evt.preventDefault();
+                return;
+            }
+
             if (currentMode === 'draw' && isKonvaDrawing && konvaCurrentPath) {
                 if (e.evt && e.evt.touches && e.evt.touches.length > 1) {
                     isKonvaDrawing = false;
@@ -2077,6 +2105,13 @@ if ($filePath !== '') {
         });
 
         konvaStage.on('mouseup touchend', () => {
+            if (currentMode === 'draw' && drawEraserMode && konvaIsErasing) {
+                if (konvaErasedInGesture) saveHistory();
+                konvaIsErasing = false;
+                konvaErasedInGesture = false;
+                return;
+            }
+
             if (pendingPlacementTool && pendingPlacementStart) {
                 const pos = konvaStage.getPointerPosition();
                 const end = pos ? screenToWorld(pos) : pendingPlacementStart;
@@ -2669,6 +2704,10 @@ if ($filePath !== '') {
     function setDrawWidth(val) { drawWidth = parseFloat(val) || 3; }
     function setDrawEraser(enabled) {
         drawEraserMode = !!enabled;
+        if (!drawEraserMode) {
+            konvaIsErasing = false;
+            konvaErasedInGesture = false;
+        }
         const btn = document.getElementById('btn-draw-eraser');
         if (btn) {
             btn.classList.toggle('btn-danger', drawEraserMode);
