@@ -132,6 +132,9 @@ if ($filePath !== '') {
                 <div class="border-start border-secondary mx-2 h-50"></div>
                 <span class="prop-label">Size</span>
                 <input type="range" class="form-range" style="width:80px" min="1" max="10" value="3" oninput="setPenWidth(this.value)">
+                <button type="button" class="btn btn-sm btn-outline-light ms-2" id="btn-draw-eraser" onclick="toggleDrawEraser()" title="Erase strokes">
+                    <i class="fas fa-eraser"></i>
+                </button>
             </div>
             
             <div id="prop-text" class="prop-section">
@@ -591,6 +594,7 @@ if ($filePath !== '') {
     let konvaCurrentPoints = [];
     let drawColor = '#ef4444';
     let drawWidth = 3;
+    let drawEraserMode = false;
     const konvaRulersByPage = {};
     let konvaTransformer = null;
     let konvaEditingTextarea = null;
@@ -1587,20 +1591,43 @@ if ($filePath !== '') {
             points,
             stroke: color,
             strokeWidth: width,
+            hitStrokeWidth: Math.max(16, width * 6),
             lineCap: 'round',
             lineJoin: 'round',
             tension: 0.4
         });
         path.setAttr('annoType', 'freedraw');
         path.on('click tap', () => {
-            konvaSelectedNode = { type: 'freedraw', ref: path };
-            showPropSection('smart');
-            if (konvaLayer) konvaLayer.batchDraw();
+            if (currentMode !== 'smart') setMode('smart');
+            selectFreeDrawPath(path);
         });
         konvaLayer.add(path);
         const item = { path, page: targetPage, color, width, points: [...points] };
         konvaDrawPaths.push(item);
         return item;
+    }
+
+    function selectFreeDrawPath(path) {
+        if (!path) return;
+        if (konvaSelectedNode?.type === 'freedraw' && konvaSelectedNode.ref && konvaSelectedNode.ref !== path) {
+            const prev = konvaSelectedNode.ref;
+            const prevData = konvaDrawPaths.find(p => p.path === prev);
+            if (prevData) prev.stroke(prevData.color);
+        }
+        konvaSelectedNode = { type: 'freedraw', ref: path };
+        path.stroke('#ff0000');
+        if (konvaLayer) konvaLayer.batchDraw();
+        showPropSection('smart');
+    }
+
+    function eraseFreeDrawPath(path) {
+        if (!path) return;
+        if (konvaSelectedNode?.type === 'freedraw' && konvaSelectedNode.ref === path) konvaSelectedNode = null;
+        path.destroy();
+        konvaDrawPaths = konvaDrawPaths.filter(p => p.path !== path);
+        saveCurrentPageAnnotations();
+        saveHistory();
+        if (konvaLayer) konvaLayer.batchDraw();
     }
 
     // MIGRATED: stamp Konva.Group
@@ -1885,6 +1912,11 @@ if ($filePath !== '') {
                     ref.rect.strokeWidth(4);
                     ref.rect.dash([]);
                     konvaLayer.batchDraw();
+                } else if (konvaSelectedNode?.type === 'freedraw') {
+                    const ref = konvaSelectedNode.ref;
+                    const data = konvaDrawPaths.find(p => p.path === ref);
+                    if (data) ref.stroke(data.color);
+                    konvaLayer.batchDraw();
                 }
                 konvaSelectedNode = null;
             }
@@ -1934,12 +1966,18 @@ if ($filePath !== '') {
             const world = screenToWorld(pos);
 
             if (currentMode === 'draw') {
+                const annoType = target?.getAttr ? target.getAttr('annoType') : null;
+                if (drawEraserMode && annoType === 'freedraw') {
+                    eraseFreeDrawPath(target);
+                    return;
+                }
                 isKonvaDrawing = true;
                 konvaCurrentPoints = [world.x, world.y];
                 konvaCurrentPath = new Konva.Line({
                     points: konvaCurrentPoints,
                     stroke: drawColor,
                     strokeWidth: drawWidth / (getViewport().scaleX),
+                    hitStrokeWidth: Math.max(16, (drawWidth / (getViewport().scaleX)) * 6),
                     lineCap: 'round',
                     lineJoin: 'round',
                     tension: 0.4,
@@ -2093,15 +2131,9 @@ if ($filePath !== '') {
                     return;
                 }
                 const completedPath = konvaCurrentPath;
-                const baseColor = drawColor;
                 completedPath.on('click tap', () => {
-                    konvaSelectedNode = { type: 'freedraw', ref: completedPath };
-                    completedPath.stroke('#ff0000');
-                    konvaLayer.batchDraw();
-                    showPropSection('smart');
-                });
-                completedPath.on('dragstart', () => {
-                    completedPath.stroke(baseColor);
+                    if (currentMode !== 'smart') setMode('smart');
+                    selectFreeDrawPath(completedPath);
                 });
                 konvaDrawPaths.push({
                     path: completedPath,
@@ -2544,7 +2576,9 @@ if ($filePath !== '') {
         updateKonvaInteractivity();
 
         if (konvaStage && konvaStage.container()) {
-            if (mode === 'draw' || mode === 'measure' || mode === 'cal') {
+            if (mode === 'draw') {
+                konvaStage.container().style.cursor = drawEraserMode ? 'not-allowed' : 'crosshair';
+            } else if (mode === 'measure' || mode === 'cal') {
                 konvaStage.container().style.cursor = 'crosshair';
             } else {
                 konvaStage.container().style.cursor = 'default';
@@ -2629,10 +2663,25 @@ if ($filePath !== '') {
     }
 
     // --- UTILS ---
-    function setPenColor(c, el) { drawColor = c; document.querySelectorAll('#prop-draw .color-dot').forEach(d => d.classList.remove('active')); if (el) el.classList.add('active'); }
+    function setPenColor(c, el) { drawColor = c; drawEraserMode = false; document.querySelectorAll('#prop-draw .color-dot').forEach(d => d.classList.remove('active')); if (el) el.classList.add('active'); }
     function setPenWidth(w) { drawWidth = parseFloat(w) || 3; }
-    function setDrawColor(color) { drawColor = color; }
+    function setDrawColor(color) { drawColor = color; drawEraserMode = false; }
     function setDrawWidth(val) { drawWidth = parseFloat(val) || 3; }
+    function setDrawEraser(enabled) {
+        drawEraserMode = !!enabled;
+        const btn = document.getElementById('btn-draw-eraser');
+        if (btn) {
+            btn.classList.toggle('btn-danger', drawEraserMode);
+            btn.classList.toggle('btn-outline-light', !drawEraserMode);
+        }
+        if (konvaStage && konvaStage.container()) {
+            konvaStage.container().style.cursor = drawEraserMode ? 'not-allowed' : 'crosshair';
+        }
+    }
+    function toggleDrawEraser() {
+        setDrawEraser(!drawEraserMode);
+        showToast(drawEraserMode ? 'Eraser enabled: tap a stroke to delete' : 'Eraser disabled', 'success');
+    }
 
     function startPlacementTool(tool) {
         pendingPlacementTool = tool;
