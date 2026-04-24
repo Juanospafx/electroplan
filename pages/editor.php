@@ -548,27 +548,11 @@ if ($filePath !== '') {
     let allAnnotations = <?= $annotations ?>;
     if(typeof allAnnotations !== 'object' || allAnnotations === null) allAnnotations = {};
 
+    // Persistencia explícita: solo se guarda al presionar Save (reporte).
+    // Cualquier edición sin Save se mantiene únicamente en memoria y se pierde al refrescar/salir.
     const draftAnnotationsKey = `ep_annotations_draft_file_${fileId}`;
-    function loadDraftAnnotations() {
-        try {
-            const raw = localStorage.getItem(draftAnnotationsKey);
-            if (!raw) return;
-            const parsed = JSON.parse(raw);
-            if (parsed && typeof parsed === 'object') {
-                allAnnotations = { ...allAnnotations, ...parsed };
-            }
-        } catch (e) {
-            console.warn('Draft annotations could not be loaded', e);
-        }
-    }
-    function persistDraftAnnotations() {
-        try {
-            localStorage.setItem(draftAnnotationsKey, JSON.stringify(allAnnotations));
-        } catch (e) {
-            console.warn('Draft annotations could not be saved', e);
-        }
-    }
-    loadDraftAnnotations();
+    try { localStorage.removeItem(draftAnnotationsKey); } catch (e) {}
+
 
     // KONVA PURE INIT
     const viewport = { x: 0, y: 0, scale: 1 };
@@ -659,26 +643,17 @@ if ($filePath !== '') {
     let calMode = 'preset';
     let cloudStrokeWidth = 3; // default actual behavior
 
-    // Calibration Persistence
-    function getCalKey(suffix) {
-        return `cal_${suffix}_file_${fileId}_page_${pageNum}`;
-    }
-
-    function getLegacyCalKey(suffix) {
-        return `cal_${suffix}_file_${fileId}`;
-    }
+    // Calibration Persistence (solo en memoria de sesión; no localStorage)
+    const calibrationByPage = {};
 
     function loadCalibrationForPage(showNotice) {
-        try {
-            let savedCal = localStorage.getItem(getCalKey('data'));
-            if (savedCal === null) savedCal = localStorage.getItem(getLegacyCalKey('data'));
-            if (savedCal && !isNaN(parseFloat(savedCal))) {
-                pixelsPerFoot = parseFloat(savedCal);
-                if (showNotice) setTimeout(() => showToast("Saved calibration loaded", "success"), 800);
-            } else {
-                pixelsPerFoot = 0;
-            }
-        } catch(e) { console.error("Storage error:", e); pixelsPerFoot = 0; }
+        const saved = calibrationByPage[pageNum];
+        if (saved && !isNaN(parseFloat(saved.data))) {
+            pixelsPerFoot = parseFloat(saved.data);
+            if (showNotice) setTimeout(() => showToast("Saved calibration loaded", "success"), 800);
+        } else {
+            pixelsPerFoot = 0;
+        }
         loadScaleDisplay();
     }
 
@@ -693,13 +668,8 @@ if ($filePath !== '') {
     }
 
     function loadScaleDisplay() {
-        let savedLabel = localStorage.getItem(getCalKey('scale_label'));
-        if (!savedLabel) savedLabel = localStorage.getItem(getLegacyCalKey('scale_label'));
-        if (savedLabel) {
-            setScaleDisplay(savedLabel);
-        } else {
-            setScaleDisplay('');
-        }
+        const savedLabel = calibrationByPage[pageNum]?.label || '';
+        setScaleDisplay(savedLabel);
     }
 
     function getActiveScaleLabel() {
@@ -898,8 +868,7 @@ if ($filePath !== '') {
         const nextPixelsPerFoot = pixelsPerInch / preset.feetPerInch;
         if (!isFinite(nextPixelsPerFoot) || nextPixelsPerFoot <= 0) { showToast("Invalid preset calculation", "error"); return; }
         pixelsPerFoot = nextPixelsPerFoot;
-        localStorage.setItem(getCalKey('data'), pixelsPerFoot);
-        localStorage.setItem(getCalKey('scale_label'), preset.label);
+        calibrationByPage[pageNum] = { data: pixelsPerFoot, label: preset.label };
         setScaleDisplay(preset.label);
         showToast(`Calibrated! 1 ft = ${pixelsPerFoot.toFixed(2)} px`, "success");
         refreshMeasureLabels();
@@ -1195,7 +1164,6 @@ if ($filePath !== '') {
         allAnnotations[pageNum] = {
             konva: serializeKonvaForPage(pageNum)
         };
-        persistDraftAnnotations();
     }
 
     function getSavedPageState(pg) {
@@ -2742,8 +2710,7 @@ if ($filePath !== '') {
             const val = parseFloat(document.getElementById('cal-val').value);
             if(val > 0) {
                 pixelsPerFoot = canvas.tempDist / val;
-                localStorage.setItem(getCalKey('data'), pixelsPerFoot);
-                localStorage.setItem(getCalKey('scale_label'), 'Custom');
+                calibrationByPage[pageNum] = { data: pixelsPerFoot, label: 'Custom' };
                 setScaleDisplay('Custom');
                 showToast(`Calibrated! 1 ft = ${pixelsPerFoot.toFixed(2)} px`, "success");
                 refreshMeasureLabels();
@@ -3103,15 +3070,7 @@ if ($filePath !== '') {
         }
     });
 
-    window.addEventListener('beforeunload', () => {
-        saveCurrentPageAnnotations();
-    });
-    window.addEventListener('pagehide', () => {
-        saveCurrentPageAnnotations();
-    });
-    document.addEventListener('visibilitychange', () => {
-        if (document.visibilityState === 'hidden') saveCurrentPageAnnotations();
-    });
+    // No persistir al refrescar/salir: solo persiste con Save (save_report_flow).
 
 </script>
 </body>
