@@ -1443,7 +1443,7 @@ if ($filePath !== '') {
             if (currentMode !== 'smart') setMode('smart');
             konvaSelectedNote = note;
             konvaSelectedNode = { type: 'note', ref: note };
-            if (konvaTransformer) konvaTransformer.nodes([group]);
+            if (konvaTransformer) konvaTransformer.nodes([]);
             // FIX-2c: evitar que Fabric sobreescriba el panel de propiedades de Konva
             canvas.discardActiveObject();
             canvas.requestRenderAll();
@@ -1461,14 +1461,14 @@ if ($filePath !== '') {
         label.on('dblclick dbltap', () => {
             if (currentMode !== 'smart') setMode('smart');
             konvaSelectedNote = note;
-            if (konvaTransformer) konvaTransformer.nodes([group]);
+            if (konvaTransformer) konvaTransformer.nodes([]);
             konvaSelectedNode = { type: 'note', ref: note };
             startInlineNoteEdit(note);
         });
         group.on('dblclick dbltap', () => {
             if (currentMode !== 'smart') setMode('smart');
             konvaSelectedNote = note;
-            if (konvaTransformer) konvaTransformer.nodes([group]);
+            if (konvaTransformer) konvaTransformer.nodes([]);
             konvaSelectedNode = { type: 'note', ref: note };
             startInlineNoteEdit(note);
         });
@@ -2150,7 +2150,7 @@ if ($filePath !== '') {
                     note.group.scaleX(Math.max(0.35, width / baseW));
                     note.group.scaleY(Math.max(0.35, height / baseH));
                     updateKonvaNoteBox(note);
-                    if (konvaTransformer) konvaTransformer.nodes([note.group]);
+                    if (konvaTransformer) konvaTransformer.nodes([]);
                     konvaSelectedNode = { type: 'note', ref: note };
                     konvaSelectedNote = note;
                     startInlineNoteEdit(note);
