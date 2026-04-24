@@ -299,6 +299,77 @@ if ($filePath !== '') {
         </button>
     </div>
 
+    <!-- MOBILE PROPS PANEL -->
+    <div id="mobile-props-panel" class="mobile-props-panel">
+        <div class="mobile-prop-section" id="m-prop-draw">
+            <div class="d-flex align-items-center gap-3 flex-wrap">
+                <span class="mobile-prop-label">Color</span>
+                <div class="d-flex gap-2">
+                    <div class="color-dot active" style="background:#ef4444" onclick="setPenColor('#ef4444', this); syncDesktopDot('prop-draw', '#ef4444')"></div>
+                    <div class="color-dot" style="background:#3b82f6" onclick="setPenColor('#3b82f6', this); syncDesktopDot('prop-draw', '#3b82f6')"></div>
+                    <div class="color-dot" style="background:#22c55e" onclick="setPenColor('#22c55e', this); syncDesktopDot('prop-draw', '#22c55e')"></div>
+                    <div class="color-dot" style="background:#eab308" onclick="setPenColor('#eab308', this); syncDesktopDot('prop-draw', '#eab308')"></div>
+                </div>
+                <div class="vr opacity-25"></div>
+                <span class="mobile-prop-label">Grosor</span>
+                <input type="range" class="form-range" style="width:90px" min="1" max="10" value="3" oninput="setPenWidth(this.value)" id="m-pen-width">
+                <button class="btn btn-sm btn-outline-light" id="m-btn-draw-eraser" onclick="toggleDrawEraser()" title="Borrador">
+                    <i class="fas fa-eraser"></i>
+                </button>
+            </div>
+        </div>
+
+        <div class="mobile-prop-section" id="m-prop-text">
+            <div class="d-flex align-items-center gap-3 flex-wrap">
+                <span class="mobile-prop-label">Color</span>
+                <div class="d-flex gap-2 flex-wrap" id="m-text-color-container">
+                    <div class="color-dot" data-col="#ef4444" style="background:#ef4444" onclick="setTextFixedColor('#ef4444', this)"></div>
+                    <div class="color-dot" data-col="#3b82f6" style="background:#3b82f6" onclick="setTextFixedColor('#3b82f6', this)"></div>
+                    <div class="color-dot" data-col="#22c55e" style="background:#22c55e" onclick="setTextFixedColor('#22c55e', this)"></div>
+                    <div class="color-dot" data-col="#eab308" style="background:#eab308" onclick="setTextFixedColor('#eab308', this)"></div>
+                    <div class="color-dot" data-col="#ec4899" style="background:#ec4899" onclick="setTextFixedColor('#ec4899', this)"></div>
+                    <div class="color-dot" data-col="#f97316" style="background:#f97316" onclick="setTextFixedColor('#f97316', this)"></div>
+                    <div class="color-dot" data-col="#8b5cf6" style="background:#8b5cf6" onclick="setTextFixedColor('#8b5cf6', this)"></div>
+                    <div class="color-dot" data-col="#ffffff" style="background:#ffffff; border:1px solid #64748b" onclick="setTextFixedColor('#ffffff', this)"></div>
+                </div>
+                <div class="vr opacity-25"></div>
+                <span class="mobile-prop-label">Tamaño</span>
+                <input type="number" class="form-control py-0 px-2 text-center" value="60" min="8" max="100" style="width:64px; height:34px;" onchange="updateTextProp('fontSize', parseInt(this.value))" id="m-text-size-input">
+            </div>
+        </div>
+
+        <div class="mobile-prop-section" id="m-prop-cloud">
+            <div class="d-flex align-items-center gap-3">
+                <span class="mobile-prop-label"><i class="fas fa-cloud me-1"></i>Trazo</span>
+                <select class="form-select form-select-sm" style="width:160px; height:34px;" onchange="setCloudStrokeWidth(this.value)" id="m-cloud-stroke">
+                    <option value="1.5">Fina</option>
+                    <option value="3" selected>Normal</option>
+                    <option value="6">Gruesa</option>
+                    <option value="9">Extra gruesa</option>
+                </select>
+            </div>
+        </div>
+
+        <div class="mobile-prop-section" id="m-prop-measure">
+            <div class="d-flex align-items-center gap-2">
+                <i class="fas fa-ruler text-success"></i>
+                <span class="text-white small">Arrastra los nodos para ajustar</span>
+            </div>
+        </div>
+
+        <div class="mobile-prop-section" id="m-prop-cal">
+            <div class="d-flex align-items-center gap-2">
+                <i class="fas fa-ruler-combined text-warning"></i>
+                <span class="text-white small">Dibuja una línea conocida en el plano</span>
+                <button class="btn btn-sm btn-warning ms-2" onclick="openMobileCalModal()">
+                    <i class="fas fa-cog me-1"></i>Config
+                </button>
+            </div>
+        </div>
+
+        <div class="mobile-prop-section" id="m-prop-smart" style="display:none"></div>
+    </div>
+
 </div>
 
 <div class="modal fade" id="mobileCalModal" tabindex="-1">
@@ -924,6 +995,7 @@ if ($filePath !== '') {
     function syncCloudStrokeControl(value = cloudStrokeWidth) {
         const ctrl = document.getElementById('cloud-stroke');
         if (ctrl) ctrl.value = String(value);
+        syncCloudStrokeSelect(String(value));
     }
 
     function setCloudStrokeWidth(value) {
@@ -1460,11 +1532,9 @@ if ($filePath !== '') {
             canvas.discardActiveObject();
             canvas.requestRenderAll();
             showPropSection('text');
-            const sizeInput = document.getElementById('text-size-input');
-            if (sizeInput) sizeInput.value = Math.round(note.label.fontSize());
-            // FIX-2c: marcar color activo al seleccionar nota Konva
+            syncTextSizeInput(Math.round(note.label.fontSize()));
             const currentFill = note.label.fill();
-            document.querySelectorAll('#prop-text .color-dot').forEach(d => {
+            document.querySelectorAll('#prop-text .color-dot, #m-prop-text .color-dot').forEach(d => {
                 d.classList.remove('active');
                 if ((d.getAttribute('data-col') || '').toLowerCase() === (currentFill || '').toLowerCase()) d.classList.add('active');
             });
@@ -2000,6 +2070,7 @@ if ($filePath !== '') {
             if (currentMode === 'smart' && isEmpty) {
                 clearSelectionVisual();
                 konvaSelectedNode = null;
+                showPropSection('smart');
             }
         });
         konvaStage.on('mousemove touchmove', (e) => {
@@ -2643,9 +2714,7 @@ if ($filePath !== '') {
             document.getElementById('btn-smart').classList.add('active');
         }
 
-        document.querySelectorAll('.prop-section').forEach(p => p.classList.remove('active'));
-        const propEl = document.getElementById('prop-' + mode);
-        if (propEl) propEl.classList.add('active');
+        showPropSection(mode);
         document.getElementById('stamp-menu').style.display = 'none';
 
         if (mode === 'measure' && pixelsPerFoot <= 0) {
@@ -2687,8 +2756,63 @@ if ($filePath !== '') {
     function showPropSection(idPart) {
         document.querySelectorAll('.prop-section').forEach(p => p.classList.remove('active'));
         const el = document.getElementById('prop-' + idPart);
-        if(el) el.classList.add('active');
+        if (el) el.classList.add('active');
         keepScaleDisplayVisible();
+
+        if (window.innerWidth <= 991) {
+            const panel = document.getElementById('mobile-props-panel');
+            if (!panel) return;
+
+            panel.querySelectorAll('.mobile-prop-section').forEach(s => s.classList.remove('active'));
+
+            const noOptionsTools = ['smart'];
+            if (noOptionsTools.includes(idPart)) {
+                panel.classList.remove('visible');
+                document.body.classList.remove('has-mobile-props');
+                return;
+            }
+
+            const mSection = document.getElementById('m-prop-' + idPart);
+            if (mSection) {
+                mSection.classList.add('active');
+                panel.classList.add('visible');
+                document.body.classList.add('has-mobile-props');
+            } else {
+                panel.classList.remove('visible');
+                document.body.classList.remove('has-mobile-props');
+            }
+        }
+    }
+
+    function syncDesktopDot(propId, color) {
+        const normalized = String(color || '').toLowerCase();
+        document.querySelectorAll('#' + propId + ' .color-dot').forEach(d => d.classList.remove('active'));
+        document.querySelectorAll('#' + propId + ' .color-dot').forEach(d => {
+            const bg = String(d.style.background || '').toLowerCase().replace(/\s+/g, '');
+            const col = String(d.getAttribute('data-col') || '').toLowerCase();
+            if (col === normalized || bg.includes(normalized)) d.classList.add('active');
+        });
+    }
+
+    function syncPenWidthSlider(val) {
+        const mSlider = document.getElementById('m-pen-width');
+        if (mSlider) mSlider.value = val;
+        const dSlider = document.querySelector('#prop-draw input[type="range"]');
+        if (dSlider) dSlider.value = val;
+    }
+
+    function syncTextSizeInput(val) {
+        const mInput = document.getElementById('m-text-size-input');
+        if (mInput) mInput.value = val;
+        const dInput = document.getElementById('text-size-input');
+        if (dInput) dInput.value = val;
+    }
+
+    function syncCloudStrokeSelect(val) {
+        const mSelect = document.getElementById('m-cloud-stroke');
+        if (mSelect) mSelect.value = val;
+        const dSelect = document.getElementById('cloud-stroke');
+        if (dSelect) dSelect.value = val;
     }
 
     function toggleStampMenu() {
@@ -2749,8 +2873,14 @@ if ($filePath !== '') {
     }
 
     // --- UTILS ---
-    function setPenColor(c, el) { drawColor = c; drawEraserMode = false; document.querySelectorAll('#prop-draw .color-dot').forEach(d => d.classList.remove('active')); if (el) el.classList.add('active'); }
-    function setPenWidth(w) { drawWidth = parseFloat(w) || 3; }
+    function setPenColor(c, el) {
+        drawColor = c;
+        drawEraserMode = false;
+        document.querySelectorAll('#prop-draw .color-dot, #m-prop-draw .color-dot').forEach(d => d.classList.remove('active'));
+        if (el) el.classList.add('active');
+        syncDesktopDot('prop-draw', c);
+    }
+    function setPenWidth(w) { drawWidth = parseFloat(w) || 3; syncPenWidthSlider(w); }
     function setDrawColor(color) { drawColor = color; drawEraserMode = false; }
     function setDrawWidth(val) { drawWidth = parseFloat(val) || 3; }
     function setDrawEraser(enabled) {
@@ -2763,6 +2893,11 @@ if ($filePath !== '') {
         if (btn) {
             btn.classList.toggle('btn-danger', drawEraserMode);
             btn.classList.toggle('btn-outline-light', !drawEraserMode);
+        }
+        const mBtn = document.getElementById('m-btn-draw-eraser');
+        if (mBtn) {
+            mBtn.classList.toggle('btn-warning', drawEraserMode);
+            mBtn.classList.toggle('btn-outline-light', !drawEraserMode);
         }
         if (konvaStage && konvaStage.container()) {
             konvaStage.container().style.cursor = drawEraserMode ? 'not-allowed' : 'crosshair';
@@ -2811,8 +2946,11 @@ if ($filePath !== '') {
     }
 
     function setTextFixedColor(color, el) {
-        document.querySelectorAll('#prop-text .color-dot').forEach(d => d.classList.remove('active'));
-        el.classList.add('active');
+        document.querySelectorAll('#prop-text .color-dot, #m-prop-text .color-dot').forEach(d => d.classList.remove('active'));
+        if (el) el.classList.add('active');
+        document.querySelectorAll('#prop-text .color-dot, #m-prop-text .color-dot').forEach(d => {
+            if ((d.getAttribute('data-col') || '').toLowerCase() === String(color).toLowerCase()) d.classList.add('active');
+        });
         updateTextProp('fill', color);
     }
 
@@ -3081,7 +3219,11 @@ if ($filePath !== '') {
                     konvaSelectedNote.bg.stroke(val);
                 }
             }
-        if (prop === 'fontSize') konvaSelectedNote.label.fontSize(parseInt(val, 10) || konvaSelectedNote.label.fontSize());
+        if (prop === 'fontSize') {
+            const nextSize = parseInt(val, 10) || konvaSelectedNote.label.fontSize();
+            konvaSelectedNote.label.fontSize(nextSize);
+            syncTextSizeInput(nextSize);
+        }
         updateKonvaNoteBox(konvaSelectedNote);
         if (konvaLayer) konvaLayer.batchDraw();
         saveCurrentPageAnnotations();

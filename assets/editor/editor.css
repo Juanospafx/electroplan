@@ -193,6 +193,9 @@
     #btn-toggle-left:hover, #btn-toggle-left.active, #mobile-toggle-left.active, #mobile-toggle-tools.active { color: var(--text-main); }
 
     .mobile-bottom-bar { display: none; }
+    .mobile-props-panel { display: none; }
+    .mobile-prop-section { display: none; }
+    .mobile-prop-section.active { display: flex; }
 
         /* BUTTONS */
         .btn-action { 
@@ -346,4 +349,38 @@
 
             #btn-save { width: 40px !important; height: 40px !important; padding: 0 !important; border-radius: 50% !important; }
             #btn-save span { display: none !important; }
+
+            .mobile-props-panel {
+                display: none;
+                position: fixed;
+                bottom: 56px;
+                left: 0;
+                right: 0;
+                background: var(--bg-panel);
+                border-top: 1px solid var(--border);
+                z-index: 560;
+                padding: 10px 16px;
+                min-height: 54px;
+                align-items: center;
+                overflow-x: auto;
+                overflow-y: hidden;
+                -webkit-overflow-scrolling: touch;
+                scrollbar-width: none;
+                transition: transform 0.2s ease;
+            }
+            .mobile-props-panel::-webkit-scrollbar { display: none; }
+            .mobile-props-panel.visible { display: flex; }
+            .mobile-prop-section { align-items: center; width: 100%; }
+            .mobile-prop-label {
+                font-size: 0.7rem;
+                text-transform: uppercase;
+                font-weight: 700;
+                color: var(--text-muted);
+                letter-spacing: 0.5px;
+                white-space: nowrap;
+                flex-shrink: 0;
+            }
+
+            .canvas-area { padding-bottom: 56px; }
+            body.has-mobile-props .canvas-area { padding-bottom: calc(56px + 54px); }
         }
