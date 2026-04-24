@@ -601,6 +601,8 @@ if ($filePath !== '') {
     let konvaTransformer = null;
     let konvaEditingTextarea = null;
     let konvaSelectedNote = null;
+    let noteEditViewportBefore = null;
+    let noteEditDidAutoZoom = false;
     let konvaSelectedNode = null;
     let konvaDrawing = null;
     let konvaIsPanning = false;
@@ -1471,7 +1473,7 @@ if ($filePath !== '') {
             clearSelectionVisual();
             konvaSelectedNote = note;
             konvaSelectedNode = { type: 'note', ref: note };
-            if (konvaTransformer) konvaTransformer.nodes([]);
+            if (konvaTransformer) konvaTransformer.nodes([group]);
             // FIX-2c: evitar que Fabric sobreescriba el panel de propiedades de Konva
             canvas.discardActiveObject();
             canvas.requestRenderAll();
@@ -1489,14 +1491,14 @@ if ($filePath !== '') {
         label.on('dblclick dbltap', () => {
             if (currentMode !== 'smart') setMode('smart');
             konvaSelectedNote = note;
-            if (konvaTransformer) konvaTransformer.nodes([]);
+            if (konvaTransformer) konvaTransformer.nodes([group]);
             konvaSelectedNode = { type: 'note', ref: note };
             startInlineNoteEdit(note);
         });
         group.on('dblclick dbltap', () => {
             if (currentMode !== 'smart') setMode('smart');
             konvaSelectedNote = note;
-            if (konvaTransformer) konvaTransformer.nodes([]);
+            if (konvaTransformer) konvaTransformer.nodes([group]);
             konvaSelectedNode = { type: 'note', ref: note };
             startInlineNoteEdit(note);
         });
@@ -1784,26 +1786,33 @@ if ($filePath !== '') {
         if (!note || !konvaStage || !konvaLayer) return;
         konvaSelectedNote = note;
 
-        // FIX: En mobile, autozoom para que la nota sea visible al editar
-        if (window.innerWidth <= 991) {
+        // Auto-zoom para edición de nota (desktop/mobile)
+        noteEditViewportBefore = {
+            x: konvaStage.x(),
+            y: konvaStage.y(),
+            scale: konvaStage.scaleX()
+        };
+        noteEditDidAutoZoom = false;
+        {
             const textNode = note.label;
             const absPos = textNode.getAbsolutePosition();
             const containerRect = konvaStage.container().getBoundingClientRect();
             const containerW = containerRect.width;
             const containerH = containerRect.height * 0.55;
-
-            const MIN_ZOOM_FOR_EDIT = 1.8;
-            let targetZoom = Math.max(canvas.getZoom(), MIN_ZOOM_FOR_EDIT);
-
+            const MIN_ZOOM_FOR_EDIT = (window.innerWidth <= 991) ? 1.8 : 1.35;
+            const targetZoom = Math.max(konvaStage.scaleX(), MIN_ZOOM_FOR_EDIT);
             const worldX = absPos.x;
             const worldY = absPos.y;
             const newTx = containerW / 2 - worldX * targetZoom;
             const newTy = containerH / 2 - worldY * targetZoom;
-
-            canvas.setViewportTransform([targetZoom, 0, 0, targetZoom, newTx, newTy]);
-            document.getElementById('zoom-disp').innerText = Math.round(targetZoom * 100) + '%';
-            updateTextScales(targetZoom);
-            syncKonvaToFabric();
+            if (Math.abs(targetZoom - konvaStage.scaleX()) > 0.001 || Math.abs(newTx - konvaStage.x()) > 0.5 || Math.abs(newTy - konvaStage.y()) > 0.5) {
+                konvaStage.scale({ x: targetZoom, y: targetZoom });
+                konvaStage.position({ x: newTx, y: newTy });
+                konvaStage.batchDraw();
+                document.getElementById('zoom-disp').innerText = Math.round(targetZoom * 100) + '%';
+                updateRulerScales();
+                noteEditDidAutoZoom = true;
+            }
         }
 
         const container = konvaStage.container();
@@ -1831,6 +1840,7 @@ if ($filePath !== '') {
             konvaEditingTextarea.style.outline = 'none';
             konvaEditingTextarea.style.background = '#0f172a';
             konvaEditingTextarea.style.color = '#ffffff';
+            konvaEditingTextarea.style.overflow = 'hidden';
             container.appendChild(konvaEditingTextarea);
         }
 
@@ -1849,6 +1859,7 @@ if ($filePath !== '') {
         konvaEditingTextarea.style.caretColor = '#ffffff';
         konvaEditingTextarea.value = textNode.text();
         konvaEditingTextarea.focus();
+        konvaEditingTextarea.select();
 
         const finish = () => {
             if (!konvaEditingTextarea) return;
@@ -1863,10 +1874,20 @@ if ($filePath !== '') {
                 removeKonvaNote(note);
                 showToast("Empty note discarded", "warning");
                 saveCurrentPageAnnotations();
-                return;
+            } else {
+                konvaLayer.batchDraw();
+                saveCurrentPageAnnotations();
             }
-            konvaLayer.batchDraw();
-            saveCurrentPageAnnotations();
+
+            if (noteEditDidAutoZoom && noteEditViewportBefore && konvaStage) {
+                konvaStage.scale({ x: noteEditViewportBefore.scale, y: noteEditViewportBefore.scale });
+                konvaStage.position({ x: noteEditViewportBefore.x, y: noteEditViewportBefore.y });
+                konvaStage.batchDraw();
+                document.getElementById('zoom-disp').innerText = Math.round((noteEditViewportBefore.scale || 1) * 100) + '%';
+                updateRulerScales();
+            }
+            noteEditDidAutoZoom = false;
+            noteEditViewportBefore = null;
         };
 
         const onInput = () => {
@@ -2166,7 +2187,7 @@ if ($filePath !== '') {
                     note.group.scaleX(Math.max(0.35, width / baseW));
                     note.group.scaleY(Math.max(0.35, height / baseH));
                     updateKonvaNoteBox(note);
-                    if (konvaTransformer) konvaTransformer.nodes([]);
+                    if (konvaTransformer) konvaTransformer.nodes([note.group]);
                     konvaSelectedNode = { type: 'note', ref: note };
                     konvaSelectedNote = note;
                     startInlineNoteEdit(note);
