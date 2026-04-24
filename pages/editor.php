@@ -132,6 +132,9 @@ if ($filePath !== '') {
                 <div class="border-start border-secondary mx-2 h-50"></div>
                 <span class="prop-label">Size</span>
                 <input type="range" class="form-range" style="width:80px" min="1" max="10" value="3" oninput="setPenWidth(this.value)">
+                <button type="button" class="btn btn-sm btn-outline-light ms-2" id="btn-draw-eraser" onclick="toggleDrawEraser()" title="Erase strokes">
+                    <i class="fas fa-eraser"></i>
+                </button>
             </div>
             
             <div id="prop-text" class="prop-section">
@@ -1588,6 +1591,7 @@ if ($filePath !== '') {
             points,
             stroke: color,
             strokeWidth: width,
+            hitStrokeWidth: Math.max(16, width * 6),
             lineCap: 'round',
             lineJoin: 'round',
             tension: 0.4
@@ -1973,6 +1977,7 @@ if ($filePath !== '') {
                     points: konvaCurrentPoints,
                     stroke: drawColor,
                     strokeWidth: drawWidth / (getViewport().scaleX),
+                    hitStrokeWidth: Math.max(16, (drawWidth / (getViewport().scaleX)) * 6),
                     lineCap: 'round',
                     lineJoin: 'round',
                     tension: 0.4,
@@ -2664,6 +2669,11 @@ if ($filePath !== '') {
     function setDrawWidth(val) { drawWidth = parseFloat(val) || 3; }
     function setDrawEraser(enabled) {
         drawEraserMode = !!enabled;
+        const btn = document.getElementById('btn-draw-eraser');
+        if (btn) {
+            btn.classList.toggle('btn-danger', drawEraserMode);
+            btn.classList.toggle('btn-outline-light', !drawEraserMode);
+        }
         if (konvaStage && konvaStage.container()) {
             konvaStage.container().style.cursor = drawEraserMode ? 'not-allowed' : 'crosshair';
         }
