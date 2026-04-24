@@ -22,6 +22,9 @@ if(!$file) {
 }
 
 $projectId = $file['project_id'];
+$stmtProj = $pdo->prepare("SELECT name FROM projects WHERE id=?");
+$stmtProj->execute([$projectId]);
+$projectName = $stmtProj->fetchColumn() ?: 'Electroplan Project';
 $folderId = $file['folder_id'];
 $backUrl = "project_dashboard.php?id={$projectId}";
 $backUrl .= $folderId ? "&view=files&folder_id={$folderId}" : "&view=summary";
@@ -1072,7 +1075,7 @@ if ($filePath !== '') {
 
     function zoomToPoint(screenX, screenY, newScale) {
         if (!konvaStage) return;
-        newScale = Math.min(20, Math.max(0.05, newScale));
+        newScale = Math.min(10, Math.max(0.3, newScale));
         const oldScale = konvaStage.scaleX() || 1;
         const stageX = konvaStage.x();
         const stageY = konvaStage.y();
@@ -1116,8 +1119,12 @@ if ($filePath !== '') {
             r.line.strokeWidth(4 * invScale);
             r.a1.radius(6 * invScale);
             r.a2.radius(6 * invScale);
-            r.label.fontSize(16 * invScale);
-            r.label.padding(4 * invScale);
+            const LABEL_MIN_PX = 11;
+            const LABEL_MAX_PX = 22;
+            const rawFontSize = 16 * invScale;
+            const clampedFontSize = Math.max(LABEL_MIN_PX * invScale, Math.min(LABEL_MAX_PX * invScale, rawFontSize));
+            r.label.fontSize(clampedFontSize);
+            r.label.padding(Math.max(2 * invScale, Math.min(6 * invScale, 4 * invScale)));
             // FIX: hitbox táctil estable en pantalla
             const hitRadius = Math.max(20, 28 * invScale);
             r.a1.hitFunc(function(context) {
@@ -3105,66 +3112,180 @@ if ($filePath !== '') {
 
     async function captureEditorSnapshot() {
         if (!konvaStage) return null;
-        return await new Promise((resolve, reject) => {
-            try {
+        try {
+            return await new Promise((resolve, reject) => {
                 konvaStage.toDataURL({
                     mimeType: 'image/jpeg',
-                    quality: 0.8,
-                    callback: function(dataUrl) {
-                        if (dataUrl) resolve(dataUrl);
-                        else reject(new Error('toDataURL returned empty'));
+                    quality: 0.92,
+                    pixelRatio: 1.5,
+                    callback: (dataUrl) => {
+                        if (dataUrl && dataUrl.length > 100) resolve(dataUrl);
+                        else reject(new Error('empty'));
                     }
                 });
-            } catch (err) {
-                try {
-                    const wrapper = document.getElementById('canvas-wrapper');
-                    const offscreen = document.createElement('canvas');
-                    offscreen.width = wrapper?.clientWidth || konvaStage.width();
-                    offscreen.height = wrapper?.clientHeight || konvaStage.height();
-                    const ctx = offscreen.getContext('2d');
-                    konvaStage.getLayers().forEach(layer => {
-                        const layerCanvas = layer.getCanvas()?._canvas;
-                        if (layerCanvas) ctx.drawImage(layerCanvas, 0, 0);
-                    });
-                    resolve(offscreen.toDataURL('image/jpeg', 0.8));
-                } catch (e2) {
-                    reject(e2);
-                }
+            });
+        } catch (_) {
+            try {
+                const wrapper = document.getElementById('canvas-wrapper');
+                const offscreen = document.createElement('canvas');
+                offscreen.width = wrapper.clientWidth;
+                offscreen.height = wrapper.clientHeight;
+                const ctx = offscreen.getContext('2d');
+                konvaStage.getLayers().forEach(layer => {
+                    const lc = layer.getCanvas()?._canvas;
+                    if (lc) ctx.drawImage(lc, 0, 0);
+                });
+                return offscreen.toDataURL('image/jpeg', 0.92);
+            } catch (e2) {
+                return null;
             }
-        });
+        }
     }
 
     async function submitReport() {
         const btn = document.getElementById('btn-generate');
-        btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> Generating...';
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> Generating...';
         try {
             const { jsPDF } = window.jspdf;
-            const doc = new jsPDF();
-            doc.setFontSize(22); doc.text("Field Activity Report", 20, 20);
-            doc.setFontSize(12);
-            doc.text(`Project File: <?= $file['filename'] ?>`, 20, 35);
-            doc.text(`Technician: ${document.getElementById('rep-name').value}`, 20, 45);
-            doc.text(`Role: ${document.getElementById('rep-role').value}`, 20, 55);
-            doc.text(`Date: ${new Date().toLocaleDateString()}`, 20, 65);
-            doc.setFontSize(14); doc.text("Activity Description:", 20, 80);
-            doc.setFontSize(11);
-            const desc = document.getElementById('rep-desc').value;
-            const splitText = doc.splitTextToSize(desc, 170);
-            doc.text(splitText, 20, 90);
-            if (reportAttachments.length > 0) {
-                const names = reportAttachments.map(a => `- ${a.file.name}`);
-                doc.setFontSize(12);
-                doc.text('Attachments:', 20, 118);
-                doc.setFontSize(10);
-                doc.text(doc.splitTextToSize(names.join('\n'), 170), 20, 126);
-            }
             const dataUrl = await captureEditorSnapshot();
+            const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+            const PW = doc.internal.pageSize.getWidth();
+            const PH = doc.internal.pageSize.getHeight();
+            const MARGIN = 18;
+            const CONTENT_W = PW - MARGIN * 2;
+
+            const techName = document.getElementById('rep-name').value.trim() || 'Unknown';
+            const techRole = document.getElementById('rep-role').value.trim() || 'Technician';
+            const desc = document.getElementById('rep-desc').value.trim();
+            const dateStr = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+            const timeStr = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+
+            doc.setFillColor(251, 90, 58);
+            doc.rect(0, 0, PW, 28, 'F');
+            doc.setTextColor(255, 255, 255);
+            doc.setFontSize(18);
+            doc.setFont('helvetica', 'bold');
+            doc.text('FIELD ACTIVITY REPORT', MARGIN, 12);
+            doc.setFontSize(9);
+            doc.setFont('helvetica', 'normal');
+            doc.text('Brightronix — Electroplan', MARGIN, 20);
+            doc.text(dateStr + ' · ' + timeStr, PW - MARGIN, 20, { align: 'right' });
+
+            let y = 38;
+            doc.setFillColor(36, 42, 56);
+            doc.roundedRect(MARGIN, y, CONTENT_W, 38, 3, 3, 'F');
+            doc.setTextColor(148, 163, 184);
+            doc.setFontSize(7);
+            doc.setFont('helvetica', 'bold');
+            doc.text('PROJECT', MARGIN + 8, y + 8);
+            doc.text('FILE', MARGIN + (CONTENT_W / 3) + 8, y + 8);
+            doc.text('PAGE', MARGIN + (CONTENT_W * 2 / 3) + 8, y + 8);
+            doc.setTextColor(255, 255, 255);
+            doc.setFontSize(10);
+            doc.setFont('helvetica', 'bold');
+
+            const projName = doc.splitTextToSize('<?= addslashes($projectName) ?>', CONTENT_W / 3 - 16);
+            doc.text(projName, MARGIN + 8, y + 16);
+            const fname = doc.splitTextToSize('<?= addslashes($file['filename']) ?>', CONTENT_W / 3 - 16);
+            doc.text(fname, MARGIN + (CONTENT_W / 3) + 8, y + 16);
+            doc.text('Sheet ' + (typeof pageNum !== 'undefined' ? pageNum : '1'), MARGIN + (CONTENT_W * 2 / 3) + 8, y + 16);
+
+            doc.setDrawColor(47, 56, 74);
+            doc.line(MARGIN + CONTENT_W / 3, y + 3, MARGIN + CONTENT_W / 3, y + 35);
+            doc.line(MARGIN + CONTENT_W * 2 / 3, y + 3, MARGIN + CONTENT_W * 2 / 3, y + 35);
+
+            y += 48;
+            doc.setTextColor(251, 90, 58);
+            doc.setFontSize(8);
+            doc.setFont('helvetica', 'bold');
+            doc.text('TECHNICIAN', MARGIN, y);
+            doc.setDrawColor(251, 90, 58);
+            doc.line(MARGIN, y + 1.5, MARGIN + 30, y + 1.5);
+            y += 7;
+            doc.setTextColor(255, 255, 255);
+            doc.setFontSize(12);
+            doc.setFont('helvetica', 'bold');
+            doc.text(techName, MARGIN, y);
+            doc.setFontSize(9);
+            doc.setFont('helvetica', 'normal');
+            doc.setTextColor(148, 163, 184);
+            doc.text(techRole.charAt(0).toUpperCase() + techRole.slice(1), MARGIN, y + 6);
+
+            y += 20;
+            doc.setTextColor(251, 90, 58);
+            doc.setFontSize(8);
+            doc.setFont('helvetica', 'bold');
+            doc.text('ACTIVITY DESCRIPTION', MARGIN, y);
+            doc.setDrawColor(251, 90, 58);
+            doc.line(MARGIN, y + 1.5, MARGIN + 52, y + 1.5);
+            y += 8;
+            doc.setTextColor(220, 220, 220);
+            doc.setFontSize(10);
+            doc.setFont('helvetica', 'normal');
+            const splitDesc = doc.splitTextToSize(desc || '(No description provided)', CONTENT_W);
+            doc.text(splitDesc, MARGIN, y);
+            y += splitDesc.length * 5.5 + 6;
+
+            if (reportAttachments.length > 0) {
+                doc.setTextColor(251, 90, 58);
+                doc.setFontSize(8);
+                doc.setFont('helvetica', 'bold');
+                doc.text('ATTACHMENTS', MARGIN, y);
+                doc.setDrawColor(251, 90, 58);
+                doc.line(MARGIN, y + 1.5, MARGIN + 36, y + 1.5);
+                y += 8;
+                doc.setTextColor(200, 200, 200);
+                doc.setFontSize(9);
+                doc.setFont('helvetica', 'normal');
+                reportAttachments.forEach(a => {
+                    doc.text('· ' + a.file.name, MARGIN + 4, y);
+                    y += 5.5;
+                });
+                y += 4;
+            }
+
+            doc.setFillColor(36, 42, 56);
+            doc.rect(0, PH - 14, PW, 14, 'F');
+            doc.setTextColor(148, 163, 184);
+            doc.setFontSize(7);
+            doc.setFont('helvetica', 'normal');
+            doc.text('Brightronix · Electroplan · Field Activity Report', MARGIN, PH - 5);
+            doc.text('Page 1 of 2', PW - MARGIN, PH - 5, { align: 'right' });
+
             doc.addPage();
-            doc.text("Plan Snapshot (Current View)", 20, 20);
-            const imgProps = doc.getImageProperties(dataUrl);
-            const pdfWidth = doc.internal.pageSize.getWidth() - 40;
-            const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
-            doc.addImage(dataUrl, 'JPEG', 20, 30, pdfWidth, pdfHeight);
+            doc.setFillColor(251, 90, 58);
+            doc.rect(0, 0, PW, 20, 'F');
+            doc.setTextColor(255, 255, 255);
+            doc.setFontSize(13);
+            doc.setFont('helvetica', 'bold');
+            doc.text('PLAN SNAPSHOT — Annotated View', MARGIN, 13);
+
+            if (dataUrl) {
+                const imgProps = doc.getImageProperties(dataUrl);
+                const maxW = CONTENT_W;
+                const maxH = PH - 40;
+                let imgW = maxW;
+                let imgH = (imgProps.height * imgW) / imgProps.width;
+                if (imgH > maxH) {
+                    imgH = maxH;
+                    imgW = (imgProps.width * imgH) / imgProps.height;
+                }
+                const imgX = MARGIN + (CONTENT_W - imgW) / 2;
+                doc.addImage(dataUrl, 'JPEG', imgX, 26, imgW, imgH);
+            } else {
+                doc.setTextColor(148, 163, 184);
+                doc.setFontSize(10);
+                doc.text('(Snapshot not available)', MARGIN, 40);
+            }
+
+            doc.setFillColor(36, 42, 56);
+            doc.rect(0, PH - 14, PW, 14, 'F');
+            doc.setTextColor(148, 163, 184);
+            doc.setFontSize(7);
+            doc.text('Brightronix · Electroplan · Field Activity Report', MARGIN, PH - 5);
+            doc.text('Page 2 of 2', PW - MARGIN, PH - 5, { align: 'right' });
+
             const pdfBlob = doc.output('blob');
             const annotationsJson = JSON.stringify(allAnnotations);
             const fd = new FormData();
@@ -3172,17 +3293,27 @@ if ($filePath !== '') {
             fd.append('file_id', fileId);
             fd.append('pdf_file', pdfBlob);
             fd.append('annotations_json', annotationsJson);
-            fd.append('tech_name', document.getElementById('rep-name').value);
-            fd.append('tech_role', document.getElementById('rep-role').value);
+            fd.append('tech_name', techName);
+            fd.append('tech_role', techRole);
             fd.append('description', desc);
             reportAttachments.forEach(a => fd.append('attachments[]', a.file, a.file.name));
+
             const res = await fetch('../api/api.php', { method: 'POST', body: fd });
             const d = await res.json();
-            if(d.status === 'success') {
+            if (d.status === 'success') {
                 showToast("Report saved successfully!", "success");
                 setTimeout(() => location.href = "preview.php?id=" + fileId, 1500);
-            } else { showToast("Error saving report: " + d.msg, "error"); btn.disabled = false; btn.innerHTML = '<i class="fas fa-check"></i> Generate Report'; }
-        } catch (e) { console.error(e); showToast("Critical Error generating report", "error"); btn.disabled = false; btn.innerHTML = '<i class="fas fa-check"></i> Generate Report'; }
+            } else {
+                showToast("Error saving report: " + d.msg, "error");
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-check"></i> Generate Report';
+            }
+        } catch (e) {
+            console.error(e);
+            showToast("Critical Error generating report", "error");
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-check"></i> Generate Report';
+        }
     }
 
     function showToast(msg, type) {

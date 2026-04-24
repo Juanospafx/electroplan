@@ -226,6 +226,9 @@
 
         /* MODAL */
         .modal-content { background: var(--bg-panel); border-radius: 20px; border: 1px solid var(--border); color: white; }
+        .modal-content .form-label { color: var(--text-main) !important; }
+        .modal-content .text-muted { color: var(--text-muted) !important; }
+        .modal-content .small { color: var(--text-muted); }
         .modal-header { border-bottom: 1px solid var(--border); }
         .modal-footer { border-top: 1px solid var(--border); }
         .form-control { background: var(--bg-body); border: 1px solid var(--border); color: white; border-radius: 10px; padding: 12px; }
