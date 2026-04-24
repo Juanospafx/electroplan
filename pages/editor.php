@@ -2319,8 +2319,13 @@ if ($filePath !== '') {
             lastDist = dist;
             lastTouchCX = currentCX;
             lastTouchCY = currentCY;
-        } else if (e.touches.length === 1 && singleTouchStart && !isPinching) {
+        } else if (e.touches.length === 1) {
             e.preventDefault();
+            if (isPinching || !singleTouchStart) {
+                const t = e.touches[0];
+                singleTouchStart = { x: t.clientX, y: t.clientY, stageX: konvaStage.x(), stageY: konvaStage.y() };
+            }
+            isPinching = false;
             const touch = e.touches[0];
             konvaStage.position({
                 x: singleTouchStart.stageX + (touch.clientX - singleTouchStart.x),
@@ -2331,11 +2336,23 @@ if ($filePath !== '') {
     }, { passive: false });
 
     document.getElementById('canvas-wrapper')?.addEventListener('touchend', function(e) {
-        if (e.touches.length < 2) lastDist = 0;
-        if (e.touches.length === 0) {
+        if (e.touches.length < 2) {
+            lastDist = 0;
             isPinching = false;
+        }
+        if (e.touches.length === 1) {
+            const t = e.touches[0];
+            singleTouchStart = { x: t.clientX, y: t.clientY, stageX: konvaStage.x(), stageY: konvaStage.y() };
+        }
+        if (e.touches.length === 0) {
             singleTouchStart = null;
         }
+    }, { passive: false });
+
+    document.getElementById('canvas-wrapper')?.addEventListener('touchcancel', function() {
+        lastDist = 0;
+        isPinching = false;
+        singleTouchStart = null;
     }, { passive: false });
 
     // REMOVED: mouse:up legacy de Fabric para líneas/calibración
