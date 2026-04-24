@@ -216,7 +216,8 @@ body.theme-light .text-muted, body.theme-light .text-gray { color: var(--text-gr
 
         /* CANVAS AREA */
         .canvas-area { flex-grow: 1; background: var(--bg-input); position: relative; overflow: hidden; }
-        #map { width: 100%; height: 100%; background: var(--bg-input); position: relative; overflow: hidden; }
+        #map { width: 100%; height: 100%; background: var(--bg-input); position: relative; overflow: hidden; cursor: grab; }
+        #map:active { cursor: grabbing; }
         .viewer-content { position: absolute; top: 0; left: 0; transform-origin: 0 0; }
         #pdf-canvas { display: none; }
         #img-view { display: none; max-width: none; max-height: none; }
@@ -391,7 +392,6 @@ body.theme-light .text-muted, body.theme-light .text-gray { color: var(--text-gr
         </div>
         
         <div class="floating-controls">
-            <button class="float-btn text-warning" id="btn-pan" onclick="togglePan()" title="Toggle Pan/Hand"><i class="fas fa-hand-paper"></i></button>
             <div class="border-start border-secondary h-75 mx-2 opacity-50"></div>
             
             <button class="float-btn" onclick="changePage(-1)"><i class="fas fa-chevron-left"></i></button>
@@ -595,13 +595,12 @@ body.theme-light .text-muted, body.theme-light .text-gray { color: var(--text-gr
         img: document.getElementById('img-view'),
         mode: null,
         scale: 1,
-        minScale: 0.1,
-        maxScale: 6,
+        minScale: 0.25,
+        maxScale: 8,
         translateX: 0,
         translateY: 0,
         naturalW: 0,
         naturalH: 0,
-        isPanningMode: false,
         isDragging: false,
         dragStartX: 0,
         dragStartY: 0,
@@ -672,7 +671,7 @@ body.theme-light .text-muted, body.theme-light .text-gray { color: var(--text-gr
     }, { passive: false });
 
     viewer.container.addEventListener('mousedown', (e) => {
-        if (!viewer.isPanningMode || !viewer.mode) return;
+        if (!viewer.mode) return;
         viewer.isDragging = true;
         viewer.dragStartX = e.clientX;
         viewer.dragStartY = e.clientY;
@@ -690,7 +689,7 @@ body.theme-light .text-muted, body.theme-light .text-gray { color: var(--text-gr
     });
     window.addEventListener('mouseup', () => {
         viewer.isDragging = false;
-        viewer.container.style.cursor = viewer.isPanningMode ? 'grab' : 'default';
+        viewer.container.style.cursor = 'grab';
     });
 
     // --- Touch Support (Mobile) ---
@@ -752,14 +751,21 @@ body.theme-light .text-muted, body.theme-light .text-gray { color: var(--text-gr
     }, { passive: false });
 
     viewer.container.addEventListener('touchend', (e) => {
-        // FIX: resetear siempre al soltar cualquier dedo, no solo al soltar todos
         if (e.touches.length < 2) {
             lastTouchDist = 0;
             lastTouchCenter = null;
         }
+        if (e.touches.length === 1) {
+            const t = e.touches[0];
+            viewer.isDragging = true;
+            viewer.dragStartX = t.clientX;
+            viewer.dragStartY = t.clientY;
+            viewer.startTx = viewer.translateX;
+            viewer.startTy = viewer.translateY;
+        }
         if (e.touches.length === 0) {
             viewer.isDragging = false;
-            viewer.container.style.cursor = viewer.isPanningMode ? 'grab' : 'default';
+            viewer.container.style.cursor = 'grab';
         }
     }, { passive: false });
 
@@ -915,20 +921,7 @@ body.theme-light .text-muted, body.theme-light .text-gray { color: var(--text-gr
         }
     }
 
-    // --- V8.0: PANNING LOGIC (MANUAL TOGGLE) ---
-    function togglePan() {
-        viewer.isPanningMode = !viewer.isPanningMode;
-        const btn = document.getElementById('btn-pan');
-        if(viewer.isPanningMode) {
-            btn.classList.add('text-white', 'bg-primary');
-            btn.classList.remove('text-warning');
-            viewer.container.style.cursor = 'grab';
-        } else {
-            btn.classList.remove('text-white', 'bg-primary');
-            btn.classList.add('text-warning');
-            viewer.container.style.cursor = 'default';
-        }
-    }
+    // Pan siempre activo (desktop + mobile)
 
 </script>
 </body>
