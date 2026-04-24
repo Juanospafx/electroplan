@@ -1934,15 +1934,36 @@ if ($filePath !== '') {
             zoomToPoint(screenX, screenY, newScale);
         }, { passive: false });
 
-        // MIGRATED: pan consolidado en Konva (mouse + touch)
+        // MIGRATED: pan/zoom touch unificado en Konva (sin listeners externos conflictivos)
         let panStart = null;
+        let touchPinchDist = 0;
+        let touchPinchCX = 0;
+        let touchPinchCY = 0;
+        let touchIsPinching = false;
         konvaStage.on('mousedown touchstart', (e) => {
             const evt = e.evt;
             const target = e.target;
             const isAnnoTarget = isKonvaAnnotationTarget(target);
             const isEmpty = !target || target === konvaStage;
+
+            // PINCH: 2 dedos -> zoom + pan simultáneo
+            if (evt && evt.touches && evt.touches.length === 2) {
+                konvaIsPanning = false;
+                panStart = null;
+                touchIsPinching = true;
+                const t0 = evt.touches[0], t1 = evt.touches[1];
+                const dx = t0.clientX - t1.clientX;
+                const dy = t0.clientY - t1.clientY;
+                touchPinchDist = Math.sqrt(dx * dx + dy * dy);
+                touchPinchCX = (t0.clientX + t1.clientX) / 2;
+                touchPinchCY = (t0.clientY + t1.clientY) / 2;
+                if (typeof evt.preventDefault === 'function') evt.preventDefault();
+                return;
+            }
+
             if (pendingPlacementTool || isAnnoTarget) return;
             if (currentMode === 'draw' || currentMode === 'cal') return;
+            if (touchIsPinching) return;
 
             const isTouch = !!(evt && evt.touches && evt.touches.length === 1);
             const canPanMouse = evt && ((evt.altKey || evt.button === 2) || (currentMode === 'smart' && isEmpty));
@@ -1982,24 +2003,73 @@ if ($filePath !== '') {
             }
         });
         konvaStage.on('mousemove touchmove', (e) => {
+            const evt = e.evt;
+            if (!evt) return;
+
+            // PINCH MOVE: 2 dedos -> zoom + pan simultáneo
+            if (evt.touches && evt.touches.length === 2 && touchIsPinching) {
+                const t0 = evt.touches[0], t1 = evt.touches[1];
+                const dx = t0.clientX - t1.clientX;
+                const dy = t0.clientY - t1.clientY;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                const currentCX = (t0.clientX + t1.clientX) / 2;
+                const currentCY = (t0.clientY + t1.clientY) / 2;
+                const rect = konvaStage.container().getBoundingClientRect();
+                const screenX = currentCX - rect.left;
+                const screenY = currentCY - rect.top;
+
+                konvaStage.x(konvaStage.x() + (currentCX - touchPinchCX));
+                konvaStage.y(konvaStage.y() + (currentCY - touchPinchCY));
+
+                if (touchPinchDist > 0) {
+                    zoomToPoint(screenX, screenY, konvaStage.scaleX() * (dist / touchPinchDist));
+                }
+
+                touchPinchDist = dist;
+                touchPinchCX = currentCX;
+                touchPinchCY = currentCY;
+                if (typeof evt.preventDefault === 'function') evt.preventDefault();
+                return;
+            }
+
+            // PAN 1 dedo / mouse
             if (pendingPlacementTool) return;
             if (!konvaIsPanning || !panStart) return;
-            const evt = e.evt;
-            const isTouch = !!(evt && evt.touches && evt.touches.length === 1);
+            const isTouch = !!(evt.touches && evt.touches.length === 1);
             const cx = isTouch ? evt.touches[0].clientX : evt.clientX;
             const cy = isTouch ? evt.touches[0].clientY : evt.clientY;
-            const dx = cx - panStart.x;
-            const dy = cy - panStart.y;
-            konvaStage.position({ x: panStart.stageX + dx, y: panStart.stageY + dy });
+            const dx2 = cx - panStart.x;
+            const dy2 = cy - panStart.y;
+            konvaStage.position({ x: panStart.stageX + dx2, y: panStart.stageY + dy2 });
             konvaStage.batchDraw();
             viewport.x = konvaStage.x();
             viewport.y = konvaStage.y();
             canvas.viewportTransform = [konvaStage.scaleX(), 0, 0, konvaStage.scaleY(), viewport.x, viewport.y];
-            if (evt && typeof evt.preventDefault === 'function') evt.preventDefault();
+            if (typeof evt.preventDefault === 'function') evt.preventDefault();
         });
-        konvaStage.on('mouseup touchend touchcancel', () => {
-            konvaIsPanning = false;
-            panStart = null;
+        konvaStage.on('mouseup touchend touchcancel', (e) => {
+            const evt = e.evt;
+            const touchCount = evt && evt.touches ? evt.touches.length : 0;
+
+            if (touchCount < 2) {
+                if (touchIsPinching) {
+                    touchIsPinching = false;
+                    touchPinchDist = 0;
+                    if (touchCount === 1 && evt.touches) {
+                        const t = evt.touches[0];
+                        panStart = { x: t.clientX, y: t.clientY, stageX: konvaStage.x(), stageY: konvaStage.y() };
+                        konvaIsPanning = true;
+                        return;
+                    }
+                }
+            }
+
+            if (touchCount === 0 || !evt || !evt.touches) {
+                konvaIsPanning = false;
+                panStart = null;
+                touchIsPinching = false;
+                touchPinchDist = 0;
+            }
         });
 
         konvaStage.on('mousedown touchstart', (e) => {
@@ -2270,90 +2340,6 @@ if ($filePath !== '') {
             showToast("Selection deleted", "success");
         }
     }
-
-    // --- PINCH ZOOM & PAN (GESTOS TÁCTILES) ---
-    const touchContainer = () => (konvaStage ? konvaStage.container() : document.getElementById('canvas-wrapper'));
-    let lastDist = 0, lastTouchCX = 0, lastTouchCY = 0;
-    let singleTouchStart = null, isPinching = false;
-
-    document.getElementById('canvas-wrapper')?.addEventListener('touchstart', function(e) {
-        if (!konvaStage) initKonvaRuler();
-        const container = touchContainer();
-        if (!container || !konvaStage) return;
-        if (e.touches.length === 2) {
-            isPinching = true;
-            singleTouchStart = null;
-            const dx = e.touches[0].clientX - e.touches[1].clientX;
-            const dy = e.touches[0].clientY - e.touches[1].clientY;
-            lastDist = Math.sqrt(dx * dx + dy * dy);
-            lastTouchCX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
-            lastTouchCY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
-            e.preventDefault();
-        } else if (e.touches.length === 1 && !isPinching && currentMode === 'smart') {
-            const touch = e.touches[0];
-            singleTouchStart = { x: touch.clientX, y: touch.clientY, stageX: konvaStage.x(), stageY: konvaStage.y() };
-            e.preventDefault();
-        }
-    }, { passive: false });
-
-    document.getElementById('canvas-wrapper')?.addEventListener('touchmove', function(e) {
-        const container = touchContainer();
-        if (!container || !konvaStage) return;
-        if (e.touches.length === 2) {
-            e.preventDefault();
-            isPinching = true;
-            const dx = e.touches[0].clientX - e.touches[1].clientX;
-            const dy = e.touches[0].clientY - e.touches[1].clientY;
-            const dist = Math.sqrt(dx * dx + dy * dy);
-            const currentCX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
-            const currentCY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
-            const rect = container.getBoundingClientRect();
-            const screenX = currentCX - rect.left;
-            const screenY = currentCY - rect.top;
-            konvaStage.x(konvaStage.x() + (currentCX - lastTouchCX));
-            konvaStage.y(konvaStage.y() + (currentCY - lastTouchCY));
-            if (lastDist > 0) {
-                const scale = dist / lastDist;
-                zoomToPoint(screenX, screenY, konvaStage.scaleX() * scale);
-            }
-            lastDist = dist;
-            lastTouchCX = currentCX;
-            lastTouchCY = currentCY;
-        } else if (e.touches.length === 1) {
-            e.preventDefault();
-            if (isPinching || !singleTouchStart) {
-                const t = e.touches[0];
-                singleTouchStart = { x: t.clientX, y: t.clientY, stageX: konvaStage.x(), stageY: konvaStage.y() };
-            }
-            isPinching = false;
-            const touch = e.touches[0];
-            konvaStage.position({
-                x: singleTouchStart.stageX + (touch.clientX - singleTouchStart.x),
-                y: singleTouchStart.stageY + (touch.clientY - singleTouchStart.y)
-            });
-            konvaStage.batchDraw();
-        }
-    }, { passive: false });
-
-    document.getElementById('canvas-wrapper')?.addEventListener('touchend', function(e) {
-        if (e.touches.length < 2) {
-            lastDist = 0;
-            isPinching = false;
-        }
-        if (e.touches.length === 1) {
-            const t = e.touches[0];
-            singleTouchStart = { x: t.clientX, y: t.clientY, stageX: konvaStage.x(), stageY: konvaStage.y() };
-        }
-        if (e.touches.length === 0) {
-            singleTouchStart = null;
-        }
-    }, { passive: false });
-
-    document.getElementById('canvas-wrapper')?.addEventListener('touchcancel', function() {
-        lastDist = 0;
-        isPinching = false;
-        singleTouchStart = null;
-    }, { passive: false });
 
     // REMOVED: mouse:up legacy de Fabric para líneas/calibración
 
