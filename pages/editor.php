@@ -2291,13 +2291,8 @@ if ($filePath !== '') {
             e.preventDefault();
         } else if (e.touches.length === 1 && !isPinching && currentMode === 'smart') {
             const touch = e.touches[0];
-            const rect = container.getBoundingClientRect();
-            const stagePos = { x: touch.clientX - rect.left, y: touch.clientY - rect.top };
-            const hit = konvaLayer ? konvaLayer.getIntersection(stagePos) : null;
-            if (!hit || hit === konvaStage) {
-                singleTouchStart = { x: touch.clientX, y: touch.clientY, stageX: konvaStage.x(), stageY: konvaStage.y() };
-                e.preventDefault();
-            }
+            singleTouchStart = { x: touch.clientX, y: touch.clientY, stageX: konvaStage.x(), stageY: konvaStage.y() };
+            e.preventDefault();
         }
     }, { passive: false });
 
@@ -3111,13 +3106,9 @@ if ($filePath !== '') {
     // UI Isaac_work: auto mostrar barra de herramientas en móvil al cargar
     document.addEventListener('DOMContentLoaded', () => {
         initKonvaRuler();
+        // En mobile iniciamos con herramientas cerradas para no bloquear el plano.
         if (window.innerWidth <= 991) {
-            setTimeout(() => {
-                const sbRight = document.getElementById('sidebarRight');
-                if (sbRight && !sbRight.classList.contains('show-mobile')) {
-                    toggleMobileTools();
-                }
-            }, 150);
+            closeTools();
         }
     });
 

@@ -333,8 +333,9 @@
                 transform: translateY(100%);
                 transition: transform 0.3s ease;
                 overflow-y: auto;
+                pointer-events: none;
             }
-            .sidebar-right.show-mobile { transform: translateY(0); }
+            .sidebar-right.show-mobile { transform: translateY(0); pointer-events: auto; }
             .sidebar-right::-webkit-scrollbar { display: none; }
 
             .tool-separator { width: 1px; height: 30px; margin: 0 5px; border-bottom: none; border-left: 1px solid #475569; }
