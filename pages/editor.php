@@ -1249,6 +1249,27 @@ if ($filePath !== '') {
         if (konvaLayer) konvaLayer.batchDraw();
     }
 
+    function clearSelectionVisual() {
+        if (!konvaSelectedNode) return;
+        if (konvaSelectedNode.type === 'stamp') {
+            const ref = konvaSelectedNode.ref;
+            ref?.rect?.strokeWidth(4);
+            ref?.rect?.dash([]);
+        } else if (konvaSelectedNode.type === 'freedraw') {
+            const ref = konvaSelectedNode.ref;
+            const data = konvaDrawPaths.find(p => p.path === ref);
+            if (data && ref) ref.stroke(data.color);
+        } else if (konvaSelectedNode.type === 'ruler') {
+            const r = konvaSelectedNode.ref;
+            if (r?.line) {
+                r.line.dash([]);
+                r.line.shadowColor('transparent');
+                r.line.shadowBlur(0);
+            }
+        }
+        if (konvaLayer) konvaLayer.batchDraw();
+    }
+
     function createKonvaRuler(p1, p2, targetPage = pageNum) {
         const group = new Konva.Group({ draggable: true, annoType: 'ruler' });
         const line = new Konva.Line({
@@ -1325,8 +1346,14 @@ if ($filePath !== '') {
         group.on('dragend', () => { saveCurrentPageAnnotations(); saveHistory(); });
         group.on('click tap', () => {
             if (currentMode !== 'smart') return;
-            if (konvaTransformer) konvaTransformer.nodes([group]);
+            clearSelectionVisual();
+            if (konvaTransformer) konvaTransformer.nodes([]);
             konvaSelectedNode = { type: 'ruler', ref: ruler };
+            line.dash([10 * (1 / (konvaStage?.scaleX() || 1)), 6 * (1 / (konvaStage?.scaleX() || 1))]);
+            line.shadowColor('#22c55e');
+            line.shadowBlur(8);
+            konvaLayer.batchDraw();
+            showPropSection('measure');
         });
 
         updateKonvaLabel(ruler);
@@ -1441,6 +1468,7 @@ if ($filePath !== '') {
         });
         group.on('click tap', () => {
             if (currentMode !== 'smart') setMode('smart');
+            clearSelectionVisual();
             konvaSelectedNote = note;
             konvaSelectedNode = { type: 'note', ref: note };
             if (konvaTransformer) konvaTransformer.nodes([]);
@@ -1562,6 +1590,7 @@ if ($filePath !== '') {
         });
         group.on('click tap', () => {
             if (currentMode !== 'smart') setMode('smart');
+            clearSelectionVisual();
             // FIX-2c: evitar que Fabric sobreescriba el panel de cloud
             canvas.discardActiveObject();
             canvas.requestRenderAll();
@@ -1611,11 +1640,7 @@ if ($filePath !== '') {
 
     function selectFreeDrawPath(path) {
         if (!path) return;
-        if (konvaSelectedNode?.type === 'freedraw' && konvaSelectedNode.ref && konvaSelectedNode.ref !== path) {
-            const prev = konvaSelectedNode.ref;
-            const prevData = konvaDrawPaths.find(p => p.path === prev);
-            if (prevData) prev.stroke(prevData.color);
-        }
+        clearSelectionVisual();
         konvaSelectedNode = { type: 'freedraw', ref: path };
         path.stroke('#ff0000');
         if (konvaLayer) konvaLayer.batchDraw();
@@ -1665,6 +1690,7 @@ if ($filePath !== '') {
         group.setAttr('stampColor', color);
         group.add(rect, lbl);
         group.on('click tap', () => {
+            clearSelectionVisual();
             canvas.discardActiveObject();
             if (konvaTransformer) konvaTransformer.nodes([]);
             konvaSelectedNode = { type: 'stamp', ref: { group, rect, lbl } };
@@ -1929,17 +1955,7 @@ if ($filePath !== '') {
                 konvaLayer.batchDraw();
             }
             if (currentMode === 'smart' && isEmpty) {
-                if (konvaSelectedNode?.type === 'stamp') {
-                    const ref = konvaSelectedNode.ref;
-                    ref.rect.strokeWidth(4);
-                    ref.rect.dash([]);
-                    konvaLayer.batchDraw();
-                } else if (konvaSelectedNode?.type === 'freedraw') {
-                    const ref = konvaSelectedNode.ref;
-                    const data = konvaDrawPaths.find(p => p.path === ref);
-                    if (data) ref.stroke(data.color);
-                    konvaLayer.batchDraw();
-                }
+                clearSelectionVisual();
                 konvaSelectedNode = null;
             }
         });
