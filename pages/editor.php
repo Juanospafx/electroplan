@@ -1886,19 +1886,26 @@ if ($filePath !== '') {
             zoomToPoint(screenX, screenY, newScale);
         }, { passive: false });
 
-        // MIGRATED: pan consolidado en Konva
+        // MIGRATED: pan consolidado en Konva (mouse + touch)
         let panStart = null;
-        konvaStage.on('mousedown', (e) => {
+        konvaStage.on('mousedown touchstart', (e) => {
             const evt = e.evt;
             const target = e.target;
             const isAnnoTarget = isKonvaAnnotationTarget(target);
             const isEmpty = !target || target === konvaStage;
             if (pendingPlacementTool || isAnnoTarget) return;
-            if (currentMode === 'draw') return;
-            if (currentMode === 'cal') return;
-            if (evt && ((evt.altKey || evt.button === 2) || (currentMode === 'smart' && isEmpty))) {
-                panStart = { x: evt.clientX, y: evt.clientY };
+            if (currentMode === 'draw' || currentMode === 'cal') return;
+
+            const isTouch = !!(evt && evt.touches && evt.touches.length === 1);
+            const canPanMouse = evt && ((evt.altKey || evt.button === 2) || (currentMode === 'smart' && isEmpty));
+            const canPanTouch = isTouch && currentMode === 'smart' && isEmpty;
+
+            if (canPanMouse || canPanTouch) {
+                const cx = isTouch ? evt.touches[0].clientX : evt.clientX;
+                const cy = isTouch ? evt.touches[0].clientY : evt.clientY;
+                panStart = { x: cx, y: cy, stageX: konvaStage.x(), stageY: konvaStage.y() };
                 konvaIsPanning = true;
+                if (evt && typeof evt.preventDefault === 'function') evt.preventDefault();
             }
         });
         konvaStage.on('click tap', (e) => {
@@ -1936,18 +1943,23 @@ if ($filePath !== '') {
                 konvaSelectedNode = null;
             }
         });
-        konvaStage.on('mousemove', (e) => {
+        konvaStage.on('mousemove touchmove', (e) => {
             if (pendingPlacementTool) return;
             if (!konvaIsPanning || !panStart) return;
             const evt = e.evt;
-            const vpt = canvas.viewportTransform;
-            vpt[4] += evt.clientX - panStart.x;
-            vpt[5] += evt.clientY - panStart.y;
-            panStart = { x: evt.clientX, y: evt.clientY };
-            canvas.requestRenderAll();
-            syncKonvaToFabric();
+            const isTouch = !!(evt && evt.touches && evt.touches.length === 1);
+            const cx = isTouch ? evt.touches[0].clientX : evt.clientX;
+            const cy = isTouch ? evt.touches[0].clientY : evt.clientY;
+            const dx = cx - panStart.x;
+            const dy = cy - panStart.y;
+            konvaStage.position({ x: panStart.stageX + dx, y: panStart.stageY + dy });
+            konvaStage.batchDraw();
+            viewport.x = konvaStage.x();
+            viewport.y = konvaStage.y();
+            canvas.viewportTransform = [konvaStage.scaleX(), 0, 0, konvaStage.scaleY(), viewport.x, viewport.y];
+            if (evt && typeof evt.preventDefault === 'function') evt.preventDefault();
         });
-        konvaStage.on('mouseup', () => {
+        konvaStage.on('mouseup touchend touchcancel', () => {
             konvaIsPanning = false;
             panStart = null;
         });
