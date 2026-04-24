@@ -305,40 +305,31 @@ if ($filePath !== '') {
     <!-- MOBILE PROPS PANEL -->
     <div id="mobile-props-panel" class="mobile-props-panel">
         <div class="mobile-prop-section" id="m-prop-draw">
-            <div class="d-flex align-items-center gap-3 flex-wrap">
-                <span class="mobile-prop-label">Color</span>
-                <div class="d-flex gap-2">
-                    <div class="color-dot active" style="background:#ef4444" onclick="setPenColor('#ef4444', this); syncDesktopDot('prop-draw', '#ef4444')"></div>
-                    <div class="color-dot" style="background:#3b82f6" onclick="setPenColor('#3b82f6', this); syncDesktopDot('prop-draw', '#3b82f6')"></div>
-                    <div class="color-dot" style="background:#22c55e" onclick="setPenColor('#22c55e', this); syncDesktopDot('prop-draw', '#22c55e')"></div>
-                    <div class="color-dot" style="background:#eab308" onclick="setPenColor('#eab308', this); syncDesktopDot('prop-draw', '#eab308')"></div>
-                </div>
-                <div class="vr opacity-25"></div>
-                <span class="mobile-prop-label">Grosor</span>
-                <input type="range" class="form-range" style="width:90px" min="1" max="10" value="3" oninput="setPenWidth(this.value)" id="m-pen-width">
-                <button class="btn btn-sm btn-outline-light" id="m-btn-draw-eraser" onclick="toggleDrawEraser()" title="Borrador">
-                    <i class="fas fa-eraser"></i>
-                </button>
-            </div>
+            <div class="color-dot active" style="background:#ef4444" onclick="setPenColor('#ef4444', this)"></div>
+            <div class="color-dot" style="background:#3b82f6" onclick="setPenColor('#3b82f6', this)"></div>
+            <div class="color-dot" style="background:#22c55e" onclick="setPenColor('#22c55e', this)"></div>
+            <div class="color-dot" style="background:#eab308" onclick="setPenColor('#eab308', this)"></div>
+            <div class="vr"></div>
+            <i class="fas fa-pen text-muted" style="font-size:0.75rem; flex-shrink:0;"></i>
+            <input type="range" class="form-range" min="1" max="10" value="3" oninput="setPenWidth(this.value)" id="m-pen-width">
+            <div class="vr"></div>
+            <button class="btn btn-sm btn-outline-light" id="m-btn-draw-eraser" onclick="toggleDrawEraser()" title="Borrador">
+                <i class="fas fa-eraser"></i>
+            </button>
         </div>
 
         <div class="mobile-prop-section" id="m-prop-text">
-            <div class="d-flex align-items-center gap-3 flex-wrap">
-                <span class="mobile-prop-label">Color</span>
-                <div class="d-flex gap-2 flex-wrap" id="m-text-color-container">
-                    <div class="color-dot" data-col="#ef4444" style="background:#ef4444" onclick="setTextFixedColor('#ef4444', this)"></div>
-                    <div class="color-dot" data-col="#3b82f6" style="background:#3b82f6" onclick="setTextFixedColor('#3b82f6', this)"></div>
-                    <div class="color-dot" data-col="#22c55e" style="background:#22c55e" onclick="setTextFixedColor('#22c55e', this)"></div>
-                    <div class="color-dot" data-col="#eab308" style="background:#eab308" onclick="setTextFixedColor('#eab308', this)"></div>
-                    <div class="color-dot" data-col="#ec4899" style="background:#ec4899" onclick="setTextFixedColor('#ec4899', this)"></div>
-                    <div class="color-dot" data-col="#f97316" style="background:#f97316" onclick="setTextFixedColor('#f97316', this)"></div>
-                    <div class="color-dot" data-col="#8b5cf6" style="background:#8b5cf6" onclick="setTextFixedColor('#8b5cf6', this)"></div>
-                    <div class="color-dot" data-col="#ffffff" style="background:#ffffff; border:1px solid #64748b" onclick="setTextFixedColor('#ffffff', this)"></div>
-                </div>
-                <div class="vr opacity-25"></div>
-                <span class="mobile-prop-label">Tamaño</span>
-                <input type="number" class="form-control py-0 px-2 text-center" value="60" min="8" max="100" style="width:64px; height:34px;" onchange="updateTextProp('fontSize', parseInt(this.value))" id="m-text-size-input">
-            </div>
+            <div class="color-dot" data-col="#ef4444" style="background:#ef4444" onclick="setTextFixedColor('#ef4444', this)"></div>
+            <div class="color-dot" data-col="#3b82f6" style="background:#3b82f6" onclick="setTextFixedColor('#3b82f6', this)"></div>
+            <div class="color-dot" data-col="#22c55e" style="background:#22c55e" onclick="setTextFixedColor('#22c55e', this)"></div>
+            <div class="color-dot" data-col="#eab308" style="background:#eab308" onclick="setTextFixedColor('#eab308', this)"></div>
+            <div class="color-dot" data-col="#ec4899" style="background:#ec4899" onclick="setTextFixedColor('#ec4899', this)"></div>
+            <div class="color-dot" data-col="#f97316" style="background:#f97316" onclick="setTextFixedColor('#f97316', this)"></div>
+            <div class="color-dot" data-col="#8b5cf6" style="background:#8b5cf6" onclick="setTextFixedColor('#8b5cf6', this)"></div>
+            <div class="color-dot" data-col="#ffffff" style="background:#ffffff; border-color:#64748b" onclick="setTextFixedColor('#ffffff', this)"></div>
+            <div class="vr"></div>
+            <i class="fas fa-text-height text-muted" style="font-size:0.75rem; flex-shrink:0;"></i>
+            <input type="number" class="form-control" value="60" min="8" max="100" id="m-text-size-input" onchange="updateTextProp('fontSize', parseInt(this.value))">
         </div>
 
         <div class="mobile-prop-section" id="m-prop-cloud">
@@ -423,20 +414,20 @@ if ($filePath !== '') {
             </div>
             <div class="modal-body">
                 <div class="mb-3">
-                    <label class="form-label small fw-bold">Technician Name</label>
+                    <label class="form-label small fw-bold" style="color: var(--text-main, #fff);">Technician Name</label>
                     <input type="text" id="rep-name" class="form-control" value="<?= htmlspecialchars($_SESSION['username']) ?>">
                 </div>
                 <div class="mb-3">
-                    <label class="form-label small fw-bold">Role / Title</label>
+                    <label class="form-label small fw-bold" style="color: var(--text-main, #fff);">Role / Title</label>
                     <input type="text" id="rep-role" class="form-control" value="<?= htmlspecialchars($_SESSION['role']) ?>">
                 </div>
                 <div class="mb-3">
-                    <label class="form-label small fw-bold">Activity Description</label>
+                    <label class="form-label small fw-bold" style="color: var(--text-main, #fff);">Activity Description</label>
                     <textarea id="rep-desc" class="form-control" rows="3" placeholder="e.g. Added conduit path to room 102..."></textarea>
                 </div>
 
                 <div class="mb-2">
-                    <label class="form-label small fw-bold">Attachments</label>
+                    <label class="form-label small fw-bold" style="color: var(--text-main, #fff);">Attachments</label>
                     <div id="rep-attach-dropzone" class="border rounded-3 p-3 text-center" style="border-style:dashed !important; border-color:#475569 !important;">
                         <div class="small text-muted mb-2"><i class="fas fa-paperclip me-1"></i>Drag &amp; drop files here or</div>
                         <button type="button" class="btn btn-sm btn-outline-light" onclick="document.getElementById('rep-attachments').click()">Browse files</button>
@@ -1075,7 +1066,7 @@ if ($filePath !== '') {
 
     function zoomToPoint(screenX, screenY, newScale) {
         if (!konvaStage) return;
-        newScale = Math.min(10, Math.max(0.3, newScale));
+        newScale = Math.min(10, Math.max(0.10, newScale));
         const oldScale = konvaStage.scaleX() || 1;
         const stageX = konvaStage.x();
         const stageY = konvaStage.y();

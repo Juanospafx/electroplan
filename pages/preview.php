@@ -595,7 +595,7 @@ body.theme-light .text-muted, body.theme-light .text-gray { color: var(--text-gr
         img: document.getElementById('img-view'),
         mode: null,
         scale: 1,
-        minScale: 0.25,
+        minScale: 0.10,
         maxScale: 8,
         translateX: 0,
         translateY: 0,

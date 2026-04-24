@@ -226,7 +226,8 @@
 
         /* MODAL */
         .modal-content { background: var(--bg-panel); border-radius: 20px; border: 1px solid var(--border); color: white; }
-        .modal-content .form-label { color: var(--text-main) !important; }
+        .modal-content .modal-body .form-label,
+        .modal-content .modal-body label { color: var(--text-main) !important; }
         .modal-content .text-muted { color: var(--text-muted) !important; }
         .modal-content .small { color: var(--text-muted); }
         .modal-header { border-bottom: 1px solid var(--border); }
@@ -362,28 +363,66 @@
                 background: var(--bg-panel);
                 border-top: 1px solid var(--border);
                 z-index: 560;
-                padding: 10px 16px;
-                min-height: 54px;
+                padding: 8px 14px;
+                min-height: 52px;
+                max-height: 80px;
                 align-items: center;
+                justify-content: center;
                 overflow-x: auto;
                 overflow-y: hidden;
                 -webkit-overflow-scrolling: touch;
                 scrollbar-width: none;
-                transition: transform 0.2s ease;
+                gap: 10px;
             }
             .mobile-props-panel::-webkit-scrollbar { display: none; }
             .mobile-props-panel.visible { display: flex; }
-            .mobile-prop-section { align-items: center; width: 100%; }
-            .mobile-prop-label {
-                font-size: 0.7rem;
-                text-transform: uppercase;
-                font-weight: 700;
-                color: var(--text-muted);
-                letter-spacing: 0.5px;
+            .mobile-prop-section {
+                display: none;
+                align-items: center;
+                justify-content: center;
+                gap: 10px;
+                width: 100%;
+                flex-shrink: 0;
                 white-space: nowrap;
+            }
+            .mobile-prop-section.active { display: flex; }
+            .mobile-prop-label { display: none; }
+
+            .mobile-props-panel .color-dot {
+                width: 28px;
+                height: 28px;
+                border-radius: 50%;
+                cursor: pointer;
+                border: 2px solid transparent;
+                transition: 0.15s;
+                flex-shrink: 0;
+                -webkit-tap-highlight-color: transparent;
+                touch-action: manipulation;
+            }
+            .mobile-props-panel .color-dot.active { border-color: white; box-shadow: 0 0 0 2px var(--primary); }
+            .mobile-props-panel .color-dot:active { transform: scale(0.85); }
+            .mobile-props-panel .vr { width: 1px; height: 28px; background: var(--border); flex-shrink: 0; opacity: 0.5; }
+            .mobile-props-panel .form-range { width: 80px !important; }
+            .mobile-props-panel input[type="number"] {
+                width: 56px !important;
+                height: 32px !important;
+                font-size: 0.9rem;
+                text-align: center;
+                padding: 2px 6px !important;
+            }
+            .mobile-props-panel .form-select {
+                height: 32px !important;
+                font-size: 0.85rem;
+                padding: 2px 8px !important;
+                width: 150px !important;
+            }
+            .mobile-props-panel .btn {
+                height: 32px;
+                padding: 0 10px;
+                font-size: 0.85rem;
                 flex-shrink: 0;
             }
 
             .canvas-area { padding-bottom: 56px; }
-            body.has-mobile-props .canvas-area { padding-bottom: calc(56px + 54px); }
+            body.has-mobile-props .canvas-area { padding-bottom: calc(56px + 52px); }
         }
