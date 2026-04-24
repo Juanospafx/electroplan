@@ -1795,16 +1795,20 @@ if ($filePath !== '') {
         noteEditDidAutoZoom = false;
         {
             const textNode = note.label;
-            const absPos = textNode.getAbsolutePosition();
             const containerRect = konvaStage.container().getBoundingClientRect();
             const containerW = containerRect.width;
             const containerH = containerRect.height * 0.55;
             const MIN_ZOOM_FOR_EDIT = (window.innerWidth <= 991) ? 1.8 : 1.35;
             const targetZoom = Math.max(konvaStage.scaleX(), MIN_ZOOM_FOR_EDIT);
-            const worldX = absPos.x;
-            const worldY = absPos.y;
-            const newTx = containerW / 2 - worldX * targetZoom;
-            const newTy = containerH / 2 - worldY * targetZoom;
+
+            const gsx = note.group.scaleX() || 1;
+            const gsy = note.group.scaleY() || 1;
+            const worldCenterX = note.group.x() + (textNode.x() + (textNode.width() / 2)) * gsx;
+            const worldCenterY = note.group.y() + (textNode.y() + (textNode.height() / 2)) * gsy;
+
+            const newTx = (containerW / 2) - (worldCenterX * targetZoom);
+            const newTy = (containerH / 2) - (worldCenterY * targetZoom);
+
             if (Math.abs(targetZoom - konvaStage.scaleX()) > 0.001 || Math.abs(newTx - konvaStage.x()) > 0.5 || Math.abs(newTy - konvaStage.y()) > 0.5) {
                 konvaStage.scale({ x: targetZoom, y: targetZoom });
                 konvaStage.position({ x: newTx, y: newTy });
@@ -1820,11 +1824,14 @@ if ($filePath !== '') {
         const vpt = getViewport();
 
         const textNode = note.label;
-        const absPos = textNode.getAbsolutePosition();
+        const gsx = note.group.scaleX() || 1;
+        const gsy = note.group.scaleY() || 1;
+        const worldTextX = note.group.x() + textNode.x() * gsx;
+        const worldTextY = note.group.y() + textNode.y() * gsy;
 
         const areaPosition = {
-            x: rect.left + absPos.x * vpt.scaleX + vpt.translateX,
-            y: rect.top + absPos.y * vpt.scaleY + vpt.translateY
+            x: rect.left + worldTextX * vpt.scaleX + vpt.translateX,
+            y: rect.top + worldTextY * vpt.scaleY + vpt.translateY
         };
 
         const fontSize = textNode.fontSize();
@@ -1851,8 +1858,8 @@ if ($filePath !== '') {
         konvaEditingTextarea.style.left = areaPosition.x + 'px';
         konvaEditingTextarea.style.top = areaPosition.y + 'px';
         const preset = getResponsiveNotePreset();
-        konvaEditingTextarea.style.width = Math.max(preset.minEditW, textNode.width() * vpt.scaleX) + 'px';
-        konvaEditingTextarea.style.height = Math.max(preset.minEditH, textNode.height() * vpt.scaleY) + 'px';
+        konvaEditingTextarea.style.width = Math.max(preset.minEditW, textNode.width() * gsx * vpt.scaleX) + 'px';
+        konvaEditingTextarea.style.height = Math.max(preset.minEditH, textNode.height() * gsy * vpt.scaleY) + 'px';
         konvaEditingTextarea.style.background = 'transparent';
         konvaEditingTextarea.style.border = 'none';
         konvaEditingTextarea.style.color = 'transparent';
