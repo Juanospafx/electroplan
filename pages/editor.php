@@ -568,7 +568,7 @@ if ($filePath !== '') {
     }
 
     function openMobileCalModal() {
-        if (window.innerWidth > 991) return;
+        if (window.innerWidth > 599) return;
         const desktopMode = document.getElementById('cal-mode');
         const desktopPreset = document.getElementById('cal-preset');
         const mMode = document.getElementById('mobile-cal-mode');
@@ -2752,12 +2752,14 @@ if ($filePath !== '') {
     }
     
     function showPropSection(idPart) {
+        // Desktop & tablet: activate prop-section pill in the header properties bar
         document.querySelectorAll('.prop-section').forEach(p => p.classList.remove('active'));
         const el = document.getElementById('prop-' + idPart);
         if (el) el.classList.add('active');
         keepScaleDisplayVisible();
 
-        if (window.innerWidth <= 991) {
+        if (window.innerWidth <= 599) {
+            // Phone only: activate the mobile-props-panel at the bottom
             const panel = document.getElementById('mobile-props-panel');
             if (!panel) return;
 
@@ -2779,6 +2781,14 @@ if ($filePath !== '') {
                 panel.classList.remove('visible');
                 document.body.classList.remove('has-mobile-props');
             }
+        } else {
+            // Desktop/tablet: always clean up any leftover mobile state
+            const panel = document.getElementById('mobile-props-panel');
+            if (panel) {
+                panel.classList.remove('visible');
+                panel.querySelectorAll('.mobile-prop-section').forEach(s => s.classList.remove('active'));
+            }
+            document.body.classList.remove('has-mobile-props');
         }
     }
 
@@ -2916,7 +2926,7 @@ if ($filePath !== '') {
         if (konvaStage && konvaStage.container()) konvaStage.container().style.cursor = 'crosshair';
         showToast(tool === 'note' ? 'Tap where you want to place the note' : 'Tap where you want to place the cloud', 'success');
         // FIX-2e: cerrar toolbar en mobile para visualizar mejor el canvas
-        if (window.innerWidth <= 991 && typeof closeTools === 'function') closeTools();
+        if (window.innerWidth <= 599 && typeof closeTools === 'function') closeTools();
     }
 
     function clearPlacementTool() {
@@ -3374,7 +3384,7 @@ if ($filePath !== '') {
     document.addEventListener('DOMContentLoaded', () => {
         initKonvaRuler();
         // En mobile iniciamos con herramientas cerradas para no bloquear el plano.
-        if (window.innerWidth <= 991) {
+        if (window.innerWidth <= 599) {
             closeTools();
         }
     });
