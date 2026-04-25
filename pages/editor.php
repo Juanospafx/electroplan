@@ -132,7 +132,7 @@ if ($filePath !== '') {
             </div>
         </div>
 
-        <div class="properties-bar d-none d-md-flex">
+        <div class="properties-bar">
             <div id="prop-smart" class="prop-section active">
                 <i class="fas fa-mouse-pointer text-accent me-2"></i>
                 <span class="text-white small fw-bold">Selection Mode</span>
