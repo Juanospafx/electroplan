@@ -192,10 +192,11 @@
     #btn-toggle-left, #mobile-toggle-left, #mobile-toggle-tools { color: var(--primary); }
     #btn-toggle-left:hover, #btn-toggle-left.active, #mobile-toggle-left.active, #mobile-toggle-tools.active { color: var(--text-main); }
 
-    .mobile-bottom-bar { display: none; }
-    .mobile-props-panel { display: none; }
-    .mobile-prop-section { display: none; }
-    .mobile-prop-section.active { display: flex; }
+    /* Mobile elements — always hidden outside mobile breakpoints */
+    .mobile-bottom-bar { display: none !important; }
+    .mobile-props-panel { display: none !important; }
+    .mobile-prop-section { display: none !important; }
+    /* .mobile-prop-section.active only activates inside @media (max-width: 599px) */
 
         /* BUTTONS */
         .btn-action { 
@@ -426,7 +427,7 @@ PHONE (< 600px): layout mobile con bottom bar
 
             /* Mobile bottom bar */
             .mobile-bottom-bar {
-                display: flex;
+                display: flex !important;
                 position: fixed;
                 bottom: 0;
                 left: 0;
@@ -462,7 +463,7 @@ PHONE (< 600px): layout mobile con bottom bar
                 gap: 10px;
             }
             .mobile-props-panel::-webkit-scrollbar { display: none; }
-            .mobile-props-panel.visible { display: flex; }
+            .mobile-props-panel.visible { display: flex !important; }
             .mobile-prop-section {
                 display: none;
                 align-items: center;
@@ -472,7 +473,7 @@ PHONE (< 600px): layout mobile con bottom bar
                 flex-shrink: 0;
                 white-space: nowrap;
             }
-            .mobile-prop-section.active { display: flex; }
+            .mobile-prop-section.active { display: flex !important; }
             .mobile-prop-label { display: none; }
             .mobile-props-panel .color-dot {
                 width: 28px;
