@@ -202,7 +202,7 @@ include __DIR__ . '/../views/header.php';
                             <div id="zip-drop-zone" style="border:2px dashed var(--border-subtle); border-radius:16px; padding:36px 24px; text-align:center; cursor:pointer; transition:0.2s; background:var(--bg-input);" onclick="document.getElementById('zip-file-input').click()" ondragover="zipDropOver(event)" ondragleave="zipDropLeave(event)" ondrop="zipDropDrop(event)">
                                 <i class="fas fa-file-zipper text-warning mb-2" style="font-size:2.2rem;"></i>
                                 <div class="text-white fw-semibold mb-1">Drag & drop your ZIP here</div>
-                                <div class="text-gray small">or <span class="text-primary">browse</span> · max 500MB</div>
+                                <div class="text-gray small">or <span class="text-primary">browse</span> · max 10GB</div>
                             </div>
                             <input type="file" id="zip-file-input" class="d-none" accept=".zip" onchange="zipFileSelected(this.files[0])">
                             <div id="zip-selected-info" class="mt-3 d-none">
@@ -1409,8 +1409,8 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
         const errEl = document.getElementById('zip-error-msg');
         if (!file) return;
         if (!file.name.toLowerCase().endsWith('.zip')) { if (errEl) { errEl.textContent = 'Only .zip files are supported.'; errEl.classList.remove('d-none'); } return; }
-        const maxBytes = 500 * 1024 * 1024;
-        if (file.size > maxBytes) { if (errEl) { errEl.textContent = 'ZIP file exceeds 500MB limit.'; errEl.classList.remove('d-none'); } return; }
+        const maxBytes = 10 * 1024 * 1024 * 1024;
+        if (file.size > maxBytes) { if (errEl) { errEl.textContent = 'ZIP file exceeds 10GB limit.'; errEl.classList.remove('d-none'); } return; }
         if (errEl) errEl.classList.add('d-none');
         zipSelectedFile = file;
         const info = document.getElementById('zip-selected-info');
@@ -1464,6 +1464,7 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
             const result = await new Promise((resolve, reject) => {
                 const xhr = new XMLHttpRequest();
                 xhr.open('POST', '../api/api.php', true);
+                xhr.timeout = 3600000;
                 xhr.upload.addEventListener('progress', (e) => {
                     if (e.lengthComputable) {
                         const pct = Math.round((e.loaded / e.total) * 80);

@@ -1,0 +1,7 @@
+<IfModule mod_php.c>
+  php_value upload_max_filesize 10240M
+  php_value post_max_size 10300M
+  php_value max_execution_time 3600
+  php_value max_input_time 3600
+  php_value memory_limit 512M
+</IfModule>
