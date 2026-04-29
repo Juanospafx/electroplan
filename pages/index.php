@@ -601,45 +601,97 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
     if(gInput) gInput.addEventListener('change', function() { handleFiles(this.files); });
 
     // Procesador de Subida
+    function uploadFileWithProgress(fd, onProgress) {
+        return new Promise((resolve, reject) => {
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', '../api/api.php', true);
+            xhr.onreadystatechange = () => {
+                if (xhr.readyState !== 4) return;
+                try { resolve(JSON.parse(xhr.responseText || '{}')); }
+                catch (e) { reject(e); }
+            };
+            xhr.onerror = reject;
+            xhr.upload.addEventListener('progress', (e) => {
+                if (e.lengthComputable && typeof onProgress === 'function') {
+                    onProgress(Math.round((e.loaded / e.total) * 100));
+                }
+            });
+            xhr.send(fd);
+        });
+    }
+
+    function setBulkOverlayState(title, detail, done, total, pct) {
+        const overlay = document.getElementById('bulk-import-overlay');
+        const statusTitle = document.getElementById('bulk-status-title');
+        const statusDetail = document.getElementById('bulk-status-detail');
+        const progressBar = document.getElementById('bulk-progress-bar');
+        const statusCount = document.getElementById('bulk-status-count');
+        if (overlay) overlay.style.display = 'flex';
+        if (statusTitle) statusTitle.textContent = title || 'Uploading...';
+        if (statusDetail) statusDetail.textContent = detail || 'Please wait...';
+        if (progressBar) progressBar.style.width = Math.max(0, Math.min(100, pct || 0)) + '%';
+        if (statusCount) statusCount.textContent = `${done || 0} / ${total || 0} files`;
+    }
+
     async function handleFiles(fileList) {
         if(fileList.length === 0) return;
         if(!pId) { appAlert("Error: No project selected.", "Missing Project", "error"); return; }
 
-        const btnUp = document.querySelector('.btn-main'); 
+        const btnUp = document.querySelector('.btn-main');
+        const oldBtnHtml = btnUp ? btnUp.innerHTML : '';
         if(btnUp) { btnUp.disabled = true; btnUp.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Uploading...'; }
 
         const MAX_SIZE = 1073741824; // 1GB
-        const ALLOWED_TYPES = ['application/pdf', 'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/bmp', 'image/tiff'];
-        
+        let done = 0;
+        const total = fileList.length;
+        const errors = [];
+
         for (let i = 0; i < fileList.length; i++) {
             const file = fileList[i];
-            
+
             if (file.size > MAX_SIZE) {
-                appAlert(`Error: File "${file.name}" exceeds the 1GB limit.`, "Size Limit", "warning");
-                continue; 
+                errors.push(`"${file.name}": exceeds 1GB limit`);
+                done++;
+                setBulkOverlayState('Uploading files...', `Skipping ${file.name}`, done, total, Math.round((done / total) * 100));
+                continue;
             }
 
-            if (!ALLOWED_TYPES.includes(file.type) && !file.name.match(/\.(jpg|jpeg|png|gif|webp|pdf|bmp|tiff)$/i)) {
-                 appAlert(`Error: File "${file.name}" is invalid. Only PDF and Images allowed.`, "Invalid Format", "error");
-                 continue; 
-            }
-
-            const fd = new FormData(); 
-            fd.append('action', 'upload_file'); fd.append('file', file); fd.append('project_id', pId); 
+            const fd = new FormData();
+            fd.append('action', 'upload_file');
+            fd.append('file', file);
+            fd.append('project_id', pId);
             if(fId) fd.append('folder_id', fId);
-            
-            try { 
-                let response = await fetch('../api/api.php', { method: 'POST', body: fd }); 
-                let data = await response.json();
-                if(data.status === 'error') {
-                    appAlert(`Error uploading ${file.name}: ${data.msg}`, "Upload Error", "error");
+
+            setBulkOverlayState('Uploading files...', `Uploading ${file.name}`, done, total, Math.round((done / total) * 100));
+
+            try {
+                const data = await uploadFileWithProgress(fd, (percent) => {
+                    const base = done / total;
+                    const step = (percent / 100) / total;
+                    setBulkOverlayState('Uploading files...', `Uploading ${file.name} (${percent}%)`, done, total, Math.round((base + step) * 100));
+                });
+                if(data.status !== 'success') {
+                    errors.push(`"${file.name}": ${data.msg || 'upload failed'}`);
                 }
-            } catch (e) { 
-                console.error(e); 
-                appAlert(`Connection error uploading ${file.name}`, "Error", "error");
+            } catch (e) {
+                console.error(e);
+                errors.push(`"${file.name}": connection/upload failed`);
             }
+
+            done++;
+            setBulkOverlayState('Uploading files...', `Processed ${file.name}`, done, total, Math.round((done / total) * 100));
         }
-        location.reload();
+
+        const overlay = document.getElementById('bulk-import-overlay');
+        if (overlay) overlay.style.display = 'none';
+        if(btnUp) { btnUp.disabled = false; btnUp.innerHTML = oldBtnHtml; }
+
+        if (errors.length) {
+            appAlert(`Upload completed with ${errors.length} error(s):<br><small>${errors.slice(0,6).join('<br>')}</small>`, 'Upload Complete (with errors)', 'warning');
+        } else {
+            appAlert(`${total} file(s) uploaded successfully.`, 'Upload Complete', 'success');
+        }
+        setTimeout(() => location.reload(), 1200);
     }
 
 
