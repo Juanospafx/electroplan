@@ -1087,21 +1087,28 @@ switch($action) {
         if($zip->open($tmpPath) !== true) { echo json_encode(['status'=>'error','msg'=>'Could not open ZIP file.']); exit; }
 
         $foldersCreated = 0; $filesCreated = 0; $log = []; $folderCache = [];
-        $allowedExts = ['jpg','jpeg','png','gif','webp','bmp','tiff','tif','heic','pdf','doc','docx','xls','xlsx','xlsm','csv','ppt','pptx','dwg','dxf','rvt','ifc'];
+        // Block only server-side executables — everything else is allowed
+        $blockedExts = ['php','php3','php4','php5','php7','php8','phtml','phar','cgi','pl','py','rb','sh','bash','zsh','exe','bat','cmd','com','msi','dll','so','htaccess','htpasswd','env'];
 
         $rootFolderName = pathinfo($zipOrigName, PATHINFO_FILENAME);
         $rootFolderName = preg_replace('/[^a-zA-Z0-9\s\-_\(\)\.]/u', '', $rootFolderName);
         if(empty(trim($rootFolderName))) $rootFolderName = 'Imported';
 
+        // Detect if ZIP has a single internal root folder (Mac/Windows compress behavior)
+        // e.g. Drawings.zip contains Drawings/file.pdf → use "Drawings" as root, strip prefix
+        $zipInternalRoot = null;
         $firstEntry = $zip->numFiles > 0 ? $zip->getNameIndex(0) : null;
-        if($firstEntry && strpos($firstEntry, '/') !== false) {
-            $detectedRoot = explode('/', $firstEntry)[0];
+        if ($firstEntry && substr($firstEntry, -1) === '/' && strpos(rtrim($firstEntry, '/'), '/') === false) {
+            $detectedRoot = rtrim($firstEntry, '/');
             $allSameRoot = true;
-            for($i = 0; $i < $zip->numFiles; $i++) {
-                $name = $zip->getNameIndex($i);
-                if($name && !str_starts_with($name, $detectedRoot . '/') && $name !== $detectedRoot . '/') { $allSameRoot = false; break; }
+            for ($j = 0; $j < $zip->numFiles; $j++) {
+                $n = $zip->getNameIndex($j);
+                if ($n && $n !== $firstEntry && strpos($n, $detectedRoot . '/') !== 0) { $allSameRoot = false; break; }
             }
-            if($allSameRoot) $rootFolderName = null;
+            if ($allSameRoot) {
+                $zipInternalRoot = $detectedRoot;
+                $rootFolderName = $detectedRoot;
+            }
         }
 
         $getOrCreateFolder = function(string $relPath, ?int $parentId) use ($pdo, $projectId, &$folderCache, &$foldersCreated, &$log) {
@@ -1123,8 +1130,8 @@ switch($action) {
             return $newId;
         };
 
-        $rootFolderId = $parentFolderId;
-        if($rootFolderName !== null) { $rootFolderId = $getOrCreateFolder($rootFolderName, $parentFolderId); }
+        // ALWAYS create the root folder — never skip it
+        $rootFolderId = $getOrCreateFolder($rootFolderName, $parentFolderId);
 
         $targetDir = __DIR__ . '/../uploads/';
         if(!file_exists($targetDir)) mkdir($targetDir, 0755, true);
@@ -1135,8 +1142,14 @@ switch($action) {
             $baseName = basename($entryName);
             if($baseName === '' || $baseName[0] === '.' || str_contains($entryName, '__MACOSX') || str_contains($entryName, 'Thumbs.db')) continue;
 
-            $relPath = ($rootFolderName === null && $firstEntry) ? substr($entryName, strlen(explode('/', $firstEntry)[0]) + 1) : $entryName;
-            if($relPath === false) $relPath = $entryName;
+            // Strip the ZIP's internal root prefix so paths are relative inside rootFolder
+            if ($zipInternalRoot !== null) {
+                if ($entryName === $zipInternalRoot . '/') continue;
+                $relPath = substr($entryName, strlen($zipInternalRoot) + 1);
+                if ($relPath === false || $relPath === '') continue;
+            } else {
+                $relPath = $entryName;
+            }
 
             if(str_ends_with($entryName, '/')) {
                 $dirRelPath = rtrim($relPath, '/');
@@ -1152,7 +1165,7 @@ switch($action) {
             }
 
             $ext = strtolower(pathinfo($baseName, PATHINFO_EXTENSION));
-            if(!in_array($ext, $allowedExts)) { $log[] = "⚠️ Skipped: {$baseName}"; continue; }
+            if(in_array($ext, $blockedExts)) { $log[] = "⚠️ Skipped (type not allowed): {$baseName}"; continue; }
 
             $fileDirRel = ltrim(dirname($relPath), '/');
             $fileFolderId = $rootFolderId;
