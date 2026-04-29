@@ -301,7 +301,7 @@ include __DIR__ . '/../views/header.php';
                                 <button class="btn btn-sm border-0 btn-folder-menu" data-bs-toggle="dropdown"><i class="fas fa-ellipsis-v fa-lg"></i></button>
                                 <ul class="dropdown-menu dropdown-menu-end bg-card border-secondary shadow-lg rounded-3 py-1">
                                     <li><button class="dropdown-item text-white hover-bg-body small" onclick="openMoveFolderModal(<?= $folder['id'] ?>)"><i class="fas fa-exchange-alt me-2 text-warning"></i> Move Folder</button></li>
-                                    <?php if(($folder['depth'] ?? 0) < 3): ?><li><button class="dropdown-item text-white hover-bg-body small" onclick="addSubFolder(<?= $folder['id'] ?>, '<?= addslashes($folder['name']) ?>')"><i class="fas fa-folder-plus me-2 text-primary"></i> Add Subfolder</button></li><?php endif; ?>
+                                    <?php if(($folder['depth'] ?? 0) < 3): ?><li><button class="dropdown-item text-white hover-bg-body small" onclick="openAddSubfolderModal(<?= $folder['id'] ?>, '<?= addslashes(htmlspecialchars($folder['name'])) ?>')"><i class="fas fa-folder-plus me-2 text-success"></i> Add Subfolder</button></li><?php endif; ?>
                                     <li><button class="dropdown-item text-danger hover-bg-body small" onclick="deleteFolder(<?= $folder['id'] ?>)"><i class="fas fa-trash me-2"></i> Delete Folder</button></li>
                                 </ul>
                             </div>
@@ -795,6 +795,33 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
     </div>
 </div>
 
+<!-- Modal: Add Subfolder -->
+<div class="modal fade" id="addSubfolderModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content p-3">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold">
+                    <i class="fas fa-folder-plus me-2 text-success"></i> Add Subfolder in: <span id="subfolder-parent-name" class="text-primary"></span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="addSubfolderForm">
+                <input type="hidden" id="subfolder-parent-id" name="parent_id" value="">
+                <div class="modal-body">
+                    <div id="addSubfolderError" class="alert alert-danger py-2 px-3 mb-3 d-none" role="alert"></div>
+                    <label class="text-gray small mb-2">Subfolder Name</label>
+                    <input type="text" name="name" id="subfolder-name-input" class="form-control" required maxlength="255" placeholder="e.g. Revisiones">
+                </div>
+                <div class="modal-footer">
+                    <button type="submit" class="btn-main w-100">
+                        <i class="fas fa-plus me-2"></i>Create Subfolder
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <div class="modal fade" id="assignUsersModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content p-3">
@@ -1218,6 +1245,44 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
         newFolderError.classList.add('d-none');
     };
 
+    // --- Subfolder Modal ---
+    function openAddSubfolderModal(parentId, parentName) {
+        document.getElementById('subfolder-parent-id').value = parentId;
+        document.getElementById('subfolder-parent-name').textContent = parentName;
+        document.getElementById('subfolder-name-input').value = '';
+        const errEl = document.getElementById('addSubfolderError');
+        if (errEl) {
+            errEl.textContent = '';
+            errEl.classList.add('d-none');
+        }
+        new bootstrap.Modal(document.getElementById('addSubfolderModal')).show();
+    }
+
+    const addSubfolderForm = document.getElementById('addSubfolderForm');
+    if (addSubfolderForm) {
+        addSubfolderForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const errEl = document.getElementById('addSubfolderError');
+            const fd = new FormData(this);
+            fd.append('action', 'create_folder');
+            fd.append('project_id', pId);
+            fetch('../api/api.php', { method: 'POST', body: fd })
+                .then(r => r.json())
+                .then(d => {
+                    if (d.status === 'success') {
+                        location.reload();
+                    } else {
+                        errEl.textContent = 'Error: ' + (d.msg || 'Unknown error');
+                        errEl.classList.remove('d-none');
+                    }
+                })
+                .catch(() => {
+                    errEl.textContent = 'Connection error. Please try again.';
+                    errEl.classList.remove('d-none');
+                });
+        });
+    }
+
     if (newFolderFormDash) {
         newFolderFormDash.addEventListener('submit', function(e) {
             e.preventDefault();
@@ -1236,18 +1301,6 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
                 })
                 .catch(() => showNewFolderError('Connection error while creating folder.'));
         });
-    }
-    function addSubFolder(parentId, parentName) {
-        const name = prompt(`New subfolder inside "${parentName}":`);
-        if (!name || !name.trim()) return;
-        const fd = new FormData();
-        fd.append('action', 'create_folder');
-        fd.append('project_id', pId);
-        fd.append('folder_name', name.trim());
-        fd.append('parent_id', parentId);
-        fetch('../api/api.php', { method: 'POST', body: fd })
-            .then(r => r.json())
-            .then(d => { if (d.status === 'success') location.reload(); else appAlert('Error: ' + d.msg, 'Error', 'error'); });
     }
 
     async function handleBulkFolderImport(input) {
