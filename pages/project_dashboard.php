@@ -1407,14 +1407,20 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
                                 }
                             });
                             xhr.onload = () => {
+                                const raw = (xhr.responseText || '').trim();
+                                if (xhr.status < 200 || xhr.status >= 300) {
+                                    errors.push(`"${fileName}": HTTP ${xhr.status}`);
+                                    return resolve();
+                                }
                                 try {
-                                    const upRes = JSON.parse(xhr.responseText || '{}');
+                                    const upRes = JSON.parse(raw || '{}');
                                     if (upRes.status !== 'success') {
                                         errors.push(`"${fileName}": ${upRes.msg || 'upload failed'}`);
                                     }
                                     resolve();
                                 } catch (err) {
-                                    errors.push(`"${fileName}": invalid server response`);
+                                    const shortRaw = raw.slice(0, 140).replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                                    errors.push(`"${fileName}": invalid response (${shortRaw || 'empty'})`);
                                     resolve();
                                 }
                             };
@@ -1422,7 +1428,7 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
                             xhr.send(fdFile);
                         });
                     } catch(e) {
-                        errors.push(`"${fileName}": upload failed`);
+                        errors.push(`"${fileName}": upload failed (${e?.message || 'network'})`);
                     }
 
                     doneFiles++;
