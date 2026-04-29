@@ -506,9 +506,9 @@ switch($action) {
         if (!isset($_FILES['file'])) { echo json_encode(['status'=>'error', 'msg'=>'No file']); exit; }
         
         // 3.1 Validar Tamaño (1GB = 1,073,741,824 bytes)
-        $maxSize = 1073741824;
+        $maxSize = 10737418240; // 10GB
         if ($_FILES['file']['size'] > $maxSize) {
-            echo json_encode(['status'=>'error', 'msg'=>'File exceeds 1GB limit']); 
+            echo json_encode(['status'=>'error', 'msg'=>'File exceeds 10GB limit']); 
             exit;
         }
 
