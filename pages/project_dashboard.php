@@ -86,67 +86,20 @@ $toolCatalog = [
 
 // 2. Consulta de Carpetas (Para el menú lateral y la vista de archivos)
 $userRole = strtolower(trim((string)($_SESSION['role'] ?? 'viewer')));
-if ($userRole !== 'viewer') {
-    $foldersStmt = $pdo->prepare("SELECT * FROM folders WHERE project_id = ? AND deleted_at IS NULL ORDER BY depth ASC, name ASC");
-    $foldersStmt->execute([$projectId]);
-    $allFolders = $foldersStmt->fetchAll(PDO::FETCH_ASSOC);
-} else {
-    $defaultViewerFolders = ['drawings', 'photos', 'rfi'];
-    $placeholders = implode(',', array_fill(0, count($defaultViewerFolders), '?'));
-    $viewerSql = "
-        SELECT f.*
-        FROM folders f
-        WHERE f.project_id = ?
-          AND f.deleted_at IS NULL
-          AND (
-            LOWER(f.name) IN ($placeholders)
-            OR f.id IN (SELECT folder_id FROM folder_permissions WHERE user_id = ?)
-            OR f.parent_id IN (
-              SELECT id FROM folders
-              WHERE project_id = ?
-                AND deleted_at IS NULL
-                AND (
-                  LOWER(name) IN ($placeholders)
-                  OR id IN (SELECT folder_id FROM folder_permissions WHERE user_id = ?)
-                )
-            )
-          )
-        ORDER BY f.depth ASC, f.name ASC
-    ";
-    $foldersStmt = $pdo->prepare($viewerSql);
-    $foldersStmt->execute(array_merge([$projectId], $defaultViewerFolders, [(int)($_SESSION['user_id'] ?? 0), $projectId], $defaultViewerFolders, [(int)($_SESSION['user_id'] ?? 0)]));
-    $allFolders = $foldersStmt->fetchAll(PDO::FETCH_ASSOC);
-}
 
-// Priorizar carpetas principales (con colores) al principio de la lista
-$specialFolders = ['bom', 'drawings', 'labor record', 'photos', 'rfi'];
-usort($allFolders, function($a, $b) use ($specialFolders) {
-    $aName = strtolower($a['name']);
-    $bName = strtolower($b['name']);
-    $aIsSpecial = 0; $bIsSpecial = 0;
-    foreach($specialFolders as $sf) { if(strpos($aName, $sf) !== false) { $aIsSpecial = 1; break; } }
-    foreach($specialFolders as $sf) { if(strpos($bName, $sf) !== false) { $bIsSpecial = 1; break; } }
-    if ($aIsSpecial !== $bIsSpecial) return $bIsSpecial - $aIsSpecial;
-    if (((int)($a['depth'] ?? 0)) !== ((int)($b['depth'] ?? 0))) return ((int)($a['depth'] ?? 0)) - ((int)($b['depth'] ?? 0));
-    return strcmp($aName, $bName);
-});
+// Solo carpetas raíz (sin padre) para el grid principal
+$foldersStmt = $pdo->prepare("SELECT * FROM folders WHERE project_id = ? AND deleted_at IS NULL AND (parent_id IS NULL OR parent_id = 0) ORDER BY name ASC");
+$foldersStmt->execute([$projectId]);
+$allFolders = $foldersStmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Construir árbol de carpetas para render jerárquico
-$folderMap = [];
-foreach ($allFolders as $f) {
-    $f['children'] = [];
-    $folderMap[(int)$f['id']] = $f;
+// Subcarpetas agrupadas por parent_id (para mostrar dentro de cada carpeta)
+$subStmt = $pdo->prepare("SELECT * FROM folders WHERE project_id = ? AND deleted_at IS NULL AND parent_id IS NOT NULL AND parent_id != 0 ORDER BY depth ASC, name ASC");
+$subStmt->execute([$projectId]);
+$allSubs = $subStmt->fetchAll(PDO::FETCH_ASSOC);
+$subsByParent = [];
+foreach($allSubs as $sub) {
+    $subsByParent[(int)$sub['parent_id']][] = $sub;
 }
-$folderTree = [];
-foreach ($folderMap as $id => &$node) {
-    $parentId = (int)($node['parent_id'] ?? 0);
-    if ($parentId > 0 && isset($folderMap[$parentId])) {
-        $folderMap[$parentId]['children'][] = &$node;
-    } else {
-        $folderTree[] = &$node;
-    }
-}
-unset($node);
 
 // 3. Consulta de Estadísticas Rápidas (Para el Summary)
 $fileCount = $pdo->query("SELECT COUNT(*) FROM files WHERE project_id = $projectId AND deleted_at IS NULL")->fetchColumn();
