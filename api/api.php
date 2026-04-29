@@ -431,28 +431,35 @@ switch($action) {
 
     // --- 2. CREAR CARPETA (ADMIN ONLY) ---
     case 'create_folder':
-        if($userRole !== 'admin') { echo json_encode(['status'=>'error', 'msg'=>'Access Denied']); exit; }
-
         $projectId = (int)($_POST['project_id'] ?? 0);
-        $name = trim((string)($_POST['name'] ?? ''));
+        $folderName = trim((string)($_POST['folder_name'] ?? $_POST['name'] ?? ''));
+        $parentId = !empty($_POST['parent_id']) ? (int)$_POST['parent_id'] : null;
 
-        if ($projectId <= 0) {
-            echo json_encode(['status'=>'error', 'msg'=>'Invalid project.']);
-            exit;
-        }
-        if ($name === '') {
-            echo json_encode(['status'=>'error', 'msg'=>'Folder name is required.']);
-            exit;
-        }
-        if (mb_strlen($name) > 255) {
-            echo json_encode(['status'=>'error', 'msg'=>'Folder name is too long (max 255 chars).']);
-            exit;
-        }
+        if($userRole === 'viewer') { echo json_encode(['status'=>'error', 'msg'=>'Access Denied']); exit; }
+        if(!$projectId) { echo json_encode(['status'=>'error', 'msg'=>'Invalid project.']); exit; }
+        if($folderName === '') { echo json_encode(['status'=>'error', 'msg'=>'Folder name is required.']); exit; }
+        if(mb_strlen($folderName) > 255) { echo json_encode(['status'=>'error', 'msg'=>'Folder name is too long (max 255 chars).']); exit; }
 
         try {
-            $stmt = $pdo->prepare("INSERT INTO folders (project_id, name) VALUES (?, ?)");
-            $stmt->execute([$projectId, $name]);
-            echo json_encode(['status'=>'success']);
+            $depth = 0;
+            if($parentId) {
+                $stmtP = $pdo->prepare("SELECT depth FROM folders WHERE id = ? AND project_id = ? AND deleted_at IS NULL");
+                $stmtP->execute([$parentId, $projectId]);
+                $parentRow = $stmtP->fetch(PDO::FETCH_ASSOC);
+                if(!$parentRow) { echo json_encode(['status'=>'error', 'msg'=>'Parent folder not found.']); exit; }
+                $depth = ((int)$parentRow['depth']) + 1;
+                if($depth > 3) { echo json_encode(['status'=>'error', 'msg'=>'Maximum folder depth is 4 levels.']); exit; }
+            }
+
+            $stmtChk = $pdo->prepare("SELECT id FROM folders WHERE project_id = ? AND parent_id " . ($parentId ? "= ?" : "IS NULL") . " AND name = ? AND deleted_at IS NULL LIMIT 1");
+            $params = $parentId ? [$projectId, $parentId, $folderName] : [$projectId, $folderName];
+            $stmtChk->execute($params);
+            if($stmtChk->fetch()) { echo json_encode(['status'=>'error', 'msg'=>'A folder with that name already exists here.']); exit; }
+
+            $stmtIns = $pdo->prepare("INSERT INTO folders (project_id, name, parent_id, depth) VALUES (?, ?, ?, ?)");
+            $stmtIns->execute([$projectId, $folderName, $parentId, $depth]);
+            $newId = (int)$pdo->lastInsertId();
+            echo json_encode(['status'=>'success','folder_id'=>$newId,'depth'=>$depth]);
         } catch(Exception $e) { echo json_encode(['status'=>'error', 'msg'=>$e->getMessage()]); }
         break;
 
@@ -836,12 +843,20 @@ switch($action) {
 
     // --- 11. OBTENER CARPETAS (Reforzado) ---
     case 'get_folders_list':
-        $pid = $_POST['project_id'] ?? 0;
+        $projectId = (int)($_POST['project_id'] ?? $_GET['project_id'] ?? 0);
+        if(!$projectId) { echo json_encode(['status'=>'error','msg'=>'Invalid project.']); exit; }
         try {
-            $stmt = $pdo->prepare("SELECT id, name FROM folders WHERE project_id = ? AND deleted_at IS NULL ORDER BY name ASC");
-            $stmt->execute([$pid]);
-            $folders = $stmt->fetchAll(PDO::FETCH_ASSOC);
-            echo json_encode(['status' => 'success', 'data' => $folders]);
+            $stmtF = $pdo->prepare("SELECT id, name, parent_id, depth FROM folders WHERE project_id = ? AND deleted_at IS NULL ORDER BY depth ASC, name ASC");
+            $stmtF->execute([$projectId]);
+            $all = $stmtF->fetchAll(PDO::FETCH_ASSOC);
+            $byId = [];
+            foreach($all as $f) { $byId[$f['id']] = $f + ['children'=>[]]; }
+            $tree = [];
+            foreach($byId as $id => &$f) {
+                if(!empty($f['parent_id']) && isset($byId[$f['parent_id']])) $byId[$f['parent_id']]['children'][] = &$f;
+                else $tree[] = &$f;
+            }
+            echo json_encode(['status' => 'success', 'folders' => $tree, 'data' => $all]);
         } catch (Exception $e) {
             echo json_encode(['status' => 'error', 'msg' => $e->getMessage()]);
         }
@@ -973,6 +988,37 @@ switch($action) {
         } catch(Exception $e) {
             echo json_encode(['status'=>'error', 'msg'=>$e->getMessage()]);
         }
+        break;
+
+
+    case 'grant_folder_permission':
+        if($userRole !== 'admin') { echo json_encode(['status'=>'error','msg'=>'Access Denied']); exit; }
+        $folderId = (int)($_POST['folder_id'] ?? 0);
+        $targetUserId = (int)($_POST['user_id'] ?? 0);
+        if(!$folderId || !$targetUserId) { echo json_encode(['status'=>'error','msg'=>'Invalid data']); exit; }
+        $stmt = $pdo->prepare("INSERT IGNORE INTO folder_permissions (folder_id, user_id, granted_by) VALUES (?, ?, ?)");
+        $stmt->execute([$folderId, $targetUserId, $userId]);
+        echo json_encode(['status'=>'success']);
+        break;
+
+    case 'revoke_folder_permission':
+        if($userRole !== 'admin') { echo json_encode(['status'=>'error','msg'=>'Access Denied']); exit; }
+        $folderId = (int)($_POST['folder_id'] ?? 0);
+        $targetUserId = (int)($_POST['user_id'] ?? 0);
+        $stmt = $pdo->prepare("DELETE FROM folder_permissions WHERE folder_id = ? AND user_id = ?");
+        $stmt->execute([$folderId, $targetUserId]);
+        echo json_encode(['status'=>'success']);
+        break;
+
+    case 'create_project_bulk':
+        if($userRole !== 'admin') { echo json_encode(['status'=>'error','msg'=>'Access Denied']); exit; }
+        $name = trim($_POST['name'] ?? '');
+        if(!$name) { echo json_encode(['status'=>'error','msg'=>'Project name required']); exit; }
+        $stmt = $pdo->prepare("INSERT INTO projects (name, created_by) VALUES (?, ?)");
+        $stmt->execute([$name, $userId]);
+        $newProjectId = (int)$pdo->lastInsertId();
+        $pdo->prepare("INSERT IGNORE INTO project_users (project_id, user_id) VALUES (?, ?)")->execute([$newProjectId, $userId]);
+        echo json_encode(['status'=>'success','project_id'=>$newProjectId]);
         break;
 
     default: echo json_encode(['status'=>'error', 'msg'=>'Invalid action']);

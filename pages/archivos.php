@@ -166,7 +166,12 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
                     <td class="small text-gray"><?= htmlspecialchars($projectLabel) ?></td>
                     <td class="small text-gray"><?= !empty($f['uploaded_at']) ? date('M d, Y', strtotime($f['uploaded_at'])) : '-' ?></td>
                     <td class="text-end">
-                        <a href="preview.php?id=<?= (int)$f['id'] ?>" class="btn-action me-1" title="Preview"><i class="fas fa-eye"></i></a>
+                        <?php $ext = strtolower(pathinfo($f['filename'], PATHINFO_EXTENSION)); $isExcel = in_array($ext, ['xlsx','xls','xlsm','csv']); ?>
+                        <?php if($isExcel): ?>
+                            <a href="preview.php?id=<?= (int)$f['id'] ?>&mode=spreadsheet" class="btn-action me-1" title="Preview Spreadsheet" target="_blank"><i class="fas fa-table"></i></a>
+                        <?php else: ?>
+                            <a href="preview.php?id=<?= (int)$f['id'] ?>" class="btn-action me-1" title="Preview"><i class="fas fa-eye"></i></a>
+                        <?php endif; ?>
                         <?php if(($_SESSION['role'] ?? '') === 'admin'): ?>
                             <button class="btn-action text-danger border-danger" title="Delete" onclick="deleteFile(<?= (int)$f['id'] ?>)"><i class="fas fa-trash"></i></button>
                         <?php endif; ?>
@@ -197,7 +202,8 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
                 <div class="file-meta">Project: <?= htmlspecialchars($projectLabel) ?></div>
                 <div class="file-meta">Uploaded: <?= !empty($f['uploaded_at']) ? date('M d, Y', strtotime($f['uploaded_at'])) : '-' ?></div>
                 <div class="d-flex gap-2 mt-3">
-                    <a href="preview.php?id=<?= (int)$f['id'] ?>" class="btn-action" title="Preview"><i class="fas fa-eye"></i></a>
+                    <?php $ext = strtolower(pathinfo($f['filename'], PATHINFO_EXTENSION)); $isExcel = in_array($ext, ['xlsx','xls','xlsm','csv']); ?>
+                    <a href="preview.php?id=<?= (int)$f['id'] ?><?= $isExcel ? '&mode=spreadsheet' : '' ?>" class="btn-action" title="Preview" <?= $isExcel ? 'target="_blank"' : '' ?>><i class="fas <?= $isExcel ? 'fa-table' : 'fa-eye' ?>"></i></a>
                     <?php if(($_SESSION['role'] ?? '') === 'admin'): ?>
                         <button class="btn-action text-danger border-danger" title="Delete" onclick="deleteFile(<?= (int)$f['id'] ?>)"><i class="fas fa-trash"></i></button>
                     <?php endif; ?>
