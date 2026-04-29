@@ -86,67 +86,20 @@ $toolCatalog = [
 
 // 2. Consulta de Carpetas (Para el menú lateral y la vista de archivos)
 $userRole = strtolower(trim((string)($_SESSION['role'] ?? 'viewer')));
-if ($userRole !== 'viewer') {
-    $foldersStmt = $pdo->prepare("SELECT * FROM folders WHERE project_id = ? AND deleted_at IS NULL ORDER BY depth ASC, name ASC");
-    $foldersStmt->execute([$projectId]);
-    $allFolders = $foldersStmt->fetchAll(PDO::FETCH_ASSOC);
-} else {
-    $defaultViewerFolders = ['drawings', 'photos', 'rfi'];
-    $placeholders = implode(',', array_fill(0, count($defaultViewerFolders), '?'));
-    $viewerSql = "
-        SELECT f.*
-        FROM folders f
-        WHERE f.project_id = ?
-          AND f.deleted_at IS NULL
-          AND (
-            LOWER(f.name) IN ($placeholders)
-            OR f.id IN (SELECT folder_id FROM folder_permissions WHERE user_id = ?)
-            OR f.parent_id IN (
-              SELECT id FROM folders
-              WHERE project_id = ?
-                AND deleted_at IS NULL
-                AND (
-                  LOWER(name) IN ($placeholders)
-                  OR id IN (SELECT folder_id FROM folder_permissions WHERE user_id = ?)
-                )
-            )
-          )
-        ORDER BY f.depth ASC, f.name ASC
-    ";
-    $foldersStmt = $pdo->prepare($viewerSql);
-    $foldersStmt->execute(array_merge([$projectId], $defaultViewerFolders, [(int)($_SESSION['user_id'] ?? 0), $projectId], $defaultViewerFolders, [(int)($_SESSION['user_id'] ?? 0)]));
-    $allFolders = $foldersStmt->fetchAll(PDO::FETCH_ASSOC);
-}
 
-// Priorizar carpetas principales (con colores) al principio de la lista
-$specialFolders = ['bom', 'drawings', 'labor record', 'photos', 'rfi'];
-usort($allFolders, function($a, $b) use ($specialFolders) {
-    $aName = strtolower($a['name']);
-    $bName = strtolower($b['name']);
-    $aIsSpecial = 0; $bIsSpecial = 0;
-    foreach($specialFolders as $sf) { if(strpos($aName, $sf) !== false) { $aIsSpecial = 1; break; } }
-    foreach($specialFolders as $sf) { if(strpos($bName, $sf) !== false) { $bIsSpecial = 1; break; } }
-    if ($aIsSpecial !== $bIsSpecial) return $bIsSpecial - $aIsSpecial;
-    if (((int)($a['depth'] ?? 0)) !== ((int)($b['depth'] ?? 0))) return ((int)($a['depth'] ?? 0)) - ((int)($b['depth'] ?? 0));
-    return strcmp($aName, $bName);
-});
+// Solo carpetas raíz (sin padre) para el grid principal
+$foldersStmt = $pdo->prepare("SELECT * FROM folders WHERE project_id = ? AND deleted_at IS NULL AND (parent_id IS NULL OR parent_id = 0) ORDER BY name ASC");
+$foldersStmt->execute([$projectId]);
+$allFolders = $foldersStmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Construir árbol de carpetas para render jerárquico
-$folderMap = [];
-foreach ($allFolders as $f) {
-    $f['children'] = [];
-    $folderMap[(int)$f['id']] = $f;
+// Subcarpetas agrupadas por parent_id (para mostrar dentro de cada carpeta)
+$subStmt = $pdo->prepare("SELECT * FROM folders WHERE project_id = ? AND deleted_at IS NULL AND parent_id IS NOT NULL AND parent_id != 0 ORDER BY depth ASC, name ASC");
+$subStmt->execute([$projectId]);
+$allSubs = $subStmt->fetchAll(PDO::FETCH_ASSOC);
+$subsByParent = [];
+foreach($allSubs as $sub) {
+    $subsByParent[(int)$sub['parent_id']][] = $sub;
 }
-$folderTree = [];
-foreach ($folderMap as $id => &$node) {
-    $parentId = (int)($node['parent_id'] ?? 0);
-    if ($parentId > 0 && isset($folderMap[$parentId])) {
-        $folderMap[$parentId]['children'][] = &$node;
-    } else {
-        $folderTree[] = &$node;
-    }
-}
-unset($node);
 
 // 3. Consulta de Estadísticas Rápidas (Para el Summary)
 $fileCount = $pdo->query("SELECT COUNT(*) FROM files WHERE project_id = $projectId AND deleted_at IS NULL")->fetchColumn();
@@ -277,19 +230,17 @@ include __DIR__ . '/../views/header.php';
 
         <h5 class="fw-bold mb-3"><i class="fas fa-folder-tree text-warning me-2"></i> Project Folders</h5>
         <div class="row g-3 mb-4">
-            <?php
-            $renderFolderCard = function($folder) use (&$renderFolderCard, $projectId) {
+            <?php foreach($allFolders as $folder): 
                 $folderNameLower = strtolower($folder['name']);
                 $iconColorClass = 'warning';
-                if (strpos($folderNameLower, 'bom') !== false) { $iconColorClass = 'success'; }
-                elseif (strpos($folderNameLower, 'drawings') !== false) { $iconColorClass = 'primary'; }
-                elseif (strpos($folderNameLower, 'labor record') !== false) { $iconColorClass = 'purple'; }
-                elseif (strpos($folderNameLower, 'photos') !== false) { $iconColorClass = 'danger'; }
+                if (strpos($folderNameLower, 'bom') !== false) { $iconColorClass = 'success'; } 
+                elseif (strpos($folderNameLower, 'drawings') !== false) { $iconColorClass = 'primary'; } 
+                elseif (strpos($folderNameLower, 'labor record') !== false) { $iconColorClass = 'purple'; } 
+                elseif (strpos($folderNameLower, 'photos') !== false) { $iconColorClass = 'danger'; } 
                 elseif (strpos($folderNameLower, 'rfi') !== false) { $iconColorClass = 'success'; }
-                $depth = (int)($folder['depth'] ?? 0);
             ?>
-                <div class="col-12 <?= $depth === 0 ? 'col-md-4 col-xl-3' : '' ?>">
-                    <div class="folder-card-dash" style="margin-left: <?= $depth * 22 ?>px;">
+                <div class="col-md-4 col-xl-3">
+                    <div class="folder-card-dash">
                         <a href="?id=<?= $projectId ?>&view=files&folder_id=<?= $folder['id'] ?>" class="d-flex align-items-center gap-3 text-decoration-none w-100">
                             <div class="bg-<?= $iconColorClass ?> bg-opacity-10 p-2 rounded text-<?= $iconColorClass ?>">
                                 <i class="fas fa-folder fa-lg"></i>
@@ -300,23 +251,38 @@ include __DIR__ . '/../views/header.php';
                             <div class="dropdown ms-2">
                                 <button class="btn btn-sm border-0 btn-folder-menu" data-bs-toggle="dropdown"><i class="fas fa-ellipsis-v fa-lg"></i></button>
                                 <ul class="dropdown-menu dropdown-menu-end bg-card border-secondary shadow-lg rounded-3 py-1">
-                                    <li><button class="dropdown-item text-white hover-bg-body small" onclick="openMoveFolderModal(<?= $folder['id'] ?>)"><i class="fas fa-exchange-alt me-2 text-warning"></i> Move Folder</button></li>
                                     <?php if(($folder['depth'] ?? 0) < 3): ?><li><button class="dropdown-item text-white hover-bg-body small" onclick="openAddSubfolderModal(<?= $folder['id'] ?>, '<?= addslashes(htmlspecialchars($folder['name'])) ?>')"><i class="fas fa-folder-plus me-2 text-success"></i> Add Subfolder</button></li><?php endif; ?>
+                                    <li><button class="dropdown-item text-white hover-bg-body small" onclick="openMoveFolderModal(<?= $folder['id'] ?>)"><i class="fas fa-exchange-alt me-2 text-warning"></i> Move Folder</button></li>
                                     <li><button class="dropdown-item text-danger hover-bg-body small" onclick="deleteFolder(<?= $folder['id'] ?>)"><i class="fas fa-trash me-2"></i> Delete Folder</button></li>
                                 </ul>
                             </div>
                         <?php endif; ?>
                     </div>
                 </div>
-                <?php if (!empty($folder['children'])): ?>
-                    <?php foreach($folder['children'] as $child): ?>
-                        <?php $renderFolderCard($child); ?>
-                    <?php endforeach; ?>
+                <?php if (!empty($subsByParent[$folder['id']])): ?>
+                    <div class="col-12">
+                        <div class="ms-4 d-flex flex-column gap-2 mb-2">
+                            <?php foreach($subsByParent[$folder['id']] as $sub): ?>
+                                <div class="d-flex align-items-center justify-content-between px-3 py-2 rounded-3" style="background:var(--bg-body); border:1px solid var(--border-subtle);">
+                                    <a href="?id=<?= $projectId ?>&view=files&folder_id=<?= $sub['id'] ?>" class="d-flex align-items-center gap-2 text-decoration-none text-white small fw-semibold flex-grow-1">
+                                        <i class="fas fa-folder text-warning" style="font-size:0.85rem;"></i>
+                                        <?= htmlspecialchars($sub['name']) ?>
+                                    </a>
+                                    <?php if($_SESSION['role'] === 'admin'): ?>
+                                        <div class="dropdown ms-2">
+                                            <button class="btn btn-sm border-0 btn-folder-menu py-0 px-1" data-bs-toggle="dropdown"><i class="fas fa-ellipsis-v"></i></button>
+                                            <ul class="dropdown-menu dropdown-menu-end bg-card border-secondary shadow-lg rounded-3 py-1">
+                                                <?php if(($sub['depth'] ?? 1) < 3): ?><li><button class="dropdown-item text-white hover-bg-body small" onclick="openAddSubfolderModal(<?= $sub['id'] ?>, '<?= addslashes(htmlspecialchars($sub['name'])) ?>')"><i class="fas fa-folder-plus me-2 text-success"></i> Add Subfolder</button></li><?php endif; ?>
+                                                <li><button class="dropdown-item text-danger hover-bg-body small" onclick="deleteFolder(<?= $sub['id'] ?>)"><i class="fas fa-trash me-2"></i> Delete</button></li>
+                                            </ul>
+                                        </div>
+                                    <?php endif; ?>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                    </div>
                 <?php endif; ?>
-            <?php };
-
-            foreach($folderTree as $rootFolder) { $renderFolderCard($rootFolder); }
-            ?>
+            <?php endforeach; ?>
             <?php if(empty($allFolders)): ?>
                 <div class="col-12"><div class="text-gray small"><i class="fas fa-info-circle me-2"></i>This project has no folders.</div></div>
             <?php endif; ?>
@@ -333,13 +299,49 @@ include __DIR__ . '/../views/header.php';
             $folderName = !empty($currFolder) ? reset($currFolder)['name'] : "Unknown Folder";
         }
     ?>
+        <?php
+            $currentFolderData = array_values(array_filter($allFolders, fn($f) => $f['id'] == $currentFolderId));
+            if(empty($currentFolderData) && !empty($allSubs)) {
+                $currentFolderData = array_values(array_filter($allSubs, fn($f) => $f['id'] == $currentFolderId));
+            }
+            $currentFolderDepth = isset($currentFolderData[0]['depth']) ? (int)$currentFolderData[0]['depth'] : 0;
+            $canAddSubfolder = $_SESSION['role'] === 'admin' && $currentFolderDepth < 3;
+        ?>
         <div class="d-flex align-items-center justify-content-between mb-4 pb-2 border-bottom border-secondary">
             <div class="d-flex align-items-center gap-3">
                 <a href="?id=<?= $projectId ?>&view=summary" class="btn btn-icon rounded-circle"><i class="fas fa-arrow-left"></i></a>
                 <h4 class="fw-bold mb-0 text-white"><i class="fas fa-folder-open text-warning me-2"></i> <?= htmlspecialchars($folderName) ?></h4>
             </div>
-            <span class="badge bg-secondary rounded-pill px-3"><?= count($files) ?> files</span>
+            <div class="d-flex align-items-center gap-2">
+                <?php if($canAddSubfolder): ?>
+                    <button class="btn btn-sm btn-outline-light rounded-pill px-3" onclick="openAddSubfolderModal(<?= $currentFolderId ?>, '<?= addslashes(htmlspecialchars($folderName)) ?>')"><i class="fas fa-folder-plus me-1 text-success"></i> Add Subfolder</button>
+                <?php endif; ?>
+                <span class="badge bg-secondary rounded-pill px-3"><?= count($files) ?> files</span>
+            </div>
         </div>
+        <?php if(!empty($subsByParent[$currentFolderId])): ?>
+            <div class="mb-4">
+                <div class="small text-gray fw-bold mb-2 text-uppercase" style="letter-spacing:0.5px;"><i class="fas fa-folder-tree me-1"></i> Subfolders</div>
+                <div class="row g-2">
+                    <?php foreach($subsByParent[$currentFolderId] as $sub): ?>
+                        <div class="col-md-4 col-xl-3">
+                            <div class="d-flex align-items-center justify-content-between px-3 py-2 rounded-3 h-100" style="background:var(--bg-card); border:1px solid var(--border-subtle);">
+                                <a href="?id=<?= $projectId ?>&view=files&folder_id=<?= $sub['id'] ?>" class="d-flex align-items-center gap-2 text-decoration-none text-white small fw-semibold flex-grow-1"><i class="fas fa-folder text-warning"></i> <?= htmlspecialchars($sub['name']) ?></a>
+                                <?php if($_SESSION['role'] === 'admin'): ?>
+                                    <div class="dropdown ms-2">
+                                        <button class="btn btn-sm border-0 btn-folder-menu py-0 px-1" data-bs-toggle="dropdown"><i class="fas fa-ellipsis-v"></i></button>
+                                        <ul class="dropdown-menu dropdown-menu-end bg-card border-secondary shadow-lg rounded-3 py-1">
+                                            <?php if(($sub['depth'] ?? 1) < 3): ?><li><button class="dropdown-item text-white hover-bg-body small" onclick="openAddSubfolderModal(<?= $sub['id'] ?>, '<?= addslashes(htmlspecialchars($sub['name'])) ?>')"><i class="fas fa-folder-plus me-2 text-success"></i> Add Subfolder</button></li><?php endif; ?>
+                                            <li><button class="dropdown-item text-danger hover-bg-body small" onclick="deleteFolder(<?= $sub['id'] ?>)"><i class="fas fa-trash me-2"></i> Delete</button></li>
+                                        </ul>
+                                    </div>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                </div>
+            </div>
+        <?php endif; ?>
 
         <?php if(empty($files)): ?>
             <div class="text-center py-5">
