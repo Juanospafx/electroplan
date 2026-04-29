@@ -127,8 +127,26 @@ usort($allFolders, function($a, $b) use ($specialFolders) {
     foreach($specialFolders as $sf) { if(strpos($aName, $sf) !== false) { $aIsSpecial = 1; break; } }
     foreach($specialFolders as $sf) { if(strpos($bName, $sf) !== false) { $bIsSpecial = 1; break; } }
     if ($aIsSpecial !== $bIsSpecial) return $bIsSpecial - $aIsSpecial;
+    if (((int)($a['depth'] ?? 0)) !== ((int)($b['depth'] ?? 0))) return ((int)($a['depth'] ?? 0)) - ((int)($b['depth'] ?? 0));
     return strcmp($aName, $bName);
 });
+
+// Construir árbol de carpetas para render jerárquico
+$folderMap = [];
+foreach ($allFolders as $f) {
+    $f['children'] = [];
+    $folderMap[(int)$f['id']] = $f;
+}
+$folderTree = [];
+foreach ($folderMap as $id => &$node) {
+    $parentId = (int)($node['parent_id'] ?? 0);
+    if ($parentId > 0 && isset($folderMap[$parentId])) {
+        $folderMap[$parentId]['children'][] = &$node;
+    } else {
+        $folderTree[] = &$node;
+    }
+}
+unset($node);
 
 // 3. Consulta de Estadísticas Rápidas (Para el Summary)
 $fileCount = $pdo->query("SELECT COUNT(*) FROM files WHERE project_id = $projectId AND deleted_at IS NULL")->fetchColumn();
@@ -259,17 +277,19 @@ include __DIR__ . '/../views/header.php';
 
         <h5 class="fw-bold mb-3"><i class="fas fa-folder-tree text-warning me-2"></i> Project Folders</h5>
         <div class="row g-3 mb-4">
-            <?php foreach($allFolders as $folder): 
+            <?php
+            $renderFolderCard = function($folder) use (&$renderFolderCard, $projectId) {
                 $folderNameLower = strtolower($folder['name']);
-                $iconColorClass = 'warning'; // Por defecto amarillo
-                if (strpos($folderNameLower, 'bom') !== false) { $iconColorClass = 'success'; } 
-                elseif (strpos($folderNameLower, 'drawings') !== false) { $iconColorClass = 'primary'; } 
-                elseif (strpos($folderNameLower, 'labor record') !== false) { $iconColorClass = 'purple'; } 
-                elseif (strpos($folderNameLower, 'photos') !== false) { $iconColorClass = 'danger'; } 
+                $iconColorClass = 'warning';
+                if (strpos($folderNameLower, 'bom') !== false) { $iconColorClass = 'success'; }
+                elseif (strpos($folderNameLower, 'drawings') !== false) { $iconColorClass = 'primary'; }
+                elseif (strpos($folderNameLower, 'labor record') !== false) { $iconColorClass = 'purple'; }
+                elseif (strpos($folderNameLower, 'photos') !== false) { $iconColorClass = 'danger'; }
                 elseif (strpos($folderNameLower, 'rfi') !== false) { $iconColorClass = 'success'; }
+                $depth = (int)($folder['depth'] ?? 0);
             ?>
-                <div class="col-md-4 col-xl-3">
-                    <div class="folder-card-dash">
+                <div class="col-12 <?= $depth === 0 ? 'col-md-4 col-xl-3' : '' ?>">
+                    <div class="folder-card-dash" style="margin-left: <?= $depth * 22 ?>px;">
                         <a href="?id=<?= $projectId ?>&view=files&folder_id=<?= $folder['id'] ?>" class="d-flex align-items-center gap-3 text-decoration-none w-100">
                             <div class="bg-<?= $iconColorClass ?> bg-opacity-10 p-2 rounded text-<?= $iconColorClass ?>">
                                 <i class="fas fa-folder fa-lg"></i>
@@ -288,7 +308,15 @@ include __DIR__ . '/../views/header.php';
                         <?php endif; ?>
                     </div>
                 </div>
-            <?php endforeach; ?>
+                <?php if (!empty($folder['children'])): ?>
+                    <?php foreach($folder['children'] as $child): ?>
+                        <?php $renderFolderCard($child); ?>
+                    <?php endforeach; ?>
+                <?php endif; ?>
+            <?php };
+
+            foreach($folderTree as $rootFolder) { $renderFolderCard($rootFolder); }
+            ?>
             <?php if(empty($allFolders)): ?>
                 <div class="col-12"><div class="text-gray small"><i class="fas fa-info-circle me-2"></i>This project has no folders.</div></div>
             <?php endif; ?>
