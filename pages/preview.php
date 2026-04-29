@@ -38,6 +38,8 @@ if ($fileExt === '' && !empty($file['file_type'])) {
         $fileExt = $ft;
     }
 }
+
+$isSpreadsheet = in_array($fileExt, ['xlsx','xls','xlsm','csv'], true);
 // 5. Normalizar ruta publica
 $filePath = str_replace('\\', '/', (string)($file['filepath'] ?? ''));
 if ($filePath !== '') {
@@ -346,20 +348,16 @@ body.theme-light .text-muted, body.theme-light .text-gray { color: var(--text-gr
         </div>
 
         <div class="d-flex align-items-center gap-2">
+            <?php if(!$isSpreadsheet): ?>
             <button id="btn-toggle-right" class="toggle-icon-btn me-2" onclick="toggleSidebar('right')" title="Toggle Activity Log">
                 <i class="fas fa-history"></i>
             </button>
+            <?php endif; ?>
 
             <button type="button" id="btn-theme-toggle" class="btn-theme-custom" onclick="toggleTheme()" title="Switch Day/Night">
                 <i class="fas fa-sun"></i>
             </button>
 
-            <?php if($userRole !== 'viewer'): ?>
-                <a href="editor.php?id=<?= $id ?>" class="btn-action">
-                    <i class="fas fa-pen"></i>
-                    <span class="d-none d-lg-inline">Edit Plan</span>
-                </a>
-            <?php endif; ?>
 
             <a href="<?= $backUrl ?>" class="btn-close-custom ms-2">
                 <i class="fas fa-times"></i>
@@ -405,6 +403,7 @@ body.theme-light .text-muted, body.theme-light .text-gray { color: var(--text-gr
         </div>
     </main>
 
+    <?php if(!$isSpreadsheet): ?>
     <aside class="sidebar sidebar-right" id="sidebarRight">
         <div class="history-header">
             <span><i class="fas fa-history text-accent me-2"></i> Activity Log</span>
@@ -495,6 +494,7 @@ body.theme-light .text-muted, body.theme-light .text-gray { color: var(--text-gr
             <?php endif; ?>
         </div>
     </aside>
+    <?php endif; ?>
 
     <div class="mobile-bottom-bar">
         <button id="mobile-toggle-left" class="nav-icon-btn" onclick="toggleSidebar('left')">
@@ -503,9 +503,11 @@ body.theme-light .text-muted, body.theme-light .text-gray { color: var(--text-gr
         <button id="mobile-toggle-center" class="nav-icon-btn active" onclick="closeAllSidebars()">
             <i class="fas fa-eye"></i>
         </button>
+        <?php if(!$isSpreadsheet): ?>
         <button id="mobile-toggle-right" class="nav-icon-btn" onclick="toggleSidebar('right')">
             <i class="fas fa-history"></i>
         </button>
+        <?php endif; ?>
     </div>
 
 </div>
