@@ -85,9 +85,38 @@ $toolCatalog = [
 ];
 
 // 2. Consulta de Carpetas (Para el menú lateral y la vista de archivos)
-$foldersStmt = $pdo->prepare("SELECT * FROM folders WHERE project_id = ? AND deleted_at IS NULL ORDER BY name ASC");
-$foldersStmt->execute([$projectId]);
-$allFolders = $foldersStmt->fetchAll(PDO::FETCH_ASSOC);
+$userRole = strtolower(trim((string)($_SESSION['role'] ?? 'viewer')));
+if ($userRole !== 'viewer') {
+    $foldersStmt = $pdo->prepare("SELECT * FROM folders WHERE project_id = ? AND deleted_at IS NULL ORDER BY depth ASC, name ASC");
+    $foldersStmt->execute([$projectId]);
+    $allFolders = $foldersStmt->fetchAll(PDO::FETCH_ASSOC);
+} else {
+    $defaultViewerFolders = ['drawings', 'photos', 'rfi'];
+    $placeholders = implode(',', array_fill(0, count($defaultViewerFolders), '?'));
+    $viewerSql = "
+        SELECT f.*
+        FROM folders f
+        WHERE f.project_id = ?
+          AND f.deleted_at IS NULL
+          AND (
+            LOWER(f.name) IN ($placeholders)
+            OR f.id IN (SELECT folder_id FROM folder_permissions WHERE user_id = ?)
+            OR f.parent_id IN (
+              SELECT id FROM folders
+              WHERE project_id = ?
+                AND deleted_at IS NULL
+                AND (
+                  LOWER(name) IN ($placeholders)
+                  OR id IN (SELECT folder_id FROM folder_permissions WHERE user_id = ?)
+                )
+            )
+          )
+        ORDER BY f.depth ASC, f.name ASC
+    ";
+    $foldersStmt = $pdo->prepare($viewerSql);
+    $foldersStmt->execute(array_merge([$projectId], $defaultViewerFolders, [(int)($_SESSION['user_id'] ?? 0), $projectId], $defaultViewerFolders, [(int)($_SESSION['user_id'] ?? 0)]));
+    $allFolders = $foldersStmt->fetchAll(PDO::FETCH_ASSOC);
+}
 
 // Priorizar carpetas principales (con colores) al principio de la lista
 $specialFolders = ['bom', 'drawings', 'labor record', 'photos', 'rfi'];
@@ -109,7 +138,6 @@ $recentFiles->execute([$projectId]);
 $recentFiles = $recentFiles->fetchAll(PDO::FETCH_ASSOC);
 
 $userName = $_SESSION['username'] ?? 'User';
-$userRole = strtolower(trim((string)($_SESSION['role'] ?? 'viewer')));
 $isAdmin = ($userRole === 'admin');
 $canUpload = $isAdmin;
 
@@ -167,6 +195,8 @@ include __DIR__ . '/../views/header.php';
 
             <button class="btn btn-tools rounded-pill px-4 py-2 shadow-sm" onclick="openToolsModal()"><i class="fas fa-toolbox me-2"></i> Tools</button>
             <?php if($isAdmin): ?>
+            <button class="btn btn-outline-light btn-sm" onclick="document.getElementById('bulk-folder-input').click()" title="Bulk Import Folders"><i class="fas fa-folder-tree me-1"></i> Bulk Import</button>
+            <input type="file" id="bulk-folder-input" webkitdirectory multiple style="display:none" onchange="handleBulkFolderImport(this)">
             <div class="dropdown">
                 <button class="btn btn-outline-light d-flex align-items-center justify-content-center" data-bs-toggle="dropdown" aria-expanded="false" style="width: 42px; height: 42px; border-radius: 50%; padding: 0;"><i class="fas fa-ellipsis-v"></i></button>
                 <ul class="dropdown-menu dropdown-menu-end bg-card border-secondary shadow-lg rounded-3 py-2">
@@ -251,6 +281,7 @@ include __DIR__ . '/../views/header.php';
                                 <button class="btn btn-sm border-0 btn-folder-menu" data-bs-toggle="dropdown"><i class="fas fa-ellipsis-v fa-lg"></i></button>
                                 <ul class="dropdown-menu dropdown-menu-end bg-card border-secondary shadow-lg rounded-3 py-1">
                                     <li><button class="dropdown-item text-white hover-bg-body small" onclick="openMoveFolderModal(<?= $folder['id'] ?>)"><i class="fas fa-exchange-alt me-2 text-warning"></i> Move Folder</button></li>
+                                    <?php if(($folder['depth'] ?? 0) < 3): ?><li><button class="dropdown-item text-white hover-bg-body small" onclick="addSubFolder(<?= $folder['id'] ?>, '<?= addslashes($folder['name']) ?>')"><i class="fas fa-folder-plus me-2 text-primary"></i> Add Subfolder</button></li><?php endif; ?>
                                     <li><button class="dropdown-item text-danger hover-bg-body small" onclick="deleteFolder(<?= $folder['id'] ?>)"><i class="fas fa-trash me-2"></i> Delete Folder</button></li>
                                 </ul>
                             </div>
@@ -316,7 +347,8 @@ include __DIR__ . '/../views/header.php';
                             </div>
                             <?php endif; ?>
                             
-                            <a href="preview.php?id=<?= $f['id'] ?>" class="overlay-action overlay-view <?= ($_SESSION['role'] === 'viewer') ? 'w-100' : 'w-50' ?>">
+                            <?php $fExt = strtolower(pathinfo($f['filename'], PATHINFO_EXTENSION)); $isExcel = in_array($fExt, ['xlsx','xls','xlsm','csv']); ?>
+                            <a href="<?= $isExcel ? 'preview.php?id='.$f['id'].'&mode=spreadsheet' : 'preview.php?id='.$f['id'] ?>" class="overlay-action overlay-view <?= ($_SESSION['role'] === 'viewer') ? 'w-100' : 'w-50' ?>" <?= $isExcel ? 'target="_blank"' : '' ?>>
                                 <i class="fas fa-eye fa-lg mb-1"></i><span class="small fw-bold">View</span>
                             </a>
                             <?php if($_SESSION['role'] !== 'viewer'): ?>
@@ -1177,6 +1209,53 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
                 .catch(() => showNewFolderError('Connection error while creating folder.'));
         });
     }
+    function addSubFolder(parentId, parentName) {
+        const name = prompt(`New subfolder inside "${parentName}":`);
+        if (!name || !name.trim()) return;
+        const fd = new FormData();
+        fd.append('action', 'create_folder');
+        fd.append('project_id', pId);
+        fd.append('folder_name', name.trim());
+        fd.append('parent_id', parentId);
+        fetch('../api/api.php', { method: 'POST', body: fd })
+            .then(r => r.json())
+            .then(d => { if (d.status === 'success') location.reload(); else appAlert('Error: ' + d.msg, 'Error', 'error'); });
+    }
+
+    async function handleBulkFolderImport(input) {
+        const files = Array.from(input.files || []); if (!files.length) return;
+        const projectMap = {};
+        files.forEach(file => {
+            const parts = (file.webkitRelativePath || file.name).split('/');
+            const projectName = parts[0];
+            const subPath = parts.slice(1);
+            if (!projectMap[projectName]) projectMap[projectName] = [];
+            projectMap[projectName].push({ file, subPath });
+        });
+        if (!confirm(`This will create ${Object.keys(projectMap).length} project(s). Continue?`)) return;
+        for (const [projectName, projectFiles] of Object.entries(projectMap)) {
+            const fdProj = new FormData(); fdProj.append('action','create_project_bulk'); fdProj.append('name', projectName);
+            const projRes = await fetch('../api/api.php', { method:'POST', body:fdProj }).then(r=>r.json());
+            if (projRes.status !== 'success') continue;
+            const projectId = projRes.project_id; const folderCache = {};
+            for (const { file, subPath } of projectFiles) {
+                if (subPath.length === 0) continue;
+                let parentId = null; const folderParts = subPath.slice(0,-1); const pathSoFar = [];
+                for (const folderName of folderParts.slice(0,3)) {
+                    pathSoFar.push(folderName); const pathKey = pathSoFar.join('/');
+                    if (!folderCache[pathKey]) {
+                        const fdF = new FormData(); fdF.append('action','create_folder'); fdF.append('project_id', projectId); fdF.append('folder_name', folderName); if (parentId) fdF.append('parent_id', parentId);
+                        const fRes = await fetch('../api/api.php', { method:'POST', body:fdF }).then(r=>r.json()); folderCache[pathKey] = fRes.folder_id || null;
+                    }
+                    parentId = folderCache[pathKey];
+                }
+                const fdFile = new FormData(); fdFile.append('action','upload_file'); fdFile.append('project_id', projectId); if (parentId) fdFile.append('folder_id', parentId); fdFile.append('file', file, file.name);
+                await fetch('../api/api.php', { method:'POST', body:fdFile });
+            }
+        }
+        appAlert('Bulk import completed!', 'Done', 'success'); setTimeout(() => location.reload(), 1500);
+    }
+
 </script>
 
 <?php include __DIR__ . '/../views/footer.php'; ?>

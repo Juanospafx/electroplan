@@ -68,6 +68,9 @@ if ($filePath !== '') {
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     
     <script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js"></script>
+    <?php if(in_array($fileExt, ['xlsx','xls','xlsm','csv'])): ?>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    <?php endif; ?>
 
     <style>
         /* --- TEMA DEEP MATTE --- */
@@ -838,6 +841,24 @@ body.theme-light .text-muted, body.theme-light .text-gray { color: var(--text-gr
         setMode('image');
         document.getElementById('p-total').textContent = '1'; renderPageList(1);
         loadSingleImage(fileUrl);
+    } else if (['xlsx','xls','xlsm','csv'].includes(fileExt)) {
+        document.querySelectorAll('.page-nav, #btn-pan, #zoom-controls').forEach(el => { if(el) el.style.display='none'; });
+        document.getElementById('p-total').textContent = '1';
+        renderPageList(1);
+        const wrap = document.getElementById('map');
+        wrap.innerHTML = '<div id="sheet-container" style="width:100%;height:100%;overflow:auto;padding:16px;background:#fff;"></div>';
+        fetch(fileUrl).then(r => r.arrayBuffer()).then(buf => {
+            const wb = XLSX.read(buf, { type: 'array' });
+            const styleText = `#sheet-table{border-collapse:collapse;font-size:13px;font-family:Arial,sans-serif;color:#1a202c;}#sheet-table td,#sheet-table th{border:1px solid #d1d5db;padding:4px 10px;white-space:nowrap;min-width:60px;}#sheet-table tr:nth-child(even){background:#f9fafb;}#sheet-table tr:hover{background:#e5e7eb;}#sheet-table tr:first-child td{background:#1e3a5f;color:white;font-weight:600;}`;
+            const applySheet = (name) => {
+                document.getElementById('sheet-container').innerHTML = XLSX.utils.sheet_to_html(wb.Sheets[name], { id: 'sheet-table', editable: false });
+                const st = document.createElement('style'); st.textContent = styleText; document.head.appendChild(st);
+            };
+            applySheet(wb.SheetNames[0]);
+        }).catch(() => {
+            const fullUrl = encodeURIComponent(window.location.origin + '/' + fileUrl.replace(/^\//, ''));
+            document.getElementById('map').innerHTML = `<iframe src="https://docs.google.com/gview?url=${fullUrl}&embedded=true" style="width:100%;height:100%;border:none;" title="Spreadsheet Preview"></iframe>`;
+        });
     } else {
         showToast("Unsupported file type", "error");
     }
