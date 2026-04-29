@@ -1320,7 +1320,12 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
         input.value = '';
         if (!files.length) return;
 
+        // El "padre" donde se va a crear la carpeta importada:
+        // - Si estamos dentro de una carpeta: currentFolderId
+        // - Si estamos en la raíz del proyecto: null
         const uploadParentId = currentFolderId || null;
+
+        // Nombre de la carpeta raíz que el usuario seleccionó
         const rootFolderName = files[0] ? (files[0].webkitRelativePath || files[0].name).split('/')[0] : 'Imported Folder';
         const totalFiles = files.length;
 
@@ -1335,9 +1340,8 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
                 const statusCount = document.getElementById('bulk-status-count');
                 if (overlay) overlay.style.display = 'flex';
                 if (statusTitle) statusTitle.textContent = `Uploading "${rootFolderName}"...`;
-                const statusLog = document.getElementById('bulk-status-log');
-                if (statusLog) statusLog.innerHTML = `Detected ${totalFiles} file(s).<br>`;
 
+                // Cache: path relativo desde la raíz seleccionada -> folder_id
                 const folderCache = {};
                 folderCache[''] = uploadParentId;
 
@@ -1345,10 +1349,10 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
                 let doneFiles = 0;
 
                 for (const file of files) {
-                    const doneBefore = doneFiles;
-                    const pct = Math.round((doneBefore / totalFiles) * 100);
+                    doneFiles++;
+                    const pct = Math.round((doneFiles / totalFiles) * 100);
                     if (progressBar) progressBar.style.width = pct + '%';
-                    if (statusCount) statusCount.textContent = `${doneBefore} / ${totalFiles}`;
+                    if (statusCount) statusCount.textContent = `${doneFiles} / ${totalFiles}`;
 
                     const parts = (file.webkitRelativePath || file.name).split('/');
                     const fileName = parts[parts.length - 1];
@@ -1357,14 +1361,11 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
                     if (statusDetail) {
                         statusDetail.textContent = folderParts.length ? `${folderParts.join('/')} / ${fileName}` : fileName;
                     }
-                    if (statusLog) {
-                        statusLog.innerHTML += `⏳ ${doneBefore + 1}/${totalFiles} ${fileName}<br>`;
-                        statusLog.scrollTop = statusLog.scrollHeight;
-                    }
 
                     let parentId = uploadParentId;
                     const pathSoFar = [];
 
+                    // Crear/reusar carpeta raíz importada
                     if (folderCache['__root__'] === undefined) {
                         const fdRoot = new FormData();
                         fdRoot.append('action', 'create_folder');
@@ -1385,6 +1386,7 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
 
                     parentId = folderCache['__root__'];
 
+                    // Crear/reusar subcarpetas internas
                     for (const folderName of folderParts) {
                         pathSoFar.push(folderName);
                         const cacheKey = pathSoFar.join('/');
@@ -1415,63 +1417,16 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
                     fdFile.append('file', file, fileName);
 
                     try {
-                        await new Promise((resolve, reject) => {
-                            const xhr = new XMLHttpRequest();
-                            xhr.open('POST', '../api/api.php', true);
-                            xhr.upload.addEventListener('progress', (e) => {
-                                if (e.lengthComputable && progressBar) {
-                                    const filePct = e.loaded / e.total;
-                                    const globalPct = Math.round(((doneBefore + filePct) / totalFiles) * 100);
-                                    progressBar.style.width = globalPct + '%';
-                                }
-                            });
-                            xhr.onload = () => {
-                                const raw = (xhr.responseText || '').trim();
-                                if (xhr.status < 200 || xhr.status >= 300) {
-                                    errors.push(`"${fileName}": HTTP ${xhr.status}`);
-                                    return resolve();
-                                }
-                                try {
-                                    const upRes = JSON.parse(raw || '{}');
-                                    if (upRes.status !== 'success') {
-                                        errors.push(`"${fileName}": ${upRes.msg || 'upload failed'}`);
-                                        if (statusLog) statusLog.innerHTML += `❌ ${fileName}: ${upRes.msg || 'upload failed'}<br>`;
-                                    } else {
-                                        if (statusLog) statusLog.innerHTML += `✅ ${fileName}<br>`;
-                                    }
-                                    if (statusLog) statusLog.scrollTop = statusLog.scrollHeight;
-                                    resolve();
-                                } catch (err) {
-                                    const shortRaw = raw.slice(0, 140).replace(/</g, '&lt;').replace(/>/g, '&gt;');
-                                    errors.push(`"${fileName}": invalid response (${shortRaw || 'empty'})`);
-                                    if (statusLog) {
-                                        statusLog.innerHTML += `❌ ${fileName}: invalid response<br>`;
-                                        statusLog.scrollTop = statusLog.scrollHeight;
-                                    }
-                                    resolve();
-                                }
-                            };
-                            xhr.onerror = () => reject(new Error('upload failed'));
-                            xhr.send(fdFile);
-                        });
-                    } catch(e) {
-                        errors.push(`"${fileName}": upload failed (${e?.message || 'network'})`);
-                        if (statusLog) {
-                            statusLog.innerHTML += `❌ ${fileName}: ${e?.message || 'network error'}<br>`;
-                            statusLog.scrollTop = statusLog.scrollHeight;
+                        const upRes = await fetch('../api/api.php', { method: 'POST', body: fdFile }).then(r => r.json());
+                        if (upRes.status !== 'success') {
+                            errors.push(`"${fileName}": ${upRes.msg}`);
                         }
+                    } catch(e) {
+                        errors.push(`"${fileName}": upload failed`);
                     }
-
-                    doneFiles++;
-                    if (statusCount) statusCount.textContent = `${doneFiles} / ${totalFiles}`;
-                    if (progressBar) progressBar.style.width = Math.round((doneFiles / totalFiles) * 100) + '%';
                 }
 
-                if (statusLog) {
-                    const ok = doneFiles - errors.length;
-                    statusLog.innerHTML += `<hr style="border-color:rgba(255,255,255,0.12)">Finished. ✅ ${ok} | ❌ ${errors.length}`;
-                    statusLog.scrollTop = statusLog.scrollHeight;
-                }
+                if (overlay) overlay.style.display = 'none';
                 if (errors.length) {
                     appAlert(
                         `Done with ${errors.length} issue(s):<br><small class="text-gray">${errors.slice(0, 5).join('<br>')}${errors.length > 5 ? `<br>...and ${errors.length - 5} more` : ''}</small>`,
