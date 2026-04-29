@@ -354,12 +354,6 @@ body.theme-light .text-muted, body.theme-light .text-gray { color: var(--text-gr
                 <i class="fas fa-sun"></i>
             </button>
 
-            <?php if($userRole !== 'viewer'): ?>
-                <a href="editor.php?id=<?= $id ?>" class="btn-action">
-                    <i class="fas fa-pen"></i>
-                    <span class="d-none d-lg-inline">Edit Plan</span>
-                </a>
-            <?php endif; ?>
 
             <a href="<?= $backUrl ?>" class="btn-close-custom ms-2">
                 <i class="fas fa-times"></i>
