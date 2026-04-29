@@ -17,6 +17,42 @@ function cleanName($name) {
     return clean_filename($name);
 }
 
+$defaultViewerFolders = ['drawings', 'photos', 'rfi'];
+function getVisibleFolders(PDO $pdo, int $projectId, string $role, int $userId): array {
+    global $defaultViewerFolders;
+
+    if($role !== 'viewer') {
+        $stmt = $pdo->prepare("SELECT id, name, parent_id, depth FROM folders WHERE project_id = ? AND deleted_at IS NULL ORDER BY depth ASC, name ASC");
+        $stmt->execute([$projectId]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    $placeholders = implode(',', array_fill(0, count($defaultViewerFolders), '?'));
+    $sql = "
+        SELECT f.id, f.name, f.parent_id, f.depth
+        FROM folders f
+        WHERE f.project_id = ?
+          AND f.deleted_at IS NULL
+          AND (
+            LOWER(f.name) IN ($placeholders)
+            OR f.id IN (SELECT folder_id FROM folder_permissions WHERE user_id = ?)
+            OR f.parent_id IN (
+              SELECT id FROM folders
+              WHERE project_id = ?
+                AND deleted_at IS NULL
+                AND (
+                  LOWER(name) IN ($placeholders)
+                  OR id IN (SELECT folder_id FROM folder_permissions WHERE user_id = ?)
+                )
+            )
+          )
+        ORDER BY f.depth ASC, f.name ASC
+    ";
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute(array_merge([$projectId], $defaultViewerFolders, [$userId, $projectId], $defaultViewerFolders, [$userId]));
+    return $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
+
 function db_has_column(PDO $pdo, string $table, string $column): bool {
     static $cache = [];
     $key = $table . '.' . $column;
@@ -846,9 +882,7 @@ switch($action) {
         $projectId = (int)($_POST['project_id'] ?? $_GET['project_id'] ?? 0);
         if(!$projectId) { echo json_encode(['status'=>'error','msg'=>'Invalid project.']); exit; }
         try {
-            $stmtF = $pdo->prepare("SELECT id, name, parent_id, depth FROM folders WHERE project_id = ? AND deleted_at IS NULL ORDER BY depth ASC, name ASC");
-            $stmtF->execute([$projectId]);
-            $all = $stmtF->fetchAll(PDO::FETCH_ASSOC);
+            $all = getVisibleFolders($pdo, $projectId, $userRole, (int)$userId);
             $byId = [];
             foreach($all as $f) { $byId[$f['id']] = $f + ['children'=>[]]; }
             $tree = [];

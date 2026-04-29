@@ -85,9 +85,38 @@ $toolCatalog = [
 ];
 
 // 2. Consulta de Carpetas (Para el menú lateral y la vista de archivos)
-$foldersStmt = $pdo->prepare("SELECT * FROM folders WHERE project_id = ? AND deleted_at IS NULL ORDER BY name ASC");
-$foldersStmt->execute([$projectId]);
-$allFolders = $foldersStmt->fetchAll(PDO::FETCH_ASSOC);
+$userRole = strtolower(trim((string)($_SESSION['role'] ?? 'viewer')));
+if ($userRole !== 'viewer') {
+    $foldersStmt = $pdo->prepare("SELECT * FROM folders WHERE project_id = ? AND deleted_at IS NULL ORDER BY depth ASC, name ASC");
+    $foldersStmt->execute([$projectId]);
+    $allFolders = $foldersStmt->fetchAll(PDO::FETCH_ASSOC);
+} else {
+    $defaultViewerFolders = ['drawings', 'photos', 'rfi'];
+    $placeholders = implode(',', array_fill(0, count($defaultViewerFolders), '?'));
+    $viewerSql = "
+        SELECT f.*
+        FROM folders f
+        WHERE f.project_id = ?
+          AND f.deleted_at IS NULL
+          AND (
+            LOWER(f.name) IN ($placeholders)
+            OR f.id IN (SELECT folder_id FROM folder_permissions WHERE user_id = ?)
+            OR f.parent_id IN (
+              SELECT id FROM folders
+              WHERE project_id = ?
+                AND deleted_at IS NULL
+                AND (
+                  LOWER(name) IN ($placeholders)
+                  OR id IN (SELECT folder_id FROM folder_permissions WHERE user_id = ?)
+                )
+            )
+          )
+        ORDER BY f.depth ASC, f.name ASC
+    ";
+    $foldersStmt = $pdo->prepare($viewerSql);
+    $foldersStmt->execute(array_merge([$projectId], $defaultViewerFolders, [(int)($_SESSION['user_id'] ?? 0), $projectId], $defaultViewerFolders, [(int)($_SESSION['user_id'] ?? 0)]));
+    $allFolders = $foldersStmt->fetchAll(PDO::FETCH_ASSOC);
+}
 
 // Priorizar carpetas principales (con colores) al principio de la lista
 $specialFolders = ['bom', 'drawings', 'labor record', 'photos', 'rfi'];
@@ -109,7 +138,6 @@ $recentFiles->execute([$projectId]);
 $recentFiles = $recentFiles->fetchAll(PDO::FETCH_ASSOC);
 
 $userName = $_SESSION['username'] ?? 'User';
-$userRole = strtolower(trim((string)($_SESSION['role'] ?? 'viewer')));
 $isAdmin = ($userRole === 'admin');
 $canUpload = $isAdmin;
 
