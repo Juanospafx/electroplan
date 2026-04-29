@@ -847,18 +847,45 @@ body.theme-light .text-muted, body.theme-light .text-gray { color: var(--text-gr
         renderPageList(1);
         const wrap = document.getElementById('map');
         wrap.innerHTML = '<div id="sheet-container" style="width:100%;height:100%;overflow:auto;padding:16px;background:#fff;"></div>';
-        fetch(fileUrl).then(r => r.arrayBuffer()).then(buf => {
-            const wb = XLSX.read(buf, { type: 'array' });
-            const styleText = `#sheet-table{border-collapse:collapse;font-size:13px;font-family:Arial,sans-serif;color:#1a202c;}#sheet-table td,#sheet-table th{border:1px solid #d1d5db;padding:4px 10px;white-space:nowrap;min-width:60px;}#sheet-table tr:nth-child(even){background:#f9fafb;}#sheet-table tr:hover{background:#e5e7eb;}#sheet-table tr:first-child td{background:#1e3a5f;color:white;font-weight:600;}`;
-            const applySheet = (name) => {
-                document.getElementById('sheet-container').innerHTML = XLSX.utils.sheet_to_html(wb.Sheets[name], { id: 'sheet-table', editable: false });
-                const st = document.createElement('style'); st.textContent = styleText; document.head.appendChild(st);
-            };
-            applySheet(wb.SheetNames[0]);
-        }).catch(() => {
-            const fullUrl = encodeURIComponent(window.location.origin + '/' + fileUrl.replace(/^\//, ''));
-            document.getElementById('map').innerHTML = `<iframe src="https://docs.google.com/gview?url=${fullUrl}&embedded=true" style="width:100%;height:100%;border:none;" title="Spreadsheet Preview"></iframe>`;
-        });
+
+        const styleText = `#sheet-table{border-collapse:collapse;font-size:13px;font-family:Arial,sans-serif;color:#1a202c;}#sheet-table td,#sheet-table th{border:1px solid #d1d5db;padding:4px 10px;white-space:nowrap;min-width:60px;}#sheet-table tr:nth-child(even){background:#f9fafb;}#sheet-table tr:hover{background:#e5e7eb;}#sheet-table tr:first-child td{background:#1e3a5f;color:white;font-weight:600;}#sheet-tabs{display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;}#sheet-tabs button{border:1px solid #cbd5e1;background:#f8fafc;padding:4px 10px;border-radius:8px;font-size:12px;}`;
+        const ensureStyle = () => {
+            if (document.getElementById('sheet-style')) return;
+            const st = document.createElement('style'); st.id = 'sheet-style'; st.textContent = styleText; document.head.appendChild(st);
+        };
+
+        const renderError = (msg) => {
+            document.getElementById('sheet-container').innerHTML = `<div style="color:#111827"><p><strong>Could not render spreadsheet preview.</strong></p><p>${msg}</p><p><a href="${fileUrl}" target="_blank" rel="noopener">Download/Open file</a></p></div>`;
+        };
+
+        if (typeof XLSX === 'undefined') {
+            renderError('Spreadsheet library failed to load.');
+        } else {
+            fetch(fileUrl).then(r => r.arrayBuffer()).then(buf => {
+                const wb = XLSX.read(buf, { type: 'array' });
+                ensureStyle();
+                const container = document.getElementById('sheet-container');
+                const tabs = document.createElement('div'); tabs.id = 'sheet-tabs';
+                const tableWrap = document.createElement('div');
+                container.innerHTML = '';
+                container.appendChild(tabs); container.appendChild(tableWrap);
+
+                const applySheet = (name) => {
+                    tableWrap.innerHTML = XLSX.utils.sheet_to_html(wb.Sheets[name], { id: 'sheet-table', editable: false });
+                };
+
+                wb.SheetNames.forEach((name, idx) => {
+                    const b = document.createElement('button');
+                    b.textContent = name;
+                    b.onclick = () => applySheet(name);
+                    tabs.appendChild(b);
+                    if (idx === 0) applySheet(name);
+                });
+            }).catch((e) => {
+                renderError('Invalid or unsupported spreadsheet file.');
+                console.error(e);
+            });
+        }
     } else {
         showToast("Unsupported file type", "error");
     }
