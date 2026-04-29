@@ -512,13 +512,20 @@ switch($action) {
             exit;
         }
 
-        // 3.2 Validar Extensiones (PDF e Imágenes)
-        $allowedExts = ['pdf', 'jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'tiff'];
+        // 3.2 Validar Extensiones permitidas para importación masiva
+        $allowedExts = [
+            // Imágenes
+            'jpg','jpeg','png','gif','webp','bmp','tiff','tif','heic',
+            // Documentos
+            'pdf','doc','docx','xls','xlsx','xlsm','csv','ppt','pptx',
+            // Otros comunes en construcción
+            'dwg','dxf','rvt','ifc','zip','rar'
+        ];
         $origName = $_FILES["file"]["name"];
         $ext = strtolower(pathinfo($origName, PATHINFO_EXTENSION));
 
         if (!in_array($ext, $allowedExts)) {
-            echo json_encode(['status'=>'error', 'msg'=>'Invalid file type. Only PDF and Images allowed.']);
+            echo json_encode(['status'=>'error', 'msg'=>'File type .' . $ext . ' not allowed.']);
             exit;
         }
 
@@ -1047,12 +1054,20 @@ switch($action) {
     case 'create_project_bulk':
         if($userRole !== 'admin') { echo json_encode(['status'=>'error','msg'=>'Access Denied']); exit; }
         $name = trim($_POST['name'] ?? '');
-        if(!$name) { echo json_encode(['status'=>'error','msg'=>'Project name required']); exit; }
-        $stmt = $pdo->prepare("INSERT INTO projects (name, created_by) VALUES (?, ?)");
-        $stmt->execute([$name, $userId]);
-        $newProjectId = (int)$pdo->lastInsertId();
-        $pdo->prepare("INSERT IGNORE INTO project_users (project_id, user_id) VALUES (?, ?)")->execute([$newProjectId, $userId]);
-        echo json_encode(['status'=>'success','project_id'=>$newProjectId]);
+        if($name === '') { echo json_encode(['status'=>'error','msg'=>'Project name required']); exit; }
+        try {
+            $creatorId = (int)$userId;
+            $pdo->beginTransaction();
+            $stmt = $pdo->prepare("INSERT INTO projects (name, description, status, created_by, assigned_user_id) VALUES (?, '', 'Active', ?, ?)");
+            $stmt->execute([$name, $creatorId, $creatorId]);
+            $newProjectId = (int)$pdo->lastInsertId();
+            $pdo->prepare("INSERT IGNORE INTO directory (project_id, user_id) VALUES (?, ?)")->execute([$newProjectId, $creatorId]);
+            $pdo->commit();
+            echo json_encode(['status'=>'success','project_id'=>$newProjectId]);
+        } catch(Exception $e) {
+            if($pdo->inTransaction()) $pdo->rollBack();
+            echo json_encode(['status'=>'error','msg'=>$e->getMessage()]);
+        }
         break;
 
     default: echo json_encode(['status'=>'error', 'msg'=>'Invalid action']);
