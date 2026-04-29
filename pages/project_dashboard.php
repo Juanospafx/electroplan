@@ -211,6 +211,7 @@ include __DIR__ . '/../views/header.php';
                         
                         <div class="fw-bold text-truncate mb-1 text-white fs-5" title="<?= htmlspecialchars($rf['filename']) ?>"><?= htmlspecialchars($rf['filename']) ?></div>
                         <div class="small text-gray fw-medium"><?= date('M d, Y', strtotime($rf['uploaded_at'])) ?></div>
+                        <?php $rfExt = strtolower(pathinfo($rf['filename'], PATHINFO_EXTENSION)); $rfIsExcel = in_array($rfExt, ['xlsx','xls','xlsm','csv']); ?>
                         
                         <!-- OVERLAY INTERACTIVO -->
                         <div class="file-overlay" tabindex="0">
@@ -221,10 +222,10 @@ include __DIR__ . '/../views/header.php';
                             </div>
                             <?php endif; ?>
                             
-                            <a href="preview.php?id=<?= $rf['id'] ?>" class="overlay-action overlay-view <?= ($_SESSION['role'] === 'viewer') ? 'w-100' : 'w-50' ?>">
+                            <a href="<?= $rfIsExcel ? 'preview.php?id='.$rf['id'].'&mode=spreadsheet' : 'preview.php?id='.$rf['id'] ?>" class="overlay-action overlay-view <?= ($_SESSION['role'] === 'viewer' || $rfIsExcel) ? 'w-100' : 'w-50' ?>" <?= $rfIsExcel ? 'target="_blank"' : '' ?>>
                                 <i class="fas fa-eye fa-2x mb-2"></i><span class="fw-bold">View</span>
                             </a>
-                            <?php if($_SESSION['role'] !== 'viewer'): ?>
+                            <?php if($_SESSION['role'] !== 'viewer' && !$rfIsExcel): ?>
                             <a href="editor.php?id=<?= $rf['id'] ?>" class="overlay-action overlay-edit w-50">
                                 <i class="fas fa-pen-nib fa-2x mb-2"></i><span class="fw-bold">Edit</span>
                             </a>
@@ -369,7 +370,7 @@ include __DIR__ . '/../views/header.php';
                             <a href="<?= $isExcel ? 'preview.php?id='.$f['id'].'&mode=spreadsheet' : 'preview.php?id='.$f['id'] ?>" class="overlay-action overlay-view <?= ($_SESSION['role'] === 'viewer') ? 'w-100' : 'w-50' ?>" <?= $isExcel ? 'target="_blank"' : '' ?>>
                                 <i class="fas fa-eye fa-lg mb-1"></i><span class="small fw-bold">View</span>
                             </a>
-                            <?php if($_SESSION['role'] !== 'viewer'): ?>
+                            <?php if($_SESSION['role'] !== 'viewer' && !$isExcel): ?>
                             <a href="editor.php?id=<?= $f['id'] ?>" class="overlay-action overlay-edit w-50">
                                 <i class="fas fa-pen-nib fa-lg mb-1"></i><span class="small fw-bold">Edit</span>
                             </a>
@@ -925,13 +926,20 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
             fd.append('project_id', pId);
             if (fId) fd.append('folder_id', fId);
             fd.append('file', this.files[0]);
-            fetch('../api/api.php', { method:'POST', body: fd })
-                .then(r => r.json())
+            uploadWithProgress(fd)
                 .then(d => {
-                    if (d.status === 'success') location.reload();
-                    else appAlert('Error uploading file: ' + (d.msg || 'Unknown'), "Upload Error", "error");
+                    if (d.status === 'success') {
+                        hideUploadProgress(800);
+                        location.reload();
+                    } else {
+                        hideUploadProgress(1500);
+                        appAlert('Error uploading file: ' + (d.msg || 'Unknown'), "Upload Error", "error");
+                    }
                 })
-                .catch(() => appAlert('Connection error', "Connection Error", "error"));
+                .catch(() => {
+                    hideUploadProgress(1500);
+                    appAlert('Connection error', "Connection Error", "error");
+                });
         });
     }
 
@@ -1322,10 +1330,10 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
                 let doneFiles = 0;
 
                 for (const file of files) {
-                    doneFiles++;
-                    const pct = Math.round((doneFiles / totalFiles) * 100);
+                    const doneBefore = doneFiles;
+                    const pct = Math.round((doneBefore / totalFiles) * 100);
                     if (progressBar) progressBar.style.width = pct + '%';
-                    if (statusCount) statusCount.textContent = `${doneFiles} / ${totalFiles}`;
+                    if (statusCount) statusCount.textContent = `${doneBefore} / ${totalFiles}`;
 
                     const parts = (file.webkitRelativePath || file.name).split('/');
                     const fileName = parts[parts.length - 1];
@@ -1388,13 +1396,38 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
                     fdFile.append('file', file, fileName);
 
                     try {
-                        const upRes = await fetch('../api/api.php', { method: 'POST', body: fdFile }).then(r => r.json());
-                        if (upRes.status !== 'success') {
-                            errors.push(`"${fileName}": ${upRes.msg}`);
-                        }
+                        await new Promise((resolve, reject) => {
+                            const xhr = new XMLHttpRequest();
+                            xhr.open('POST', '../api/api.php', true);
+                            xhr.upload.addEventListener('progress', (e) => {
+                                if (e.lengthComputable && progressBar) {
+                                    const filePct = e.loaded / e.total;
+                                    const globalPct = Math.round(((doneBefore + filePct) / totalFiles) * 100);
+                                    progressBar.style.width = globalPct + '%';
+                                }
+                            });
+                            xhr.onload = () => {
+                                try {
+                                    const upRes = JSON.parse(xhr.responseText || '{}');
+                                    if (upRes.status !== 'success') {
+                                        errors.push(`"${fileName}": ${upRes.msg || 'upload failed'}`);
+                                    }
+                                    resolve();
+                                } catch (err) {
+                                    errors.push(`"${fileName}": invalid server response`);
+                                    resolve();
+                                }
+                            };
+                            xhr.onerror = () => reject(new Error('upload failed'));
+                            xhr.send(fdFile);
+                        });
                     } catch(e) {
                         errors.push(`"${fileName}": upload failed`);
                     }
+
+                    doneFiles++;
+                    if (statusCount) statusCount.textContent = `${doneFiles} / ${totalFiles}`;
+                    if (progressBar) progressBar.style.width = Math.round((doneFiles / totalFiles) * 100) + '%';
                 }
 
                 if (overlay) overlay.style.display = 'none';
