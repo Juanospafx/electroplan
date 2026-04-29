@@ -168,6 +168,16 @@ include __DIR__ . '/../views/header.php';
             <?php if($isAdmin): ?>
             <button class="btn btn-outline-light btn-sm" onclick="document.getElementById('bulk-folder-input').click()" title="Bulk Import Folders"><i class="fas fa-folder-tree me-1"></i> Bulk Import</button>
             <input type="file" id="bulk-folder-input" webkitdirectory multiple style="display:none" onchange="handleBulkFolderImport(this)">
+            <div id="bulk-import-overlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.75); z-index:9999; align-items:center; justify-content:center;">
+                <div style="background:var(--bg-card); border-radius:16px; padding:32px; width:380px; text-align:center;">
+                    <div class="fw-bold text-white mb-2" id="bulk-status-title">Importing...</div>
+                    <div class="text-gray small mb-3" id="bulk-status-detail">Starting...</div>
+                    <div class="progress mb-3" style="height:8px; border-radius:4px;">
+                        <div id="bulk-progress-bar" class="progress-bar bg-primary" style="width:0%; transition:width 0.3s;"></div>
+                    </div>
+                    <div class="text-gray small" id="bulk-status-count">0 / 0 files</div>
+                </div>
+            </div>
             <div class="dropdown">
                 <button class="btn btn-outline-light d-flex align-items-center justify-content-center" data-bs-toggle="dropdown" aria-expanded="false" style="width: 42px; height: 42px; border-radius: 50%; padding: 0;"><i class="fas fa-ellipsis-v"></i></button>
                 <ul class="dropdown-menu dropdown-menu-end bg-card border-secondary shadow-lg rounded-3 py-2">
@@ -839,6 +849,7 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
 
 <script>
     const pId = <?= $projectId ?>;
+    const currentFolderId = <?= $currentFolderId ? (int)$currentFolderId : 'null' ?>;
     const fId = <?= $currentFolderId ?? 'null' ?>;
     const canUpload = <?= $canUpload ? 'true' : 'false' ?>;
 
@@ -1284,37 +1295,147 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
     }
 
     async function handleBulkFolderImport(input) {
-        const files = Array.from(input.files || []); if (!files.length) return;
-        const projectMap = {};
-        files.forEach(file => {
-            const parts = (file.webkitRelativePath || file.name).split('/');
-            const projectName = parts[0];
-            const subPath = parts.slice(1);
-            if (!projectMap[projectName]) projectMap[projectName] = [];
-            projectMap[projectName].push({ file, subPath });
-        });
-        if (!confirm(`This will create ${Object.keys(projectMap).length} project(s). Continue?`)) return;
-        for (const [projectName, projectFiles] of Object.entries(projectMap)) {
-            const fdProj = new FormData(); fdProj.append('action','create_project_bulk'); fdProj.append('name', projectName);
-            const projRes = await fetch('../api/api.php', { method:'POST', body:fdProj }).then(r=>r.json());
-            if (projRes.status !== 'success') continue;
-            const projectId = projRes.project_id; const folderCache = {};
-            for (const { file, subPath } of projectFiles) {
-                if (subPath.length === 0) continue;
-                let parentId = null; const folderParts = subPath.slice(0,-1); const pathSoFar = [];
-                for (const folderName of folderParts.slice(0,3)) {
-                    pathSoFar.push(folderName); const pathKey = pathSoFar.join('/');
-                    if (!folderCache[pathKey]) {
-                        const fdF = new FormData(); fdF.append('action','create_folder'); fdF.append('project_id', projectId); fdF.append('folder_name', folderName); if (parentId) fdF.append('parent_id', parentId);
-                        const fRes = await fetch('../api/api.php', { method:'POST', body:fdF }).then(r=>r.json()); folderCache[pathKey] = fRes.folder_id || null;
+        const files = Array.from(input.files || []);
+        input.value = '';
+        if (!files.length) return;
+
+        const uploadParentId = currentFolderId || null;
+        const rootFolderName = files[0] ? (files[0].webkitRelativePath || files[0].name).split('/')[0] : 'Imported Folder';
+        const totalFiles = files.length;
+
+        appConfirm(
+            `Upload folder "<strong>${rootFolderName}</strong>" (${totalFiles} file${totalFiles !== 1 ? 's' : ''}) here?`,
+            'Upload Folder',
+            async () => {
+                const overlay = document.getElementById('bulk-import-overlay');
+                const statusTitle = document.getElementById('bulk-status-title');
+                const statusDetail = document.getElementById('bulk-status-detail');
+                const progressBar = document.getElementById('bulk-progress-bar');
+                const statusCount = document.getElementById('bulk-status-count');
+                if (overlay) overlay.style.display = 'flex';
+                if (statusTitle) statusTitle.textContent = `Uploading "${rootFolderName}"...`;
+
+                const folderCache = {};
+                folderCache[''] = uploadParentId;
+
+                const errors = [];
+                let doneFiles = 0;
+
+                for (const file of files) {
+                    doneFiles++;
+                    const pct = Math.round((doneFiles / totalFiles) * 100);
+                    if (progressBar) progressBar.style.width = pct + '%';
+                    if (statusCount) statusCount.textContent = `${doneFiles} / ${totalFiles}`;
+
+                    const parts = (file.webkitRelativePath || file.name).split('/');
+                    const fileName = parts[parts.length - 1];
+                    const folderParts = parts.slice(1, -1);
+
+                    if (statusDetail) {
+                        statusDetail.textContent = folderParts.length ? `${folderParts.join('/')} / ${fileName}` : fileName;
                     }
-                    parentId = folderCache[pathKey];
+
+                    let parentId = uploadParentId;
+                    const pathSoFar = [];
+
+                    if (folderCache['__root__'] === undefined) {
+                        const fdRoot = new FormData();
+                        fdRoot.append('action', 'create_folder');
+                        fdRoot.append('project_id', pId);
+                        fdRoot.append('folder_name', rootFolderName);
+                        if (uploadParentId) fdRoot.append('parent_id', uploadParentId);
+                        try {
+                            const rRes = await fetch('../api/api.php', { method: 'POST', body: fdRoot }).then(r => r.json());
+                            if (rRes.status === 'success') {
+                                folderCache['__root__'] = rRes.folder_id;
+                            } else {
+                                folderCache['__root__'] = await findExistingFolderId(pId, rootFolderName, uploadParentId);
+                            }
+                        } catch(e) {
+                            folderCache['__root__'] = null;
+                        }
+                    }
+
+                    parentId = folderCache['__root__'];
+
+                    for (const folderName of folderParts) {
+                        pathSoFar.push(folderName);
+                        const cacheKey = pathSoFar.join('/');
+                        if (folderCache[cacheKey] === undefined) {
+                            const fdF = new FormData();
+                            fdF.append('action', 'create_folder');
+                            fdF.append('project_id', pId);
+                            fdF.append('folder_name', folderName);
+                            if (parentId) fdF.append('parent_id', parentId);
+                            try {
+                                const fRes = await fetch('../api/api.php', { method: 'POST', body: fdF }).then(r => r.json());
+                                if (fRes.status === 'success') {
+                                    folderCache[cacheKey] = fRes.folder_id;
+                                } else {
+                                    folderCache[cacheKey] = await findExistingFolderId(pId, folderName, parentId);
+                                }
+                            } catch(e) {
+                                folderCache[cacheKey] = null;
+                            }
+                        }
+                        parentId = folderCache[cacheKey];
+                    }
+
+                    const fdFile = new FormData();
+                    fdFile.append('action', 'upload_file');
+                    fdFile.append('project_id', pId);
+                    if (parentId) fdFile.append('folder_id', parentId);
+                    fdFile.append('file', file, fileName);
+
+                    try {
+                        const upRes = await fetch('../api/api.php', { method: 'POST', body: fdFile }).then(r => r.json());
+                        if (upRes.status !== 'success') {
+                            errors.push(`"${fileName}": ${upRes.msg}`);
+                        }
+                    } catch(e) {
+                        errors.push(`"${fileName}": upload failed`);
+                    }
                 }
-                const fdFile = new FormData(); fdFile.append('action','upload_file'); fdFile.append('project_id', projectId); if (parentId) fdFile.append('folder_id', parentId); fdFile.append('file', file, file.name);
-                await fetch('../api/api.php', { method:'POST', body:fdFile });
+
+                if (overlay) overlay.style.display = 'none';
+                if (errors.length) {
+                    appAlert(
+                        `Done with ${errors.length} issue(s):<br><small class="text-gray">${errors.slice(0, 5).join('<br>')}${errors.length > 5 ? `<br>...and ${errors.length - 5} more` : ''}</small>`,
+                        'Upload Complete',
+                        'warning'
+                    );
+                } else {
+                    appAlert(`Folder "${rootFolderName}" uploaded — ${doneFiles} file(s).`, 'Done', 'success');
+                }
+                setTimeout(() => location.reload(), 1500);
             }
+        );
+    }
+
+    async function findExistingFolderId(projectId, name, parentId) {
+        const fd = new FormData();
+        fd.append('action', 'get_folders_list');
+        fd.append('project_id', projectId);
+        try {
+            const res = await fetch('../api/api.php', { method: 'POST', body: fd }).then(r => r.json());
+            if (res.status !== 'success' || !res.folders) return null;
+
+            function search(folders) {
+                for (const f of folders) {
+                    const pid = f.parent_id ? parseInt(f.parent_id) : null;
+                    const expectedPid = parentId ? parseInt(parentId) : null;
+                    if (f.name === name && pid === expectedPid) return parseInt(f.id);
+                    if (f.children && f.children.length) {
+                        const found = search(f.children);
+                        if (found) return found;
+                    }
+                }
+                return null;
+            }
+            return search(res.folders);
+        } catch(e) {
+            return null;
         }
-        appAlert('Bulk import completed!', 'Done', 'success'); setTimeout(() => location.reload(), 1500);
     }
 
 </script>
