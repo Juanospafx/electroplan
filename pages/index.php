@@ -287,9 +287,25 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
             <div class="d-flex justify-content-between align-items-end mb-5">
                 <div><h1 class="fw-bold mb-2">Welcome Back!</h1><p class="text-gray mb-0">Here is the latest activity.</p></div>
                 <?php if($canCreate): ?>
-                    <a href="project_create.php" class="btn-main text-decoration-none">
-                        <i class="fas fa-plus me-2"></i> New Project
-                    </a>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-outline-light btn-sm rounded-pill px-3" onclick="document.getElementById('bulk-folder-input').click()" title="Import projects from local folders">
+                            <i class="fas fa-folder-tree me-2"></i>Bulk Import
+                        </button>
+                        <input type="file" id="bulk-folder-input" webkitdirectory multiple style="display:none" onchange="handleBulkFolderImport(this)">
+                        <a href="project_create.php" class="btn-main text-decoration-none">
+                            <i class="fas fa-plus me-2"></i> New Project
+                        </a>
+                    </div>
+                    <div id="bulk-import-overlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.75); z-index:9999; align-items:center; justify-content:center;">
+                        <div style="background:var(--bg-card); border-radius:16px; padding:32px; width:380px; text-align:center;">
+                            <div class="fw-bold text-white mb-2" id="bulk-status-title">Importing...</div>
+                            <div class="text-gray small mb-3" id="bulk-status-detail">Starting...</div>
+                            <div class="progress mb-3" style="height:8px; border-radius:4px;">
+                                <div id="bulk-progress-bar" class="progress-bar bg-primary" style="width:0%; transition:width 0.3s;"></div>
+                            </div>
+                            <div class="text-gray small" id="bulk-status-count">0 / 0 files</div>
+                        </div>
+                    </div>
                 <?php endif; ?>
             </div>
 
@@ -785,6 +801,121 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
         appConfirm(`WARNING: This will permanently delete ${selectedTrash.size} items.`, "Delete Forever", async () => {
             const promises = Array.from(selectedTrash).map(comp => { const [type, id] = comp.split('_'); const fd = new FormData(); fd.append('action', 'hard_delete_entity'); fd.append('type', type); fd.append('id', id); return fetch('../api/api.php', { method: 'POST', body: fd }); }); 
             try { await Promise.all(promises); location.reload(); } catch (e) { appAlert("Error processing request", "Error", "error"); } 
+        });
+    }
+
+    async function handleBulkFolderImport(input) {
+        const files = Array.from(input.files || []);
+        input.value = '';
+        if (!files.length) return;
+
+        const projectMap = {};
+        files.forEach(file => {
+            const parts = (file.webkitRelativePath || '').split('/');
+            if (parts.length < 2) return;
+            const projectName = parts[0];
+            if (!projectMap[projectName]) projectMap[projectName] = [];
+            projectMap[projectName].push({ file, parts });
+        });
+
+        const projectNames = Object.keys(projectMap);
+        if (!projectNames.length) {
+            appAlert('No valid files found. Make sure your folders have at least one subfolder with files.', 'Empty Selection', 'warning');
+            return;
+        }
+
+        const totalFiles = files.length;
+        appConfirm(`Import ${projectNames.length} project(s) with ${totalFiles} file(s)?<br><small class="text-gray">${projectNames.join(', ')}</small>`, 'Bulk Import', async () => {
+            const overlay = document.getElementById('bulk-import-overlay');
+            const statusTitle = document.getElementById('bulk-status-title');
+            const statusDetail = document.getElementById('bulk-status-detail');
+            const progressBar = document.getElementById('bulk-progress-bar');
+            const statusCount = document.getElementById('bulk-status-count');
+            overlay.style.display = 'flex';
+
+            const errors = [];
+            let doneFiles = 0;
+
+            for (const [projectName, projectFiles] of Object.entries(projectMap)) {
+                statusTitle.textContent = `Creating project: ${projectName}`;
+                statusDetail.textContent = 'Setting up project...';
+
+                const fdProj = new FormData();
+                fdProj.append('action', 'create_project_bulk');
+                fdProj.append('name', projectName);
+
+                let projectId = null;
+                try {
+                    const projRes = await fetch('../api/api.php', { method: 'POST', body: fdProj }).then(r => r.json());
+                    if (projRes.status !== 'success') {
+                        errors.push(`Project "${projectName}": ${projRes.msg || 'create failed'}`);
+                        continue;
+                    }
+                    projectId = projRes.project_id;
+                } catch (e) {
+                    errors.push(`Project "${projectName}": connection error`);
+                    continue;
+                }
+
+                const folderCache = {};
+                for (const { file, parts } of projectFiles) {
+                    const fileName = parts[parts.length - 1];
+                    const folderParts = parts.slice(1, -1);
+
+                    doneFiles++;
+                    const pct = Math.round((doneFiles / totalFiles) * 100);
+                    progressBar.style.width = pct + '%';
+                    statusCount.textContent = `${doneFiles} / ${totalFiles} files`;
+                    statusDetail.textContent = `${projectName} → ${folderParts.join('/')} / ${fileName}`;
+
+                    let parentId = null;
+                    let folderId = null;
+                    const pathSoFar = [];
+
+                    for (const folderName of folderParts.slice(0, 4)) {
+                        pathSoFar.push(folderName);
+                        const cacheKey = pathSoFar.join('/');
+                        if (!folderCache[cacheKey]) {
+                            const fdF = new FormData();
+                            fdF.append('action', 'create_folder');
+                            fdF.append('project_id', projectId);
+                            fdF.append('name', folderName);
+                            if (parentId) fdF.append('parent_id', parentId);
+                            try {
+                                const fRes = await fetch('../api/api.php', { method: 'POST', body: fdF }).then(r => r.json());
+                                folderCache[cacheKey] = fRes.folder_id || null;
+                            } catch (e) {
+                                folderCache[cacheKey] = null;
+                            }
+                        }
+                        parentId = folderCache[cacheKey];
+                        folderId = parentId;
+                    }
+
+                    const fdFile = new FormData();
+                    fdFile.append('action', 'upload_file');
+                    fdFile.append('project_id', projectId);
+                    if (folderId) fdFile.append('folder_id', folderId);
+                    fdFile.append('file', file, fileName);
+
+                    try {
+                        const upRes = await fetch('../api/api.php', { method: 'POST', body: fdFile }).then(r => r.json());
+                        if (upRes.status !== 'success') {
+                            errors.push(`File "${fileName}": ${upRes.msg || 'upload failed'}`);
+                        }
+                    } catch (e) {
+                        errors.push(`File "${fileName}": upload failed`);
+                    }
+                }
+            }
+
+            overlay.style.display = 'none';
+            if (errors.length) {
+                appAlert(`Import finished with ${errors.length} error(s):<br><small>${errors.slice(0,5).join('<br>')}</small>`, 'Import Complete (with errors)', 'warning');
+            } else {
+                appAlert(`${projectNames.length} project(s) imported successfully with ${totalFiles} file(s)!`, 'Import Complete', 'success');
+            }
+            setTimeout(() => location.reload(), 1500);
         });
     }
 
