@@ -168,15 +168,15 @@ include __DIR__ . '/../views/header.php';
             <?php if($isAdmin): ?>
             <button class="btn btn-outline-light btn-sm" onclick="document.getElementById('bulk-folder-input').click()" title="Bulk Import Folders"><i class="fas fa-folder-tree me-1"></i> Bulk Import</button>
             <input type="file" id="bulk-folder-input" webkitdirectory multiple style="display:none" onchange="handleBulkFolderImport(this)">
-            <div id="bulk-import-overlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.75); z-index:9999; align-items:center; justify-content:center;">
-                <div style="background:var(--bg-card); border-radius:16px; padding:32px; width:380px; text-align:center;">
-                    <div class="fw-bold text-white mb-2" id="bulk-status-title">Importing...</div>
-                    <div class="text-gray small mb-3" id="bulk-status-detail">Starting...</div>
-                    <div class="progress mb-3" style="height:8px; border-radius:4px;">
-                        <div id="bulk-progress-bar" class="progress-bar bg-primary" style="width:0%; transition:width 0.3s;"></div>
+            <div id="bulk-import-overlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.82); z-index:10000; align-items:center; justify-content:center;">
+                <div style="background:var(--bg-card); border:1px solid var(--border-subtle); border-radius:20px; padding:36px 32px; width:420px; max-width:92vw; text-align:center;">
+                    <i class="fas fa-folder-open text-warning mb-3" style="font-size:2.5rem;"></i>
+                    <div class="fw-bold text-white mb-1 fs-5" id="bulk-status-title">Uploading folder...</div>
+                    <div class="text-gray small mb-3" id="bulk-status-detail" style="min-height:20px; word-break:break-all;"></div>
+                    <div class="progress mb-3" style="height:8px; border-radius:4px; background:var(--bg-input);">
+                        <div id="bulk-progress-bar" style="width:0%; height:100%; background:var(--primary); border-radius:4px; transition:width 0.2s;"></div>
                     </div>
                     <div class="text-gray small" id="bulk-status-count">0 / 0 files</div>
-                    <div class="text-gray small mt-2" id="bulk-status-log" style="max-height:140px; overflow:auto; text-align:left; border-top:1px solid rgba(255,255,255,0.08); padding-top:8px;"></div>
                 </div>
             </div>
             <div class="dropdown">
@@ -695,30 +695,48 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
 </div>
 
 <div class="modal fade" id="uploadFileModal" tabindex="-1">
-    <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
         <div class="modal-content p-3">
             <div class="modal-header">
-                <h5 class="modal-title fw-bold">Upload File</h5>
+                <h5 class="modal-title fw-bold"><i class="fas fa-cloud-upload-alt me-2 text-primary"></i>Upload Files</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <form id="uploadFileForm">
                 <div class="modal-body">
-                    <label class="text-gray small mb-2">Select File</label>
-                    <input type="file" name="file" id="upload_file_input" class="form-control mb-3" required multiple>
+                    <div id="upload-drop-zone" style="border:2px dashed var(--border-subtle); border-radius:16px; padding:40px 24px; text-align:center; cursor:pointer; transition:0.2s; background:var(--bg-input); margin-bottom:16px;" onclick="document.getElementById('upload_file_input').click()" ondragover="uploadDropZoneOver(event)" ondragleave="uploadDropZoneLeave(event)" ondrop="uploadDropZoneDrop(event)">
+                        <i class="fas fa-file-upload text-primary mb-2" style="font-size:2rem;"></i>
+                        <div class="text-white fw-semibold mb-1">Drag & drop files here</div>
+                        <div class="text-gray small">or <span class="text-primary" style="cursor:pointer;">browse files</span></div>
+                        <div class="text-gray small mt-1">PDF, Images, Excel, Word, DWG, ZIP and more · max 1GB each</div>
+                    </div>
+                    <input type="file" id="upload_file_input" class="d-none" multiple onchange="uploadFilesSelected(this.files)">
 
-                    <label class="text-gray small mb-2">Select Folder</label>
-                    <select name="folder_id" id="upload_folder_select" class="form-select text-white bg-dark border-secondary" required>
-                        <option value="">Select a folder...</option>
-                        <?php foreach($allFolders as $folder): ?>
-                            <option value="<?= (int)$folder['id'] ?>"><?= htmlspecialchars($folder['name']) ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                    <?php if(empty($allFolders)): ?>
-                        <div class="text-gray small mt-2">No folders available. Create a folder first.</div>
+                    <div id="upload-file-list" class="d-flex flex-column gap-2 mb-3" style="max-height:200px; overflow-y:auto;"></div>
+
+                    <?php if(!$currentFolderId): ?>
+                    <div id="upload-folder-selector">
+                        <label class="text-gray small mb-2 d-block">Destination Folder</label>
+                        <select name="folder_id" id="upload_folder_select" class="form-select text-white bg-dark border-secondary" required>
+                            <option value="">Select a folder...</option>
+                            <?php foreach($allFolders as $folder): ?>
+                                <option value="<?= (int)$folder['id'] ?>"><?= htmlspecialchars($folder['name']) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <?php if(empty($allFolders)): ?>
+                            <div class="text-gray small mt-2">No folders available. Create a folder first.</div>
+                        <?php endif; ?>
+                    </div>
+                    <?php else: ?>
+                    <div class="text-gray small">
+                        <i class="fas fa-folder-open text-warning me-1"></i> Files will be uploaded to: <strong class="text-white"><?= htmlspecialchars($folderName ?? 'Current folder') ?></strong>
+                    </div>
                     <?php endif; ?>
                 </div>
                 <div class="modal-footer">
-                    <button type="submit" class="btn-main w-100">Upload</button>
+                    <button type="button" class="btn btn-outline-secondary rounded-pill px-4" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn-main px-4" id="upload-submit-btn" disabled>
+                        <i class="fas fa-upload me-2"></i>Upload <span id="upload-file-count"></span>
+                    </button>
                 </div>
             </form>
         </div>
@@ -905,43 +923,53 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
         window.open(fullUrl, '_blank', 'noopener');
     }
 
-    function openUploadModal() {
-        if (!canUpload) return;
-        if (fId) {
-            const input = document.getElementById('projectUploadInput');
-            if (input) input.click();
-            return;
-        }
-        const modalEl = document.getElementById('uploadFileModal');
-        if (modalEl) new bootstrap.Modal(modalEl).show();
+    // ── Upload Drag & Drop ──────────────────────────────────────────
+    let uploadSelectedFiles = [];
+    function uploadFilesSelected(fileList) {
+        const newFiles = Array.from(fileList || []);
+        newFiles.forEach(f => {
+            if (!uploadSelectedFiles.find(x => x.name === f.name && x.size === f.size)) {
+                uploadSelectedFiles.push(f);
+            }
+        });
+        renderUploadFileList();
     }
 
-    const projectUploadInput = document.getElementById('projectUploadInput');
-    if (projectUploadInput) {
-        projectUploadInput.addEventListener('change', function() {
-            if (!canUpload) return;
-            if (!this.files || this.files.length === 0) return;
-            if (!fId) return;
-            const fd = new FormData();
-            fd.append('action', 'upload_file');
-            fd.append('project_id', pId);
-            if (fId) fd.append('folder_id', fId);
-            fd.append('file', this.files[0]);
-            uploadWithProgress(fd)
-                .then(d => {
-                    if (d.status === 'success') {
-                        hideUploadProgress(800);
-                        location.reload();
-                    } else {
-                        hideUploadProgress(1500);
-                        appAlert('Error uploading file: ' + (d.msg || 'Unknown'), "Upload Error", "error");
-                    }
-                })
-                .catch(() => {
-                    hideUploadProgress(1500);
-                    appAlert('Connection error', "Connection Error", "error");
-                });
+    function renderUploadFileList() {
+        const list = document.getElementById('upload-file-list');
+        const btn = document.getElementById('upload-submit-btn');
+        const count = document.getElementById('upload-file-count');
+        if (!list) return;
+
+        list.innerHTML = '';
+        uploadSelectedFiles.forEach((f, i) => {
+            const ext = (f.name.split('.').pop() || '').toLowerCase();
+            const iconMap = { pdf:'fa-file-pdf text-danger', jpg:'fa-file-image text-info', jpeg:'fa-file-image text-info', png:'fa-file-image text-info', gif:'fa-file-image text-info', xlsx:'fa-file-excel text-success', xls:'fa-file-excel text-success', csv:'fa-file-csv text-success', doc:'fa-file-word text-primary', docx:'fa-file-word text-primary', zip:'fa-file-archive text-warning', rar:'fa-file-archive text-warning', dwg:'fa-drafting-compass text-warning' };
+            const icon = iconMap[ext] || 'fa-file text-gray';
+            const size = f.size > 1024*1024 ? (f.size/(1024*1024)).toFixed(1)+'MB' : (f.size/1024).toFixed(0)+'KB';
+            const row = document.createElement('div');
+            row.style.cssText = 'display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--bg-body);border-radius:10px;border:1px solid var(--border-subtle);';
+            row.innerHTML = `<i class="fas ${icon}" style="width:18px;flex-shrink:0;"></i><span class="text-white small flex-grow-1" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${f.name}</span><span class="text-gray small flex-shrink-0">${size}</span><button type="button" onclick="removeUploadFile(${i})" style="background:none;border:none;color:var(--text-muted);cursor:pointer;padding:0 4px;font-size:0.8rem;"><i class="fas fa-times"></i></button>`;
+            list.appendChild(row);
         });
+
+        const n = uploadSelectedFiles.length;
+        if (btn) btn.disabled = n === 0;
+        if (count) count.textContent = n > 0 ? `(${n} file${n > 1 ? 's' : ''})` : '';
+        const dz = document.getElementById('upload-drop-zone');
+        if (dz) dz.style.borderColor = n > 0 ? 'var(--primary)' : 'var(--border-subtle)';
+    }
+    function removeUploadFile(index) { uploadSelectedFiles.splice(index, 1); renderUploadFileList(); }
+    function uploadDropZoneOver(e) { e.preventDefault(); const dz = document.getElementById('upload-drop-zone'); if (dz) { dz.style.borderColor = 'var(--primary)'; dz.style.background = 'rgba(251,90,58,0.06)'; } }
+    function uploadDropZoneLeave(e) { const dz = document.getElementById('upload-drop-zone'); if (dz) { dz.style.borderColor = 'var(--border-subtle)'; dz.style.background = 'var(--bg-input)'; } }
+    function uploadDropZoneDrop(e) { e.preventDefault(); uploadDropZoneLeave(e); const files = e.dataTransfer?.files; if (files && files.length) uploadFilesSelected(files); }
+
+    function openUploadModal() {
+        if (!canUpload) return;
+        uploadSelectedFiles = [];
+        renderUploadFileList();
+        const modalEl = document.getElementById('uploadFileModal');
+        if (modalEl) new bootstrap.Modal(modalEl).show();
     }
 
     function showUploadProgress() {
@@ -995,23 +1023,23 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
 
     const uploadFileForm = document.getElementById('uploadFileForm');
     if (uploadFileForm) {
-        uploadFileForm.addEventListener('submit', function(e) {
+        uploadFileForm.addEventListener('submit', async function(e) {
             e.preventDefault();
             if (!canUpload) return;
-            const fileInput = document.getElementById('upload_file_input');
-            const folderSelect = document.getElementById('upload_folder_select');
-            if (!fileInput || !fileInput.files || fileInput.files.length === 0) {
-                appAlert('Please select a file.', "Missing Info", "warning");
+
+            if (!uploadSelectedFiles.length) {
+                appAlert('Please select at least one file.', 'Missing Files', 'warning');
                 return;
             }
-            if (!folderSelect || !folderSelect.value) {
-                appAlert('Please select a folder.', "Missing Info", "warning");
-                return;
-            }
-            const files = Array.from(fileInput.files || []);
-            if (!files.length) {
-                appAlert('Please select at least one file.', "Missing Info", "warning");
-                return;
+
+            let targetFolderId = fId || null;
+            if (!targetFolderId) {
+                const folderSelect = document.getElementById('upload_folder_select');
+                if (!folderSelect || !folderSelect.value) {
+                    appAlert('Please select a destination folder.', 'Missing Folder', 'warning');
+                    return;
+                }
+                targetFolderId = folderSelect.value;
             }
 
             const modalEl = document.getElementById('uploadFileModal');
@@ -1020,30 +1048,35 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
                 inst.hide();
             }
 
-            (async () => {
-                const errors = [];
-                for (const file of files) {
-                    const fd = new FormData();
-                    fd.append('action', 'upload_file');
-                    fd.append('project_id', pId);
-                    fd.append('folder_id', folderSelect.value);
-                    fd.append('file', file);
-                    try {
-                        const d = await uploadWithProgress(fd);
-                        if (d.status !== 'success') {
-                            errors.push(`${file.name}: ${d.msg || 'Unknown error'}`);
-                        }
-                    } catch (e) {
-                        errors.push(`${file.name}: upload failed`);
-                    }
-                }
+            const errors = [];
+            const total = uploadSelectedFiles.length;
+            for (let i = 0; i < uploadSelectedFiles.length; i++) {
+                const file = uploadSelectedFiles[i];
+                const fd = new FormData();
+                fd.append('action', 'upload_file');
+                fd.append('project_id', pId);
+                if (targetFolderId) fd.append('folder_id', targetFolderId);
+                fd.append('file', file);
 
-                hideUploadProgress(errors.length ? 1500 : 800);
-                if (errors.length) {
-                    appAlert(`Upload completed with ${errors.length} error(s):<br><small>${errors.slice(0,5).join('<br>')}</small>`, "Upload Warning", "warning");
+                showUploadProgress();
+                updateUploadProgress(Math.round((i / total) * 100));
+
+                try {
+                    const d = await uploadWithProgress(fd);
+                    if (d.status !== 'success') errors.push(`${file.name}: ${d.msg || 'Unknown error'}`);
+                } catch(err) {
+                    errors.push(`${file.name}: upload failed`);
                 }
-                location.reload();
-            })();
+            }
+
+            hideUploadProgress(errors.length ? 1500 : 600);
+            uploadSelectedFiles = [];
+            renderUploadFileList();
+
+            if (errors.length) {
+                appAlert(`Uploaded with ${errors.length} error(s):<br><small class="text-gray">${errors.slice(0,5).join('<br>')}</small>`, 'Upload Complete', 'warning');
+            }
+            setTimeout(() => location.reload(), 800);
         });
     }
 
