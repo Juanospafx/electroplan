@@ -704,7 +704,7 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
             <form id="uploadFileForm">
                 <div class="modal-body">
                     <label class="text-gray small mb-2">Select File</label>
-                    <input type="file" name="file" id="upload_file_input" class="form-control mb-3" required>
+                    <input type="file" name="file" id="upload_file_input" class="form-control mb-3" required multiple>
 
                     <label class="text-gray small mb-2">Select Folder</label>
                     <select name="folder_id" id="upload_folder_select" class="form-select text-white bg-dark border-secondary" required>
@@ -1008,30 +1008,42 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
                 appAlert('Please select a folder.', "Missing Info", "warning");
                 return;
             }
-            const fd = new FormData();
-            fd.append('action', 'upload_file');
-            fd.append('project_id', pId);
-            fd.append('folder_id', folderSelect.value);
-            fd.append('file', fileInput.files[0]);
+            const files = Array.from(fileInput.files || []);
+            if (!files.length) {
+                appAlert('Please select at least one file.', "Missing Info", "warning");
+                return;
+            }
+
             const modalEl = document.getElementById('uploadFileModal');
             if (modalEl) {
                 const inst = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
                 inst.hide();
             }
-            uploadWithProgress(fd)
-                .then(d => {
-                    if (d.status === 'success') {
-                        hideUploadProgress(800);
-                        location.reload();
-                    } else {
-                        hideUploadProgress(1500);
-                        appAlert('Error uploading file: ' + (d.msg || 'Unknown'), "Upload Error", "error");
+
+            (async () => {
+                const errors = [];
+                for (const file of files) {
+                    const fd = new FormData();
+                    fd.append('action', 'upload_file');
+                    fd.append('project_id', pId);
+                    fd.append('folder_id', folderSelect.value);
+                    fd.append('file', file);
+                    try {
+                        const d = await uploadWithProgress(fd);
+                        if (d.status !== 'success') {
+                            errors.push(`${file.name}: ${d.msg || 'Unknown error'}`);
+                        }
+                    } catch (e) {
+                        errors.push(`${file.name}: upload failed`);
                     }
-                })
-                .catch(() => {
-                    hideUploadProgress(1500);
-                    appAlert('Upload failed. The file may still finish uploading in the background.', "Upload Warning", "warning");
-                });
+                }
+
+                hideUploadProgress(errors.length ? 1500 : 800);
+                if (errors.length) {
+                    appAlert(`Upload completed with ${errors.length} error(s):<br><small>${errors.slice(0,5).join('<br>')}</small>`, "Upload Warning", "warning");
+                }
+                location.reload();
+            })();
         });
     }
 
