@@ -176,6 +176,7 @@ include __DIR__ . '/../views/header.php';
                         <div id="bulk-progress-bar" class="progress-bar bg-primary" style="width:0%; transition:width 0.3s;"></div>
                     </div>
                     <div class="text-gray small" id="bulk-status-count">0 / 0 files</div>
+                    <div class="text-gray small mt-2" id="bulk-status-log" style="max-height:140px; overflow:auto; text-align:left; border-top:1px solid rgba(255,255,255,0.08); padding-top:8px;"></div>
                 </div>
             </div>
             <div class="dropdown">
@@ -1322,6 +1323,8 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
                 const statusCount = document.getElementById('bulk-status-count');
                 if (overlay) overlay.style.display = 'flex';
                 if (statusTitle) statusTitle.textContent = `Uploading "${rootFolderName}"...`;
+                const statusLog = document.getElementById('bulk-status-log');
+                if (statusLog) statusLog.innerHTML = `Detected ${totalFiles} file(s).<br>`;
 
                 const folderCache = {};
                 folderCache[''] = uploadParentId;
@@ -1341,6 +1344,10 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
 
                     if (statusDetail) {
                         statusDetail.textContent = folderParts.length ? `${folderParts.join('/')} / ${fileName}` : fileName;
+                    }
+                    if (statusLog) {
+                        statusLog.innerHTML += `⏳ ${doneBefore + 1}/${totalFiles} ${fileName}<br>`;
+                        statusLog.scrollTop = statusLog.scrollHeight;
                     }
 
                     let parentId = uploadParentId;
@@ -1416,11 +1423,19 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
                                     const upRes = JSON.parse(raw || '{}');
                                     if (upRes.status !== 'success') {
                                         errors.push(`"${fileName}": ${upRes.msg || 'upload failed'}`);
+                                        if (statusLog) statusLog.innerHTML += `❌ ${fileName}: ${upRes.msg || 'upload failed'}<br>`;
+                                    } else {
+                                        if (statusLog) statusLog.innerHTML += `✅ ${fileName}<br>`;
                                     }
+                                    if (statusLog) statusLog.scrollTop = statusLog.scrollHeight;
                                     resolve();
                                 } catch (err) {
                                     const shortRaw = raw.slice(0, 140).replace(/</g, '&lt;').replace(/>/g, '&gt;');
                                     errors.push(`"${fileName}": invalid response (${shortRaw || 'empty'})`);
+                                    if (statusLog) {
+                                        statusLog.innerHTML += `❌ ${fileName}: invalid response<br>`;
+                                        statusLog.scrollTop = statusLog.scrollHeight;
+                                    }
                                     resolve();
                                 }
                             };
@@ -1429,6 +1444,10 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
                         });
                     } catch(e) {
                         errors.push(`"${fileName}": upload failed (${e?.message || 'network'})`);
+                        if (statusLog) {
+                            statusLog.innerHTML += `❌ ${fileName}: ${e?.message || 'network error'}<br>`;
+                            statusLog.scrollTop = statusLog.scrollHeight;
+                        }
                     }
 
                     doneFiles++;
@@ -1436,7 +1455,11 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
                     if (progressBar) progressBar.style.width = Math.round((doneFiles / totalFiles) * 100) + '%';
                 }
 
-                if (overlay) overlay.style.display = 'none';
+                if (statusLog) {
+                    const ok = doneFiles - errors.length;
+                    statusLog.innerHTML += `<hr style="border-color:rgba(255,255,255,0.12)">Finished. ✅ ${ok} | ❌ ${errors.length}`;
+                    statusLog.scrollTop = statusLog.scrollHeight;
+                }
                 if (errors.length) {
                     appAlert(
                         `Done with ${errors.length} issue(s):<br><small class="text-gray">${errors.slice(0, 5).join('<br>')}${errors.length > 5 ? `<br>...and ${errors.length - 5} more` : ''}</small>`,
