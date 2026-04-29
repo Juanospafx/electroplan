@@ -259,29 +259,6 @@ include __DIR__ . '/../views/header.php';
                         <?php endif; ?>
                     </div>
                 </div>
-                <?php if (!empty($subsByParent[$folder['id']])): ?>
-                    <div class="col-12">
-                        <div class="ms-4 d-flex flex-column gap-2 mb-2">
-                            <?php foreach($subsByParent[$folder['id']] as $sub): ?>
-                                <div class="d-flex align-items-center justify-content-between px-3 py-2 rounded-3" style="background:var(--bg-body); border:1px solid var(--border-subtle);">
-                                    <a href="?id=<?= $projectId ?>&view=files&folder_id=<?= $sub['id'] ?>" class="d-flex align-items-center gap-2 text-decoration-none text-white small fw-semibold flex-grow-1">
-                                        <i class="fas fa-folder text-warning" style="font-size:0.85rem;"></i>
-                                        <?= htmlspecialchars($sub['name']) ?>
-                                    </a>
-                                    <?php if($_SESSION['role'] === 'admin'): ?>
-                                        <div class="dropdown ms-2">
-                                            <button class="btn btn-sm border-0 btn-folder-menu py-0 px-1" data-bs-toggle="dropdown"><i class="fas fa-ellipsis-v"></i></button>
-                                            <ul class="dropdown-menu dropdown-menu-end bg-card border-secondary shadow-lg rounded-3 py-1">
-                                                <?php if(($sub['depth'] ?? 1) < 3): ?><li><button class="dropdown-item text-white hover-bg-body small" onclick="openAddSubfolderModal(<?= $sub['id'] ?>, '<?= addslashes(htmlspecialchars($sub['name'])) ?>')"><i class="fas fa-folder-plus me-2 text-success"></i> Add Subfolder</button></li><?php endif; ?>
-                                                <li><button class="dropdown-item text-danger hover-bg-body small" onclick="deleteFolder(<?= $sub['id'] ?>)"><i class="fas fa-trash me-2"></i> Delete</button></li>
-                                            </ul>
-                                        </div>
-                                    <?php endif; ?>
-                                </div>
-                            <?php endforeach; ?>
-                        </div>
-                    </div>
-                <?php endif; ?>
             <?php endforeach; ?>
             <?php if(empty($allFolders)): ?>
                 <div class="col-12"><div class="text-gray small"><i class="fas fa-info-circle me-2"></i>This project has no folders.</div></div>
@@ -295,8 +272,9 @@ include __DIR__ . '/../views/header.php';
             $fStmt = $pdo->prepare("SELECT * FROM files WHERE folder_id = ? AND deleted_at IS NULL ORDER BY uploaded_at DESC");
             $fStmt->execute([$currentFolderId]);
             $files = $fStmt->fetchAll(PDO::FETCH_ASSOC);
-            $currFolder = array_filter($allFolders, fn($f) => $f['id'] == $currentFolderId);
-            $folderName = !empty($currFolder) ? reset($currFolder)['name'] : "Unknown Folder";
+            $allFolderLookup = array_merge($allFolders, $allSubs ?? []);
+            $currFolder = array_values(array_filter($allFolderLookup, fn($f) => (int)$f['id'] === (int)$currentFolderId));
+            $folderName = !empty($currFolder) ? ($currFolder[0]['name'] ?? 'Unknown Folder') : "Unknown Folder";
         }
     ?>
         <?php
