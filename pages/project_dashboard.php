@@ -166,8 +166,9 @@ include __DIR__ . '/../views/header.php';
 
             <button class="btn btn-tools rounded-pill px-4 py-2 shadow-sm" onclick="openToolsModal()"><i class="fas fa-toolbox me-2"></i> Tools</button>
             <?php if($isAdmin): ?>
-            <button class="btn btn-outline-light btn-sm" onclick="document.getElementById('bulk-folder-input').click()" title="Bulk Import Folders"><i class="fas fa-folder-tree me-1"></i> Bulk Import</button>
-            <input type="file" id="bulk-folder-input" webkitdirectory multiple style="display:none" onchange="handleBulkFolderImport(this)">
+            <button class="btn btn-outline-light btn-sm" onclick="openBulkZipModal()" title="Upload folder as ZIP">
+                <i class="fas fa-file-archive me-1"></i> Bulk Import (ZIP)
+            </button>
             <div id="bulk-import-overlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.82); z-index:10000; align-items:center; justify-content:center;">
                 <div style="background:var(--bg-card); border:1px solid var(--border-subtle); border-radius:20px; padding:36px 32px; width:420px; max-width:92vw; text-align:center;">
                     <i class="fas fa-folder-open text-warning mb-3" style="font-size:2.5rem;"></i>
@@ -177,6 +178,50 @@ include __DIR__ . '/../views/header.php';
                         <div id="bulk-progress-bar" style="width:0%; height:100%; background:var(--primary); border-radius:4px; transition:width 0.2s;"></div>
                     </div>
                     <div class="text-gray small" id="bulk-status-count">0 / 0 files</div>
+                    <div class="text-gray small mt-2" id="bulk-status-log" style="max-height:140px; overflow:auto; text-align:left; border-top:1px solid rgba(255,255,255,0.08); padding-top:8px;"></div>
+                </div>
+            </div>
+
+            <!-- Modal Bulk ZIP Import -->
+            <div class="modal fade" id="bulkZipModal" tabindex="-1">
+                <div class="modal-dialog modal-dialog-centered">
+                    <div class="modal-content p-3">
+                        <div class="modal-header">
+                            <h5 class="modal-title fw-bold"><i class="fas fa-file-archive me-2 text-warning"></i>Bulk Import via ZIP</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="p-3 rounded-3 mb-3" style="background:var(--bg-input); border:1px solid var(--border-subtle);">
+                                <div class="small text-white fw-semibold mb-2"><i class="fas fa-info-circle text-primary me-1"></i> How it works</div>
+                                <ol class="small text-gray mb-0 ps-3" style="line-height:1.8;">
+                                    <li>Compress your folder into a <strong class="text-white">.zip</strong> file on your computer</li>
+                                    <li>Select the ZIP file below</li>
+                                    <li>The server will recreate the folder structure automatically</li>
+                                </ol>
+                            </div>
+                            <div id="zip-drop-zone" style="border:2px dashed var(--border-subtle); border-radius:16px; padding:36px 24px; text-align:center; cursor:pointer; transition:0.2s; background:var(--bg-input);" onclick="document.getElementById('zip-file-input').click()" ondragover="zipDropOver(event)" ondragleave="zipDropLeave(event)" ondrop="zipDropDrop(event)">
+                                <i class="fas fa-file-zipper text-warning mb-2" style="font-size:2.2rem;"></i>
+                                <div class="text-white fw-semibold mb-1">Drag & drop your ZIP here</div>
+                                <div class="text-gray small">or <span class="text-primary">browse</span> · max 500MB</div>
+                            </div>
+                            <input type="file" id="zip-file-input" class="d-none" accept=".zip" onchange="zipFileSelected(this.files[0])">
+                            <div id="zip-selected-info" class="mt-3 d-none">
+                                <div class="d-flex align-items-center gap-3 p-3 rounded-3" style="background:var(--bg-body); border:1px solid var(--primary);">
+                                    <i class="fas fa-file-zipper text-warning" style="font-size:1.5rem; flex-shrink:0;"></i>
+                                    <div class="flex-grow-1 overflow-hidden">
+                                        <div class="text-white small fw-semibold text-truncate" id="zip-selected-name"></div>
+                                        <div class="text-gray small" id="zip-selected-size"></div>
+                                    </div>
+                                    <button type="button" onclick="zipClearSelection()" style="background:none;border:none;color:var(--text-muted);cursor:pointer;"><i class="fas fa-times"></i></button>
+                                </div>
+                            </div>
+                            <div id="zip-error-msg" class="alert alert-danger small mt-3 d-none py-2"></div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-outline-secondary rounded-pill px-4" data-bs-dismiss="modal">Cancel</button>
+                            <button type="button" class="btn-main px-4" id="zip-upload-btn" disabled onclick="startZipUpload()"><i class="fas fa-upload me-2"></i>Upload & Extract</button>
+                        </div>
+                    </div>
                 </div>
             </div>
             <div class="dropdown">
@@ -1348,155 +1393,108 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
         });
     }
 
-    async function handleBulkFolderImport(input) {
-        const files = Array.from(input.files || []);
-        input.value = '';
-        if (!files.length) return;
+    // ── Bulk ZIP Import ─────────────────────────────────────────────
+    let zipSelectedFile = null;
+    function openBulkZipModal() {
+        zipClearSelection();
+        const errEl = document.getElementById('zip-error-msg');
+        if (errEl) { errEl.textContent = ''; errEl.classList.add('d-none'); }
+        new bootstrap.Modal(document.getElementById('bulkZipModal')).show();
+    }
+    function zipDropOver(e) { e.preventDefault(); const dz = document.getElementById('zip-drop-zone'); if (dz) { dz.style.borderColor = 'var(--primary)'; dz.style.background = 'rgba(251,90,58,0.06)'; } }
+    function zipDropLeave(e) { const dz = document.getElementById('zip-drop-zone'); if (dz) { dz.style.borderColor = 'var(--border-subtle)'; dz.style.background = 'var(--bg-input)'; } }
+    function zipDropDrop(e) { e.preventDefault(); zipDropLeave(e); const file = e.dataTransfer?.files?.[0]; if (file) zipFileSelected(file); }
 
-        // El "padre" donde se va a crear la carpeta importada:
-        // - Si estamos dentro de una carpeta: currentFolderId
-        // - Si estamos en la raíz del proyecto: null
-        const uploadParentId = currentFolderId || null;
-
-        // Nombre de la carpeta raíz que el usuario seleccionó
-        const rootFolderName = files[0] ? (files[0].webkitRelativePath || files[0].name).split('/')[0] : 'Imported Folder';
-        const totalFiles = files.length;
-
-        appConfirm(
-            `Upload folder "<strong>${rootFolderName}</strong>" (${totalFiles} file${totalFiles !== 1 ? 's' : ''}) here?`,
-            'Upload Folder',
-            async () => {
-                const overlay = document.getElementById('bulk-import-overlay');
-                const statusTitle = document.getElementById('bulk-status-title');
-                const statusDetail = document.getElementById('bulk-status-detail');
-                const progressBar = document.getElementById('bulk-progress-bar');
-                const statusCount = document.getElementById('bulk-status-count');
-                if (overlay) overlay.style.display = 'flex';
-                if (statusTitle) statusTitle.textContent = `Uploading "${rootFolderName}"...`;
-
-                // Cache: path relativo desde la raíz seleccionada -> folder_id
-                const folderCache = {};
-                folderCache[''] = uploadParentId;
-
-                const errors = [];
-                let doneFiles = 0;
-
-                for (const file of files) {
-                    doneFiles++;
-                    const pct = Math.round((doneFiles / totalFiles) * 100);
-                    if (progressBar) progressBar.style.width = pct + '%';
-                    if (statusCount) statusCount.textContent = `${doneFiles} / ${totalFiles}`;
-
-                    const parts = (file.webkitRelativePath || file.name).split('/');
-                    const fileName = parts[parts.length - 1];
-                    const folderParts = parts.slice(1, -1);
-
-                    if (statusDetail) {
-                        statusDetail.textContent = folderParts.length ? `${folderParts.join('/')} / ${fileName}` : fileName;
-                    }
-
-                    let parentId = uploadParentId;
-                    const pathSoFar = [];
-
-                    // Crear/reusar carpeta raíz importada
-                    if (folderCache['__root__'] === undefined) {
-                        const fdRoot = new FormData();
-                        fdRoot.append('action', 'create_folder');
-                        fdRoot.append('project_id', pId);
-                        fdRoot.append('folder_name', rootFolderName);
-                        if (uploadParentId) fdRoot.append('parent_id', uploadParentId);
-                        try {
-                            const rRes = await fetch('../api/api.php', { method: 'POST', body: fdRoot }).then(r => r.json());
-                            if (rRes.status === 'success') {
-                                folderCache['__root__'] = rRes.folder_id;
-                            } else {
-                                folderCache['__root__'] = await findExistingFolderId(pId, rootFolderName, uploadParentId);
-                            }
-                        } catch(e) {
-                            folderCache['__root__'] = null;
-                        }
-                    }
-
-                    parentId = folderCache['__root__'];
-
-                    // Crear/reusar subcarpetas internas
-                    for (const folderName of folderParts) {
-                        pathSoFar.push(folderName);
-                        const cacheKey = pathSoFar.join('/');
-                        if (folderCache[cacheKey] === undefined) {
-                            const fdF = new FormData();
-                            fdF.append('action', 'create_folder');
-                            fdF.append('project_id', pId);
-                            fdF.append('folder_name', folderName);
-                            if (parentId) fdF.append('parent_id', parentId);
-                            try {
-                                const fRes = await fetch('../api/api.php', { method: 'POST', body: fdF }).then(r => r.json());
-                                if (fRes.status === 'success') {
-                                    folderCache[cacheKey] = fRes.folder_id;
-                                } else {
-                                    folderCache[cacheKey] = await findExistingFolderId(pId, folderName, parentId);
-                                }
-                            } catch(e) {
-                                folderCache[cacheKey] = null;
-                            }
-                        }
-                        parentId = folderCache[cacheKey];
-                    }
-
-                    const fdFile = new FormData();
-                    fdFile.append('action', 'upload_file');
-                    fdFile.append('project_id', pId);
-                    if (parentId) fdFile.append('folder_id', parentId);
-                    fdFile.append('file', file, fileName);
-
-                    try {
-                        const upRes = await fetch('../api/api.php', { method: 'POST', body: fdFile }).then(r => r.json());
-                        if (upRes.status !== 'success') {
-                            errors.push(`"${fileName}": ${upRes.msg}`);
-                        }
-                    } catch(e) {
-                        errors.push(`"${fileName}": upload failed`);
-                    }
-                }
-
-                if (overlay) overlay.style.display = 'none';
-                if (errors.length) {
-                    appAlert(
-                        `Done with ${errors.length} issue(s):<br><small class="text-gray">${errors.slice(0, 5).join('<br>')}${errors.length > 5 ? `<br>...and ${errors.length - 5} more` : ''}</small>`,
-                        'Upload Complete',
-                        'warning'
-                    );
-                } else {
-                    appAlert(`Folder "${rootFolderName}" uploaded — ${doneFiles} file(s).`, 'Done', 'success');
-                }
-                setTimeout(() => location.reload(), 1500);
-            }
-        );
+    function zipFileSelected(file) {
+        const errEl = document.getElementById('zip-error-msg');
+        if (!file) return;
+        if (!file.name.toLowerCase().endsWith('.zip')) { if (errEl) { errEl.textContent = 'Only .zip files are supported.'; errEl.classList.remove('d-none'); } return; }
+        const maxBytes = 500 * 1024 * 1024;
+        if (file.size > maxBytes) { if (errEl) { errEl.textContent = 'ZIP file exceeds 500MB limit.'; errEl.classList.remove('d-none'); } return; }
+        if (errEl) errEl.classList.add('d-none');
+        zipSelectedFile = file;
+        const info = document.getElementById('zip-selected-info');
+        const name = document.getElementById('zip-selected-name');
+        const size = document.getElementById('zip-selected-size');
+        const btn = document.getElementById('zip-upload-btn');
+        const dz = document.getElementById('zip-drop-zone');
+        if (name) name.textContent = file.name;
+        if (size) size.textContent = `${(file.size / (1024 * 1024)).toFixed(2)} MB`;
+        if (info) info.classList.remove('d-none');
+        if (btn) btn.disabled = false;
+        if (dz) dz.style.borderColor = 'var(--primary)';
     }
 
-    async function findExistingFolderId(projectId, name, parentId) {
-        const fd = new FormData();
-        fd.append('action', 'get_folders_list');
-        fd.append('project_id', projectId);
-        try {
-            const res = await fetch('../api/api.php', { method: 'POST', body: fd }).then(r => r.json());
-            if (res.status !== 'success' || !res.folders) return null;
+    function zipClearSelection() {
+        zipSelectedFile = null;
+        const info = document.getElementById('zip-selected-info');
+        const btn = document.getElementById('zip-upload-btn');
+        const dz = document.getElementById('zip-drop-zone');
+        const input = document.getElementById('zip-file-input');
+        if (info) info.classList.add('d-none');
+        if (btn) btn.disabled = true;
+        if (dz) dz.style.borderColor = 'var(--border-subtle)';
+        if (input) input.value = '';
+    }
 
-            function search(folders) {
-                for (const f of folders) {
-                    const pid = f.parent_id ? parseInt(f.parent_id) : null;
-                    const expectedPid = parentId ? parseInt(parentId) : null;
-                    if (f.name === name && pid === expectedPid) return parseInt(f.id);
-                    if (f.children && f.children.length) {
-                        const found = search(f.children);
-                        if (found) return found;
+    async function startZipUpload() {
+        if (!zipSelectedFile) return;
+        const modalEl = document.getElementById('bulkZipModal');
+        if (modalEl) { const inst = bootstrap.Modal.getInstance(modalEl); if (inst) inst.hide(); }
+
+        const overlay = document.getElementById('bulk-import-overlay');
+        const statusTitle = document.getElementById('bulk-status-title');
+        const statusDetail = document.getElementById('bulk-status-detail');
+        const progressBar = document.getElementById('bulk-progress-bar');
+        const statusCount = document.getElementById('bulk-status-count');
+        const statusLog = document.getElementById('bulk-status-log');
+        if (overlay) overlay.style.display = 'flex';
+        if (statusTitle) statusTitle.textContent = 'Uploading ZIP...';
+        if (statusDetail) statusDetail.textContent = zipSelectedFile.name;
+        if (statusCount) statusCount.textContent = 'Extracting...';
+        if (progressBar) progressBar.style.width = '30%';
+
+        const fd = new FormData();
+        fd.append('action', 'upload_zip_bulk');
+        fd.append('project_id', pId);
+        if (currentFolderId) fd.append('parent_folder_id', currentFolderId);
+        fd.append('zip_file', zipSelectedFile, zipSelectedFile.name);
+
+        try {
+            const result = await new Promise((resolve, reject) => {
+                const xhr = new XMLHttpRequest();
+                xhr.open('POST', '../api/api.php', true);
+                xhr.upload.addEventListener('progress', (e) => {
+                    if (e.lengthComputable) {
+                        const pct = Math.round((e.loaded / e.total) * 80);
+                        if (progressBar) progressBar.style.width = pct + '%';
+                        if (statusDetail) statusDetail.textContent = `Uploading: ${pct}%`;
                     }
+                });
+                xhr.addEventListener('load', () => {
+                    if (progressBar) progressBar.style.width = '85%';
+                    if (statusDetail) statusDetail.textContent = 'Extracting ZIP...';
+                    try { resolve(JSON.parse(xhr.responseText)); } catch(e) { reject(new Error('Invalid server response')); }
+                });
+                xhr.addEventListener('error', () => reject(new Error('Upload failed')));
+                xhr.send(fd);
+            });
+
+            if (progressBar) progressBar.style.width = '100%';
+            if (result.status === 'success') {
+                if (statusTitle) statusTitle.textContent = 'Done!';
+                if (statusCount) statusCount.textContent = `${result.files_created || 0} files · ${result.folders_created || 0} folders created`;
+                if (statusLog && result.log && result.log.length) {
+                    statusLog.innerHTML = result.log.slice(0, 20).map(l => `<div class="text-gray" style="font-size:0.72rem;">${l}</div>`).join('');
                 }
-                return null;
+                setTimeout(() => { if (overlay) overlay.style.display = 'none'; location.reload(); }, 2000);
+            } else {
+                if (overlay) overlay.style.display = 'none';
+                appAlert('Error: ' + (result.msg || 'Unknown error'), 'Import Failed', 'error');
             }
-            return search(res.folders);
         } catch(e) {
-            return null;
+            if (overlay) overlay.style.display = 'none';
+            appAlert('Connection error: ' + e.message, 'Error', 'error');
         }
     }
 
