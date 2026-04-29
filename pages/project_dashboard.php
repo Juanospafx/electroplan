@@ -168,6 +168,16 @@ include __DIR__ . '/../views/header.php';
             <?php if($isAdmin): ?>
             <button class="btn btn-outline-light btn-sm" onclick="document.getElementById('bulk-folder-input').click()" title="Bulk Import Folders"><i class="fas fa-folder-tree me-1"></i> Bulk Import</button>
             <input type="file" id="bulk-folder-input" webkitdirectory multiple style="display:none" onchange="handleBulkFolderImport(this)">
+            <div id="bulk-import-overlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.75); z-index:9999; align-items:center; justify-content:center;">
+                <div style="background:var(--bg-card); border-radius:16px; padding:32px; width:380px; text-align:center;">
+                    <div class="fw-bold text-white mb-2" id="bulk-status-title">Importing...</div>
+                    <div class="text-gray small mb-3" id="bulk-status-detail">Starting...</div>
+                    <div class="progress mb-3" style="height:8px; border-radius:4px;">
+                        <div id="bulk-progress-bar" class="progress-bar bg-primary" style="width:0%; transition:width 0.3s;"></div>
+                    </div>
+                    <div class="text-gray small" id="bulk-status-count">0 / 0 files</div>
+                </div>
+            </div>
             <div class="dropdown">
                 <button class="btn btn-outline-light d-flex align-items-center justify-content-center" data-bs-toggle="dropdown" aria-expanded="false" style="width: 42px; height: 42px; border-radius: 50%; padding: 0;"><i class="fas fa-ellipsis-v"></i></button>
                 <ul class="dropdown-menu dropdown-menu-end bg-card border-secondary shadow-lg rounded-3 py-2">
