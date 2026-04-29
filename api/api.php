@@ -1070,6 +1070,118 @@ switch($action) {
         }
         break;
 
+    case 'upload_zip_bulk':
+        if($userRole !== 'admin') { echo json_encode(['status'=>'error','msg'=>'Access Denied']); exit; }
+        if(!isset($_FILES['zip_file']) || $_FILES['zip_file']['error'] !== UPLOAD_ERR_OK) { echo json_encode(['status'=>'error','msg'=>'ZIP upload failed. Check file size limits.']); exit; }
+
+        $zipOrigName = $_FILES['zip_file']['name'];
+        if(strtolower(pathinfo($zipOrigName, PATHINFO_EXTENSION)) !== 'zip') { echo json_encode(['status'=>'error','msg'=>'Only .zip files are allowed.']); exit; }
+        if(!class_exists('ZipArchive')) { echo json_encode(['status'=>'error','msg'=>'ZIP extraction not available on this server. Please contact support.']); exit; }
+
+        $projectId = (int)($_POST['project_id'] ?? 0);
+        $parentFolderId = !empty($_POST['parent_folder_id']) ? (int)$_POST['parent_folder_id'] : null;
+        if(!$projectId) { echo json_encode(['status'=>'error','msg'=>'Invalid project.']); exit; }
+
+        $zip = new ZipArchive();
+        $tmpPath = $_FILES['zip_file']['tmp_name'];
+        if($zip->open($tmpPath) !== true) { echo json_encode(['status'=>'error','msg'=>'Could not open ZIP file.']); exit; }
+
+        $foldersCreated = 0; $filesCreated = 0; $log = []; $folderCache = [];
+        $allowedExts = ['jpg','jpeg','png','gif','webp','bmp','tiff','tif','heic','pdf','doc','docx','xls','xlsx','xlsm','csv','ppt','pptx','dwg','dxf','rvt','ifc'];
+
+        $rootFolderName = pathinfo($zipOrigName, PATHINFO_FILENAME);
+        $rootFolderName = preg_replace('/[^a-zA-Z0-9\s\-_\(\)\.]/u', '', $rootFolderName);
+        if(empty(trim($rootFolderName))) $rootFolderName = 'Imported';
+
+        $firstEntry = $zip->numFiles > 0 ? $zip->getNameIndex(0) : null;
+        if($firstEntry && strpos($firstEntry, '/') !== false) {
+            $detectedRoot = explode('/', $firstEntry)[0];
+            $allSameRoot = true;
+            for($i = 0; $i < $zip->numFiles; $i++) {
+                $name = $zip->getNameIndex($i);
+                if($name && !str_starts_with($name, $detectedRoot . '/') && $name !== $detectedRoot . '/') { $allSameRoot = false; break; }
+            }
+            if($allSameRoot) $rootFolderName = null;
+        }
+
+        $getOrCreateFolder = function(string $relPath, ?int $parentId) use ($pdo, $projectId, &$folderCache, &$foldersCreated, &$log) {
+            if(isset($folderCache[$relPath])) return $folderCache[$relPath];
+            $name = basename($relPath);
+            if(empty(trim($name))) return $parentId;
+            $depth = min(substr_count($relPath, '/'), 3);
+
+            $stmtChk = $pdo->prepare("SELECT id FROM folders WHERE project_id = ? AND parent_id " . ($parentId ? "= ?" : "IS NULL") . " AND name = ? AND deleted_at IS NULL LIMIT 1");
+            $params = $parentId ? [$projectId, $parentId, $name] : [$projectId, $name];
+            $stmtChk->execute($params);
+            $existing = $stmtChk->fetchColumn();
+            if($existing) { $folderCache[$relPath] = (int)$existing; return (int)$existing; }
+
+            $stmtIns = $pdo->prepare("INSERT INTO folders (project_id, parent_id, name, depth) VALUES (?, ?, ?, ?)");
+            $stmtIns->execute([$projectId, $parentId, $name, $depth]);
+            $newId = (int)$pdo->lastInsertId();
+            $folderCache[$relPath] = $newId; $foldersCreated++; $log[] = "📁 Created folder: {$relPath}";
+            return $newId;
+        };
+
+        $rootFolderId = $parentFolderId;
+        if($rootFolderName !== null) { $rootFolderId = $getOrCreateFolder($rootFolderName, $parentFolderId); }
+
+        $targetDir = __DIR__ . '/../uploads/';
+        if(!file_exists($targetDir)) mkdir($targetDir, 0755, true);
+
+        for($i = 0; $i < $zip->numFiles; $i++) {
+            $entryName = $zip->getNameIndex($i);
+            if(!$entryName) continue;
+            $baseName = basename($entryName);
+            if($baseName === '' || $baseName[0] === '.' || str_contains($entryName, '__MACOSX') || str_contains($entryName, 'Thumbs.db')) continue;
+
+            $relPath = ($rootFolderName === null && $firstEntry) ? substr($entryName, strlen(explode('/', $firstEntry)[0]) + 1) : $entryName;
+            if($relPath === false) $relPath = $entryName;
+
+            if(str_ends_with($entryName, '/')) {
+                $dirRelPath = rtrim($relPath, '/');
+                if(empty($dirRelPath)) continue;
+                $pathParts = explode('/', $dirRelPath);
+                $currentPath = ''; $currentParent = $rootFolderId;
+                foreach($pathParts as $part) {
+                    if(empty($part)) continue;
+                    $currentPath = $currentPath ? $currentPath . '/' . $part : $part;
+                    $currentParent = $getOrCreateFolder($currentPath, $currentParent);
+                }
+                continue;
+            }
+
+            $ext = strtolower(pathinfo($baseName, PATHINFO_EXTENSION));
+            if(!in_array($ext, $allowedExts)) { $log[] = "⚠️ Skipped: {$baseName}"; continue; }
+
+            $fileDirRel = ltrim(dirname($relPath), '/');
+            $fileFolderId = $rootFolderId;
+            if(!empty($fileDirRel) && $fileDirRel !== '.') {
+                $pathParts = explode('/', $fileDirRel);
+                $currentPath = ''; $currentParent = $rootFolderId;
+                foreach($pathParts as $part) {
+                    if(empty($part)) continue;
+                    $currentPath = $currentPath ? $currentPath . '/' . $part : $part;
+                    $currentParent = $getOrCreateFolder($currentPath, $currentParent);
+                }
+                $fileFolderId = $currentParent;
+            }
+
+            $content = $zip->getFromIndex($i);
+            if($content === false) { $log[] = "❌ Failed to read: {$baseName}"; continue; }
+            $storedName = time() . '_' . mt_rand(100,999) . '_' . preg_replace('/[^a-zA-Z0-9\.\-_]/', '_', $baseName);
+            $destPath = $targetDir . $storedName;
+            if(file_put_contents($destPath, $content) === false) { $log[] = "❌ Failed to save: {$baseName}"; continue; }
+
+            $vGroup = uniqid('vgroup_');
+            $stmt = $pdo->prepare("INSERT INTO files (project_id, folder_id, sub_folder_id, filename, filepath, file_type, uploaded_by, version_group_id, version_number) VALUES (?, ?, NULL, ?, ?, ?, ?, ?, 1)");
+            $stmt->execute([$projectId, $fileFolderId, $baseName, 'uploads/' . $storedName, $ext, $userId, $vGroup]);
+            $filesCreated++; $log[] = "✅ {$baseName}";
+        }
+        $zip->close();
+        echo json_encode(['status' => 'success','files_created' => $filesCreated,'folders_created' => $foldersCreated,'log' => $log]);
+        break;
+
     default: echo json_encode(['status'=>'error', 'msg'=>'Invalid action']);
 }
 ?>
