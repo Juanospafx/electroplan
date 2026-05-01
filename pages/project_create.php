@@ -639,12 +639,8 @@ document.getElementById('createProjectForm').addEventListener('submit', function
                     return;
                 }
                 const folders = Array.from(document.querySelectorAll('input[name="folders[]"]:checked')).map(i => i.value);
-                if (folders.length === 0) {
-                    window.location.href = 'project_dashboard.php?id=' + projectId;
-                    return;
-                }
                 const fd2 = new FormData();
-                fd2.append('action', 'add_project_folders');
+                fd2.append('action', 'set_project_folders');
                 fd2.append('project_id', projectId);
                 folders.forEach(f => fd2.append('folders[]', f));
                 fetch('../api/api.php', { method: 'POST', body: fd2 })
