@@ -1239,38 +1239,50 @@ switch($action) {
         break;
 
     case 'sync_offline_data':
-        requireLogin();
-        $userId = $_SESSION['user_id'];
+        try {
+            requireLogin();
+            $userId = $_SESSION['user_id'];
 
-        // Proyectos del usuario
-        $stmt = $pdo->prepare("\n            SELECT p.id, p.name, p.status, p.address, p.notes, p.company_name, p.contact_name, p.date_started, p.date_finished, p.updated_at\n            FROM projects p\n            JOIN project_members pm ON pm.project_id = p.id\n            WHERE pm.user_id = ?\n            ORDER BY p.updated_at DESC\n        ");
-        $stmt->execute([$userId]);
-        $projects = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            // Log para debug
+            error_log('[sync_offline_data] userId: ' . $userId);
 
-        // Folders de esos proyectos
-        $projectIds = array_column($projects, 'id');
-        $folders = [];
-        $files = [];
+            $stmt = $pdo->prepare("\n                SELECT p.id, p.name, p.status, p.address, p.notes, p.company_name, p.contact_name, p.date_started, p.date_finished, p.updated_at\n                FROM projects p\n                JOIN directory d ON d.project_id = p.id\n                WHERE d.user_id = ?\n                ORDER BY p.updated_at DESC\n            ");
+            $stmt->execute([$userId]);
+            $projects = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            error_log('[sync_offline_data] projects count: ' . count($projects));
 
-        if (!empty($projectIds)) {
-            $placeholders = implode(',', array_fill(0, count($projectIds), '?'));
+            $projectIds = array_column($projects, 'id');
+            $folders = [];
+            $files = [];
 
-            $stmt = $pdo->prepare("\n                SELECT id, project_id, parent_id, name, depth\n                FROM folders\n                WHERE project_id IN ($placeholders)\n            ");
-            $stmt->execute($projectIds);
-            $folders = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            if (!empty($projectIds)) {
+                $placeholders = implode(',', array_fill(0, count($projectIds), '?'));
 
-            $stmt = $pdo->prepare("\n                SELECT id, project_id, folder_id, filename, filepath, file_type, uploaded_at\n                FROM files\n                WHERE project_id IN ($placeholders)\n                ORDER BY uploaded_at DESC\n            ");
-            $stmt->execute($projectIds);
-            $files = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                $stmt = $pdo->prepare("\n                    SELECT id, project_id, parent_id, name, depth\n                    FROM folders\n                    WHERE project_id IN ($placeholders)\n                ");
+                $stmt->execute($projectIds);
+                $folders = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+                $stmt = $pdo->prepare("\n                    SELECT id, project_id, folder_id, filename, filepath, file_type, uploaded_at\n                    FROM files\n                    WHERE project_id IN ($placeholders)\n                    ORDER BY uploaded_at DESC\n                ");
+                $stmt->execute($projectIds);
+                $files = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            }
+
+            echo json_encode([
+                'status' => 'success',
+                'projects' => $projects,
+                'folders' => $folders,
+                'files' => $files,
+                'synced_at' => date('c')
+            ]);
+        } catch (Throwable $e) {
+            error_log('[sync_offline_data] ERROR: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
+            http_response_code(500);
+            echo json_encode([
+                'status' => 'error',
+                'msg' => $e->getMessage(),
+                'line' => $e->getLine()
+            ]);
         }
-
-        echo json_encode([
-            'status' => 'success',
-            'projects' => $projects,
-            'folders' => $folders,
-            'files' => $files,
-            'synced_at' => date('c')
-        ]);
         break;
 
     default: echo json_encode(['status'=>'error', 'msg'=>'Invalid action']);
