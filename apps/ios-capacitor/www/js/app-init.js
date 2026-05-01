@@ -3,7 +3,12 @@ import { Preferences } from '@capacitor/preferences';
 import { StatusBar, Style } from '@capacitor/status-bar';
 import { SplashScreen } from '@capacitor/splash-screen';
 
-const SERVER = 'https://plan.brightronix.net';
+const SERVER = 'https://ioselectro.brightronix.net/electroplan';
+
+// TODO(next phase): Add "Download for offline" button in file/PDF view.
+// - Trigger cachePdfLocally(fileId, filepath) from offline-db.js
+// - Show download state (cached / not cached)
+// - Open local URI via getLocalPdfUrl(fileId) when offline
 
 async function bootstrap() {
   try {

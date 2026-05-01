@@ -4,7 +4,12 @@ import { Filesystem, Directory } from '@capacitor/filesystem';
 import { Preferences } from '@capacitor/preferences';
 
 const sqlite = new SQLiteConnection(CapacitorSQLite);
-const SERVER = 'https://plan.brightronix.net';
+const SERVER = 'https://ioselectro.brightronix.net/electroplan';
+
+// TODO(next phase): Expose PDF cache status helpers for UI
+// - hasLocalPdf(fileId): boolean
+// - listCachedPdfs(): array
+// UI button will call cachePdfLocally(...) and reflect progress/state
 let db = null;
 
 export async function initOfflineDB() {
