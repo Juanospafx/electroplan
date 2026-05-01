@@ -149,6 +149,22 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
             body.theme-light .date-separator::before { border-color: #f3f6fb; }
             body.theme-light .form-control,
             body.theme-light .bg-dark { background-color: #ffffff !important; color: #0f172a !important; border-color: #cbd5e1 !important; }
+
+            @media (max-width: 768px) {
+                .timeline-container { margin-left: 0; }
+                .timeline-container::before { left: 16px; }
+                .timeline-item { padding-left: 44px; margin-bottom: 18px; }
+                .timeline-icon { width: 34px; height: 34px; font-size: .85rem; left: 0; }
+                .timeline-card { padding: 14px 14px; border-radius: 14px; }
+                .activity-title { font-size: .98rem; }
+                .activity-desc { font-size: .84rem; }
+                .date-separator { padding-left: 44px; margin: 26px 0 18px 0; }
+                .date-separator::before { left: 11px; width: 10px; height: 10px; }
+
+                form[method="GET"] { width: 100%; }
+                form[method="GET"] .input-group { width: 100%; min-width: 100% !important; }
+                form[method="GET"] .btn { height: 40px; }
+            }
         </style>
 
         <header class="header">

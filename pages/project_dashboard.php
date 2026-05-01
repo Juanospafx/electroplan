@@ -663,6 +663,25 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
         .project-title-large { font-size: 1.8rem; }
     }
 
+    @media (max-width: 768px) {
+        #global-search-wrap .input-group { flex-wrap: nowrap; }
+        #global-search-wrap .input-group-text,
+        #global-search-wrap .btn,
+        #global-search-wrap .form-control { height: 42px; }
+        #globalSearchResults { max-height: 52vh !important; border-radius: 12px !important; }
+
+        .file-card-modern { padding: 14px !important; }
+        .file-icon-large { width: 56px; height: 56px; font-size: 1.9rem; margin-bottom: .8rem; }
+        .file-card-modern .file-title { font-size: .78rem !important; }
+
+        .overlay-mini-btn { width: 30px; height: 30px; }
+        .overlay-action span { font-size: .72rem; }
+
+        #renameModal .modal-dialog,
+        #projectDetailsModal .modal-dialog { margin: .75rem; }
+        #projectDetailsModal .modal-body { max-height: 70vh; overflow-y: auto; }
+    }
+
     .tools-modal-content {
         background: var(--bg-card) !important;
         border: 1px solid var(--border-subtle) !important;
