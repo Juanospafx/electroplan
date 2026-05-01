@@ -277,7 +277,7 @@ switch($action) {
     case 'update_project_info':
         if($userRole !== 'admin') { echo json_encode(['status'=>'error', 'msg'=>'Access Denied']); exit; }
 
-        $id = (int)($_POST['id'] ?? 0);
+        $id = (int)($_POST['id'] ?? ($_POST['project_id'] ?? 0));
         if ($id <= 0) { echo json_encode(['status'=>'error', 'msg'=>'Invalid project']); exit; }
 
         try {
