@@ -75,8 +75,8 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
 
         body.theme-light .bg-dark { background-color: var(--bg-input) !important; color: var(--text-white) !important; border-color: var(--border-subtle) !important; }
 
-        .table-responsive { border-radius: var(--radius-box); overflow: hidden; border: 1px solid var(--border-subtle); }
-        .table-rounded { width: 100%; border-collapse: separate; border-spacing: 0; background: var(--bg-card); }
+        .table-responsive { border-radius: var(--radius-box); overflow-x: auto; overflow-y: visible; border: 1px solid var(--border-subtle); padding-right: 12px; }
+        .table-rounded { width: 100%; min-width: 1180px; border-collapse: separate; border-spacing: 0; background: var(--bg-card); }
         .table-rounded th { background: var(--bg-input); color: var(--text-gray); font-weight: 600; text-transform: uppercase; font-size: 0.75rem; padding: 18px 25px; border-bottom: 1px solid var(--border-subtle); white-space: nowrap; }
         .table-rounded td { padding: 20px 25px; color: var(--text-white); vertical-align: middle; border-bottom: 1px solid var(--border-subtle); }
         .table-rounded tr:last-child td { border-bottom: none; }
@@ -85,9 +85,11 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
         .btn-action { width: 34px; height: 34px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--border-subtle); color: var(--text-gray); transition: 0.2s; background: var(--bg-card); flex: 0 0 auto; }
         .btn-action:hover { background: var(--primary); color: white; border-color: var(--primary); }
         .btn-action.delete:hover { background: #ef4444; color: white; border-color: #ef4444; }
-        .actions-wrap { display:flex; justify-content:flex-end; align-items:center; gap:8px; flex-wrap:nowrap; min-width: 170px; }
+        .actions-wrap { display:flex; justify-content:flex-start; align-items:center; gap:8px; flex-wrap:nowrap; min-width: 180px; padding-right: 8px; }
+        .table-rounded th.actions-col,
+        .table-rounded td.actions-cell { min-width: 190px; }
         .table-rounded td.actions-cell { overflow: visible; white-space: nowrap; }
-        @media (max-width: 1200px) { .actions-wrap { min-width: 150px; gap:6px; } .btn-action { width:32px;height:32px; } }
+        @media (max-width: 1200px) { .actions-wrap { min-width: 170px; gap:6px; } .btn-action { width:32px;height:32px; } }
 
         .status-badge { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; padding: 5px 10px; border-radius: 8px; letter-spacing: 0.5px; }
         .info-pill { background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 4px 10px; border-radius: 5px; font-size: 0.75rem; color: var(--text-gray); display: inline-flex; align-items: center; gap: 6px; }
@@ -173,7 +175,7 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
                         <th width="12%">Assigned</th>
                         <th width="10%">Status</th>
                         <th width="10%">Files</th>
-                        <th class="text-end">Actions</th>
+                        <th class="text-end actions-col">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
