@@ -20,6 +20,7 @@ $canUpload = $isAdmin;
 
 // --- LOGICA DE FILTRO DE FECHA ---
 $filterDate = $_GET['filter_date'] ?? '';
+$fileQuery = trim($_GET['file_q'] ?? '');
 $params = [];
 
 // Consulta Base
@@ -64,10 +65,18 @@ $baseSql = "
     ) AS history
 ";
 
-// Aplicar Filtro si existe
+// Aplicar filtros
+$conditions = [];
 if (!empty($filterDate)) {
-    $baseSql .= " WHERE DATE(activity_date) = ? ";
+    $conditions[] = "DATE(activity_date) = ?";
     $params[] = $filterDate;
+}
+if ($fileQuery !== '') {
+    $conditions[] = "(type = 'file' AND title LIKE ?)";
+    $params[] = '%' . $fileQuery . '%';
+}
+if (!empty($conditions)) {
+    $baseSql .= " WHERE " . implode(' AND ', $conditions);
 }
 
 $baseSql .= " ORDER BY activity_date DESC LIMIT 50";
@@ -169,10 +178,11 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
                  <p class="text-gray mb-0">Track all actions performed in the system.</p>
             </div>
             
-            <form method="GET" class="d-flex align-items-center gap-2">
+            <form method="GET" class="d-flex align-items-center gap-2 flex-wrap justify-content-end">
+                <input type="text" name="file_q" class="form-control form-control-sm bg-dark text-white border-secondary" placeholder="Search file name..." value="<?= htmlspecialchars($fileQuery) ?>" style="min-width:220px;">
                 <input type="text" name="filter_date" class="form-control form-control-sm app-datepicker bg-dark text-white border-secondary" value="<?= htmlspecialchars($filterDate) ?>">
                 <button type="submit" class="btn btn-sm btn-primary"><i class="fas fa-filter"></i></button>
-                <?php if(!empty($filterDate)): ?>
+                <?php if(!empty($filterDate) || $fileQuery !== ''): ?>
                     <a href="timeline.php" class="btn btn-sm btn-outline-secondary" title="Clear"><i class="fas fa-times"></i></a>
                 <?php endif; ?>
             </form>
