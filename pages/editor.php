@@ -621,7 +621,17 @@ if ($filePath !== '') {
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
 
     // SERVER VARIABLES
-    const fileUrl = "<?= $filePath ?>";
+    let fileUrl = "<?= $filePath ?>";
+    // Android path adjustment: Convert relative to absolute
+    if (fileUrl.startsWith('../')) {
+        fileUrl = (window.BASE_PATH || '/electroplan') + '/' + fileUrl.substring(3);
+    }
+    console.log('PDF URL (adjusted for Android):', fileUrl);
+    // Guard for Capacitor triggerEvent in Editor
+    if (typeof window.Capacitor === 'undefined' || typeof window.Capacitor.triggerEvent !== 'function') {
+        window.Capacitor = window.Capacitor || {};
+        window.Capacitor.triggerEvent = function(n, d) { return true; };
+    }
     const fileExt = "<?= $fileExt ?>"; 
     const fileId = <?= $id ?>;
     let allAnnotations = <?= $annotations ?>;

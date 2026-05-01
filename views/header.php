@@ -1,6 +1,23 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
+    <script>
+    // Defensive guard for Capacitor bridge
+    if (typeof window.Capacitor === 'undefined') {
+        window.Capacitor = {
+            triggerEvent: function(name, data) {
+                console.log('Capacitor.triggerEvent called before bridge init:', name, data);
+                return true;
+            }
+        };
+    } else if (typeof window.Capacitor.triggerEvent !== 'function') {
+        window.Capacitor.triggerEvent = function(name, data) {
+            console.log('Capacitor.triggerEvent mock:', name, data);
+            return true;
+        };
+    }
+    window.BASE_PATH = '/electroplan';
+    </script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="theme-color" content="#0b1120">
