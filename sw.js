@@ -1,18 +1,18 @@
 const CACHE_NAME = 'electroplan-pwa-v1';
 const APP_SHELL = [
-  '/offline.html',
-  '/assets/pwa-icon.svg',
-  '/assets/pwa-icon-192.png',
-  '/assets/pwa-icon-512.png',
-  '/assets/logo-text.png'
+  '/electroplan/offline.html',
+  '/electroplan/assets/pwa-icon.svg',
+  '/electroplan/assets/pwa-icon-192.png',
+  '/electroplan/assets/pwa-icon-512.png',
+  '/electroplan/assets/logo-text.png'
 ];
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then((cache) => cache.addAll(APP_SHELL))
-      .then(() => self.skipWaiting())
-  );
+  event.waitUntil((async () => {
+    const cache = await caches.open(CACHE_NAME);
+    await Promise.allSettled(APP_SHELL.map((url) => cache.add(url)));
+    await self.skipWaiting();
+  })());
 });
 
 self.addEventListener('activate', (event) => {
@@ -33,7 +33,7 @@ self.addEventListener('fetch', (event) => {
 
   if (request.mode === 'navigate') {
     event.respondWith(
-      fetch(request).catch(() => caches.match('/offline.html'))
+      fetch(request).catch(() => caches.match('/electroplan/offline.html'))
     );
     return;
   }

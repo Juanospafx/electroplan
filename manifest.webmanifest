@@ -11,19 +11,19 @@
   "categories": ["business", "productivity", "utilities"],
   "icons": [
     {
-      "src": "/assets/pwa-icon-192.png",
+      "src": "/electroplan/assets/pwa-icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/assets/pwa-icon-512.png",
+      "src": "/electroplan/assets/pwa-icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "/assets/pwa-icon.svg",
+      "src": "/electroplan/assets/pwa-icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any maskable"
@@ -34,13 +34,13 @@
       "name": "Projects",
       "short_name": "Projects",
       "url": "/pages/projects.php",
-      "icons": [{ "src": "/assets/pwa-icon-192.png", "sizes": "192x192", "type": "image/png" }]
+      "icons": [{ "src": "/electroplan/assets/pwa-icon-192.png", "sizes": "192x192", "type": "image/png" }]
     },
     {
       "name": "Timeline",
       "short_name": "Timeline",
       "url": "/pages/timeline.php",
-      "icons": [{ "src": "/assets/pwa-icon-192.png", "sizes": "192x192", "type": "image/png" }]
+      "icons": [{ "src": "/electroplan/assets/pwa-icon-192.png", "sizes": "192x192", "type": "image/png" }]
     }
   ]
 }
