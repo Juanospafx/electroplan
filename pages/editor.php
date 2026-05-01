@@ -621,7 +621,13 @@ if ($filePath !== '') {
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
 
     // SERVER VARIABLES
-    const fileUrl = "<?= $filePath ?>";
+    let fileUrl = "<?= $filePath ?>";
+    if (fileUrl.startsWith('../')) {
+        const relativePath = fileUrl.substring(3);
+        const serverBase = window.SERVER_BASE_URL || 'https://androidelectro.brightronix.net/electroplan';
+        fileUrl = serverBase + '/' + relativePath;
+    }
+    console.log('PDF URL (adjusted):', fileUrl);
     const fileExt = "<?= $fileExt ?>"; 
     const fileId = <?= $id ?>;
     let allAnnotations = <?= $annotations ?>;
