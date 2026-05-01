@@ -1,7 +1,27 @@
 <?php
 // login.php - Diseño Moderno V5.2 (Show Password Toggle)
-require_once __DIR__ . '/../core/db/connection.php';
-session_start();
+$__ep_debug_log = __DIR__ . '/../logs/login_debug.log';
+if (!is_dir(dirname($__ep_debug_log))) { @mkdir(dirname($__ep_debug_log), 0775, true); }
+function ep_login_log($msg) {
+    global $__ep_debug_log;
+    @file_put_contents($__ep_debug_log, '['.date('c').'] '.$msg.PHP_EOL, FILE_APPEND);
+}
+
+try {
+    require_once __DIR__ . '/../core/db/connection.php';
+} catch (Throwable $e) {
+    ep_login_log('DB/bootstrap error: ' . $e->getMessage());
+    http_response_code(500);
+    exit('Internal Server Error');
+}
+
+try {
+    if (session_status() !== PHP_SESSION_ACTIVE) session_start();
+} catch (Throwable $e) {
+    ep_login_log('session_start error: ' . $e->getMessage());
+}
+
+ep_login_log('login.php loaded');
 
 $error = '';
 
