@@ -1,23 +1,24 @@
-name: Deploy to FTP
+name: Deploy ANDROID ElectroPlan
 
 on:
   push:
-    branches: [ "main" ]
+    branches:
+      -android-app-redesign
 
 jobs:
-  ftp-deploy:
+  ftp-deploy-ios:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Checkout
+      - name: Checkout iOS branch
         uses: actions/checkout@v4
 
-      - name: Deploy to FTP server
+      - name: Deploy iOS branch to FTP
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
           server: ${{ secrets.FTP_SERVER }}
-          username: ${{ secrets.FTP_USERNAME }}
-          password: ${{ secrets.FTP_PASSWORD }}
-          port: 21
+          username: ${{ secrets.ANDROID_FTP_USERNAME }}
+          password: ${{ secrets.ANDROID_FTP_PASSWORD }}
           local-dir: ./
           server-dir: ./
           dangerous-clean-slate: false
