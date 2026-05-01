@@ -129,9 +129,6 @@ include __DIR__ . '/../views/header.php';
             <button class="mobile-toggle" onclick="toggleSidebar()">
                 <i class="fas fa-bars"></i>
             </button>
-            <button class="mobile-sidebar-close" type="button" onclick="toggleSidebar()" title="Close sidebar" aria-label="Close sidebar">
-                <i class="fas fa-times"></i>
-            </button>
             <div class="breadcrumbs">
                 <a href="index.php">Home</a>
                 <i class="fas fa-chevron-right mx-2" style="font-size:0.7rem"></i>
@@ -726,33 +723,8 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
         flex-shrink: 0;
     }
 
-    .mobile-sidebar-close {
-        display: none !important;
-    }
-
     @media (max-width: 768px) {
         .d-flex.flex-wrap.gap-4 { gap: 10px !important; }
-
-        .mobile-sidebar-close {
-            width: 34px;
-            height: 34px;
-            border-radius: 8px;
-            border: 1px solid rgba(239,68,68,.45);
-            background: rgba(239,68,68,.16);
-            color: #f87171;
-            align-items: center;
-            justify-content: center;
-            margin-right: 4px;
-            flex-shrink: 0;
-        }
-        body.mobile-sidebar-open .mobile-sidebar-close {
-            display: inline-flex !important;
-        }
-        .mobile-sidebar-close:hover,
-        .mobile-sidebar-close:active {
-            background: rgba(239,68,68,.24);
-            color: #fecaca;
-        }
     }
 
     body.theme-light .file-hover:hover { background: rgba(15,23,42,0.06); }
@@ -1023,25 +995,10 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
         try { localStorage.setItem('projectSidebarCollapsed', collapsed ? '1' : '0'); } catch (e) {}
     }
 
-    function syncMobileSidebarCloseState() {
-        const overlay = document.getElementById('sidebarOverlay');
-        const isOpen = !!(overlay && overlay.classList.contains('show'));
-        document.body.classList.toggle('mobile-sidebar-open', isOpen);
-    }
-
     document.addEventListener('DOMContentLoaded', function() {
         let collapsed = false;
         try { collapsed = localStorage.getItem('projectSidebarCollapsed') === '1'; } catch (e) {}
         applyProjectSidebarState(collapsed);
-
-        syncMobileSidebarCloseState();
-        const overlay = document.getElementById('sidebarOverlay');
-        if (overlay && window.MutationObserver) {
-            const obs = new MutationObserver(syncMobileSidebarCloseState);
-            obs.observe(overlay, { attributes: true, attributeFilter: ['class'] });
-        }
-        window.addEventListener('resize', syncMobileSidebarCloseState);
-        document.addEventListener('click', () => setTimeout(syncMobileSidebarCloseState, 0));
     });
 
     function openProjectDetailsModal() { new bootstrap.Modal(document.getElementById('projectDetailsModal')).show(); }
