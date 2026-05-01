@@ -290,19 +290,27 @@ switch($action) {
             ];
 
             $payload = is_array($input ?? null) ? $input : [];
+            $aliases = [
+                'name' => ['name', 'project_name'],
+                'date_bid_sent' => ['date_bid_sent', 'date_bid_send']
+            ];
             $set = [];
             $params = [];
             foreach ($allowed as $col) {
-                $hasPost = array_key_exists($col, $_POST);
-                $hasJson = array_key_exists($col, $payload);
-                if (in_array($col, $cols, true) && ($hasPost || $hasJson)) {
+                $keys = $aliases[$col] ?? [$col];
+                $found = false;
+                $val = null;
+                foreach ($keys as $k) {
+                    if (array_key_exists($k, $_POST)) { $val = $_POST[$k]; $found = true; break; }
+                    if (array_key_exists($k, $payload)) { $val = $payload[$k]; $found = true; break; }
+                }
+                if (in_array($col, $cols, true) && $found) {
                     $set[] = "$col = ?";
-                    $val = $hasPost ? $_POST[$col] : $payload[$col];
                     if ($val === '') $val = null;
                     $params[] = $val;
                 }
             }
-            if (empty($set)) { echo json_encode(['status'=>'error', 'msg'=>'No valid fields']); exit; }
+            if (empty($set)) { echo json_encode(['status'=>'error', 'msg'=>'No valid fields','debug'=>['post_keys'=>array_keys($_POST),'json_keys'=>array_keys($payload)]]); exit; }
 
             $params[] = $id;
             $sql = "UPDATE projects SET " . implode(', ', $set) . " WHERE id = ?";
