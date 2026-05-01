@@ -274,6 +274,9 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
     if (t === 'light') document.body.classList.add('theme-light');
   } catch(e) {}
 })();
+window.addEventListener('offline', function() {
+  window.location.href = "https://localhost/index.html";
+});
 </script>
 
 <button type="button" id="loginThemeToggle" class="login-theme-toggle" onclick="toggleTheme()" title="Switch Day/Night">
