@@ -1249,7 +1249,7 @@ switch($action) {
             // Log para debug
             error_log('[sync_offline_data] userId: ' . $userId);
 
-            $stmt = $pdo->prepare("\n                SELECT p.id, p.name, p.status, p.address, p.notes, p.company_name, p.contact_name, p.date_started, p.date_finished, p.updated_at\n                FROM projects p\n                JOIN directory d ON d.project_id = p.id\n                WHERE d.user_id = ?\n                ORDER BY p.updated_at DESC\n            ");
+            $stmt = $pdo->prepare("\n                SELECT p.id, p.name, p.status, p.address, p.notes, p.company_name, p.contact_name, p.date_started, p.date_finished, p.created_at\n                FROM projects p\n                JOIN directory d ON d.project_id = p.id\n                WHERE d.user_id = ? AND p.deleted_at IS NULL\n                ORDER BY p.created_at DESC\n            ");
             $stmt->execute([$userId]);
             $projects = $stmt->fetchAll(PDO::FETCH_ASSOC);
             error_log('[sync_offline_data] projects count: ' . count($projects));

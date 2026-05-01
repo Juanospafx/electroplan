@@ -68,7 +68,7 @@ export async function syncWithServer() {
     for (const p of data.projects || []) {
       await db.run(
         'INSERT OR REPLACE INTO projects (id,name,status,address,notes,company_name,contact_name,date_started,date_finished,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?)',
-        [p.id, p.name, p.status || '', p.address || '', p.notes || '', p.company_name || '', p.contact_name || '', p.date_started || '', p.date_finished || '', p.updated_at || '']
+        [p.id, p.name, p.status || '', p.address || '', p.notes || '', p.company_name || '', p.contact_name || '', p.date_started || '', p.date_finished || '', p.created_at || '']
       );
     }
     for (const f of data.folders || []) {
