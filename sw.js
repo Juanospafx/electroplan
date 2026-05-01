@@ -1,4 +1,4 @@
-const CACHE_NAME = 'electroplan-pwa-v1';
+const CACHE_NAME = 'electroplan-pwa-v2';
 const APP_SHELL = [
   '/electroplan/offline.html',
   '/electroplan/assets/pwa-icon.svg',
