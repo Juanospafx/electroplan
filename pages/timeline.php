@@ -179,9 +179,20 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
             </div>
             
             <form method="GET" class="d-flex align-items-center gap-2 flex-wrap justify-content-end">
-                <input type="text" name="file_q" class="form-control form-control-sm bg-dark text-white border-secondary" placeholder="Search file name..." value="<?= htmlspecialchars($fileQuery) ?>" style="min-width:220px;">
-                <input type="text" name="filter_date" class="form-control form-control-sm app-datepicker bg-dark text-white border-secondary" value="<?= htmlspecialchars($filterDate) ?>">
-                <input type="text" id="timelineQuickSearch" class="form-control form-control-sm bg-dark text-white border-secondary" placeholder="Quick filter..." style="min-width:180px;" oninput="filterTimelineItems(this.value)">
+                <div class="input-group input-group-sm" style="min-width:260px;">
+                    <span class="input-group-text" style="background:var(--bg-input); border:1px solid var(--primary); color:var(--primary);">
+                        <i class="fas fa-search"></i>
+                    </span>
+                    <input type="text" name="file_q" class="form-control" placeholder="Search text in timeline..." value="<?= htmlspecialchars($fileQuery) ?>" style="background:var(--bg-input); color:var(--text-white); border:1px solid var(--primary);">
+                </div>
+
+                <div class="input-group input-group-sm" style="min-width:190px;">
+                    <span class="input-group-text" style="background:var(--bg-input); border:1px solid var(--primary); color:var(--primary);">
+                        <i class="fas fa-calendar-alt"></i>
+                    </span>
+                    <input type="text" name="filter_date" class="form-control app-datepicker" placeholder="Filter by date..." value="<?= htmlspecialchars($filterDate) ?>" style="background:var(--bg-input); color:var(--text-white); border:1px solid var(--primary);">
+                </div>
+
                 <button type="submit" class="btn btn-sm btn-primary"><i class="fas fa-filter"></i></button>
                 <?php if(!empty($filterDate) || $fileQuery !== ''): ?>
                     <a href="timeline.php" class="btn btn-sm btn-outline-secondary" title="Clear"><i class="fas fa-times"></i></a>
@@ -248,5 +259,4 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
     </main>
 
 <?php include_once __DIR__ . '/../funciones/calendar.php'; ?>
-<script>function filterTimelineItems(q){const term=q.trim().toLowerCase();document.querySelectorAll('.timeline-item').forEach(item=>{const text=item.textContent.toLowerCase();item.style.display=(!term||text.includes(term))?'':'none';});document.querySelectorAll('.date-separator').forEach(sep=>{let next=sep.nextElementSibling;let hasVisible=false;while(next && !next.classList.contains('date-separator')){if(next.classList.contains('timeline-item')&&next.style.display!=='none')hasVisible=true;next=next.nextElementSibling;}sep.style.display=hasVisible?'':'none';});}</script>
 <?php include __DIR__ . '/../views/footer.php'; ?>
