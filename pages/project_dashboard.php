@@ -727,14 +727,13 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
     }
 
     .mobile-sidebar-close {
-        display: none;
+        display: none !important;
     }
 
     @media (max-width: 768px) {
         .d-flex.flex-wrap.gap-4 { gap: 10px !important; }
 
         .mobile-sidebar-close {
-            display: inline-flex;
             width: 34px;
             height: 34px;
             border-radius: 8px;
@@ -745,6 +744,9 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
             justify-content: center;
             margin-right: 4px;
             flex-shrink: 0;
+        }
+        body.mobile-sidebar-open .mobile-sidebar-close {
+            display: inline-flex !important;
         }
         .mobile-sidebar-close:hover,
         .mobile-sidebar-close:active {
@@ -1021,10 +1023,25 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
         try { localStorage.setItem('projectSidebarCollapsed', collapsed ? '1' : '0'); } catch (e) {}
     }
 
+    function syncMobileSidebarCloseState() {
+        const overlay = document.getElementById('sidebarOverlay');
+        const isOpen = !!(overlay && overlay.classList.contains('show'));
+        document.body.classList.toggle('mobile-sidebar-open', isOpen);
+    }
+
     document.addEventListener('DOMContentLoaded', function() {
         let collapsed = false;
         try { collapsed = localStorage.getItem('projectSidebarCollapsed') === '1'; } catch (e) {}
         applyProjectSidebarState(collapsed);
+
+        syncMobileSidebarCloseState();
+        const overlay = document.getElementById('sidebarOverlay');
+        if (overlay && window.MutationObserver) {
+            const obs = new MutationObserver(syncMobileSidebarCloseState);
+            obs.observe(overlay, { attributes: true, attributeFilter: ['class'] });
+        }
+        window.addEventListener('resize', syncMobileSidebarCloseState);
+        document.addEventListener('click', () => setTimeout(syncMobileSidebarCloseState, 0));
     });
 
     function openProjectDetailsModal() { new bootstrap.Modal(document.getElementById('projectDetailsModal')).show(); }
