@@ -77,6 +77,22 @@ $isAdminSidebar = (strtolower($userRoleRawSidebar) === 'admin');
         transition: all 0.3s ease;
     }
     .theme-btn:hover { background: var(--border-subtle, #2f384a); transform: rotate(15deg); color: var(--primary, #fb5a3a); }
+    .sidebar-close-mobile { display:none; }
+
+    @media (max-width: 991.98px) {
+        .sidebar-close-mobile {
+            display: inline-flex;
+            width: 36px;
+            height: 36px;
+            border-radius: 10px;
+            border: 1px solid rgba(239,68,68,.45);
+            background: rgba(239,68,68,.16);
+            color: #f87171;
+            align-items: center;
+            justify-content: center;
+        }
+    }
+
     body.theme-light .logo-full { background-color: #0f172a !important; }
     body.theme-light .theme-btn { background: #ffffff; border-color: #cbd5e1; color: #0f172a; }
 </style>
@@ -87,9 +103,14 @@ $isAdminSidebar = (strtolower($userRoleRawSidebar) === 'admin');
             <div class="logo-full" role="img" aria-label="Brightronix Logo"></div>
             <div class="app-subtitle" style="font-size: 0.85rem; color: var(--text-gray, #94a3b8); font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; margin-top: -0.8rem; margin-left: 0.6rem;">Electro Plan</div>
         </a>
-        <button id="globalThemeToggle" class="theme-btn d-none d-md-flex" type="button" onclick="toggleAppTheme()" aria-label="Toggle day/night theme" title="Switch to Day Mode">
-            <i class="fas fa-sun"></i>
-        </button>
+        <div class="d-flex align-items-center gap-2">
+            <button type="button" class="sidebar-close-mobile" onclick="toggleSidebar()" aria-label="Close sidebar" title="Close sidebar">
+                <i class="fas fa-times"></i>
+            </button>
+            <button id="globalThemeToggle" class="theme-btn d-none d-md-flex" type="button" onclick="toggleAppTheme()" aria-label="Toggle day/night theme" title="Switch to Day Mode">
+                <i class="fas fa-sun"></i>
+            </button>
+        </div>
     </div>
     
     <div class="flex-grow-1 px-4">
