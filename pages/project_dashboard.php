@@ -104,8 +104,16 @@ foreach($allSubs as $sub) {
 // 3. Consulta de Estadísticas Rápidas (Para el Summary)
 $fileCount = $pdo->query("SELECT COUNT(*) FROM files WHERE project_id = $projectId AND deleted_at IS NULL")->fetchColumn();
 $lastActivity = $pdo->query("SELECT uploaded_at FROM files WHERE project_id = $projectId ORDER BY uploaded_at DESC LIMIT 1")->fetchColumn();
-$recentFiles = $pdo->prepare("SELECT id, filename, uploaded_at FROM files WHERE project_id = ? AND deleted_at IS NULL ORDER BY uploaded_at DESC LIMIT 6");
-$recentFiles->execute([$projectId]);
+// Recent Files = últimos abiertos por el usuario actual (con fallback a subida reciente)
+$recentFiles = $pdo->prepare("
+    SELECT f.id, f.filename, f.uploaded_at, COALESCE(fv.viewed_at, f.uploaded_at) AS last_activity
+    FROM files f
+    LEFT JOIN file_views fv ON fv.file_id = f.id AND fv.user_id = ?
+    WHERE f.project_id = ? AND f.deleted_at IS NULL
+    ORDER BY last_activity DESC
+    LIMIT 6
+");
+$recentFiles->execute([$userId, $projectId]);
 $recentFiles = $recentFiles->fetchAll(PDO::FETCH_ASSOC);
 
 $userName = $_SESSION['username'] ?? 'User';
@@ -155,7 +163,7 @@ include __DIR__ . '/../views/header.php';
                 <span><i class="fas fa-user-hard-hat me-1 text-primary"></i> <?= htmlspecialchars($projectContactName ?: 'No Contact') ?></span>
                 <span><i class="fas fa-calendar-alt me-1 text-success"></i> <?= $project['date_started'] ? date('M d, Y', strtotime($project['date_started'])) : 'TBD' ?></span>
             </div>
-            <p class="project-desc-expandable m-0" onclick="this.classList.toggle('expanded')" title="Click to read more">
+            <p class="project-desc-expandable m-0" onclick="openProjectDetailsModal()" title="Click for project details" style="cursor:pointer;">
                 <?= htmlspecialchars($projectNotes ?: 'No description provided for this project.') ?>
             </p>
         </div>
@@ -166,9 +174,6 @@ include __DIR__ . '/../views/header.php';
 
             <button class="btn btn-tools rounded-pill px-4 py-2 shadow-sm" onclick="openToolsModal()"><i class="fas fa-toolbox me-2"></i> Tools</button>
             <?php if($isAdmin): ?>
-            <button class="btn btn-outline-light btn-sm" onclick="openBulkZipModal()" title="Upload folder as ZIP">
-                <i class="fas fa-file-archive me-1"></i> Bulk Import (ZIP)
-            </button>
             <div id="bulk-import-overlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.82); z-index:10000; align-items:center; justify-content:center;">
                 <div style="background:var(--bg-card); border:1px solid var(--border-subtle); border-radius:20px; padding:36px 32px; width:420px; max-width:92vw; text-align:center;">
                     <i class="fas fa-folder-open text-warning mb-3" style="font-size:2.5rem;"></i>
@@ -237,6 +242,21 @@ include __DIR__ . '/../views/header.php';
         </div>
     </div>
 
+    <!-- GLOBAL SEARCH -->
+    <div class="position-relative mb-4" id="global-search-wrap">
+        <div class="input-group">
+            <span class="input-group-text" style="background:var(--bg-input); border-color:var(--border-subtle); color:var(--text-gray);">
+                <i class="fas fa-search"></i>
+            </span>
+            <input type="text" id="globalSearchInput" class="form-control" style="background:var(--bg-input); border-color:var(--border-subtle); color:var(--text-white);" placeholder="Search files in this project..." autocomplete="off" oninput="globalSearchFiles(this.value)">
+            <button class="btn" style="background:var(--bg-input); border-color:var(--border-subtle); color:var(--text-gray); display:none;" onclick="clearGlobalSearch()" id="globalSearchClearBtn">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div id="globalSearchResults" style="display:none; position:absolute; top:100%; left:0; right:0; z-index:500; background:var(--bg-card); border:1px solid var(--border-subtle); border-radius:14px; max-height:380px; overflow-y:auto; box-shadow:0 16px 40px rgba(0,0,0,0.4); margin-top:4px;">
+        </div>
+    </div>
+
     <!-- CONTENT AREA -->
     <?php if($currentView === 'summary'): ?>
         
@@ -249,13 +269,13 @@ include __DIR__ . '/../views/header.php';
                 if($isPdf) { $iconClass='fa-file-pdf'; $colorClass='danger'; } elseif($isImg) { $iconClass='fa-image'; $colorClass='info'; }
             ?>
                 <div class="col-md-3 col-6">
-                    <div class="file-card-modern p-4 text-center h-100">
+                    <div class="file-card-modern p-4 text-center h-100" data-file-id="<?= (int)$f['id'] ?>">
                         
                         <div class="file-icon-large text-<?= $colorClass ?> bg-<?= $colorClass ?> bg-opacity-10">
                             <i class="fas <?= $iconClass ?>"></i>
                         </div>
                         
-                        <div class="fw-bold text-truncate mb-1 text-white fs-5" title="<?= htmlspecialchars($rf['filename']) ?>"><?= htmlspecialchars($rf['filename']) ?></div>
+                        <div class="file-title mb-1" title="<?= htmlspecialchars($rf['filename']) ?>"><?= htmlspecialchars($rf['filename']) ?></div>
                         <div class="small text-gray fw-medium"><?= date('M d, Y', strtotime($rf['uploaded_at'])) ?></div>
                         <?php $rfExt = strtolower(pathinfo($rf['filename'], PATHINFO_EXTENSION)); $rfIsExcel = in_array($rfExt, ['xlsx','xls','xlsm','csv']); ?>
                         
@@ -268,7 +288,7 @@ include __DIR__ . '/../views/header.php';
                             </div>
                             <?php endif; ?>
                             
-                            <a href="<?= $rfIsExcel ? 'preview.php?id='.$rf['id'].'&mode=spreadsheet' : 'preview.php?id='.$rf['id'] ?>" class="overlay-action overlay-view <?= ($_SESSION['role'] === 'viewer' || $rfIsExcel) ? 'w-100' : 'w-50' ?>" <?= $rfIsExcel ? 'target="_blank"' : '' ?>>
+                            <a href="<?= $rfIsExcel ? 'preview.php?id='.$rf['id'].'&mode=spreadsheet' : 'preview.php?id='.$rf['id'] ?>" onclick="trackFileView(<?= (int)$rf['id'] ?>)" class="overlay-action overlay-view <?= ($_SESSION['role'] === 'viewer' || $rfIsExcel) ? 'w-100' : 'w-50' ?>" <?= $rfIsExcel ? 'target="_blank"' : '' ?>>
                                 <i class="fas fa-eye fa-2x mb-2"></i><span class="fw-bold">View</span>
                             </a>
                             <?php if($_SESSION['role'] !== 'viewer' && !$rfIsExcel): ?>
@@ -297,17 +317,18 @@ include __DIR__ . '/../views/header.php';
                 elseif (strpos($folderNameLower, 'rfi') !== false) { $iconColorClass = 'success'; }
             ?>
                 <div class="col-md-4 col-xl-3">
-                    <div class="folder-card-dash">
+                    <div class="folder-card-dash" data-folder-id="<?= (int)$folder['id'] ?>">
                         <a href="?id=<?= $projectId ?>&view=files&folder_id=<?= $folder['id'] ?>" class="d-flex align-items-center gap-3 text-decoration-none w-100">
                             <div class="bg-<?= $iconColorClass ?> bg-opacity-10 p-2 rounded text-<?= $iconColorClass ?>">
                                 <i class="fas fa-folder fa-lg"></i>
                             </div>
-                            <div class="text-white fw-bold text-truncate fs-6"><?= htmlspecialchars($folder['name']) ?></div>
+                            <div class="text-white fw-bold text-truncate fs-6 folder-name-label"><?= htmlspecialchars($folder['name']) ?></div>
                         </a>
                         <?php if($_SESSION['role'] === 'admin' && $folder['name'] !== 'Reports'): ?>
                             <div class="dropdown ms-2">
                                 <button class="btn btn-sm border-0 btn-folder-menu" data-bs-toggle="dropdown"><i class="fas fa-ellipsis-v fa-lg"></i></button>
                                 <ul class="dropdown-menu dropdown-menu-end bg-card border-secondary shadow-lg rounded-3 py-1">
+                                    <li><button class="dropdown-item text-white hover-bg-body small" onclick="openRenameModal('folder', <?= $folder['id'] ?>, '<?= addslashes(htmlspecialchars($folder['name'])) ?>')"><i class="fas fa-pen me-2 text-primary"></i> Rename</button></li>
                                     <?php if(($folder['depth'] ?? 0) < 3): ?><li><button class="dropdown-item text-white hover-bg-body small" onclick="openAddSubfolderModal(<?= $folder['id'] ?>, '<?= addslashes(htmlspecialchars($folder['name'])) ?>')"><i class="fas fa-folder-plus me-2 text-success"></i> Add Subfolder</button></li><?php endif; ?>
                                     <li><button class="dropdown-item text-white hover-bg-body small" onclick="openMoveFolderModal(<?= $folder['id'] ?>)"><i class="fas fa-exchange-alt me-2 text-warning"></i> Move Folder</button></li>
                                     <li><button class="dropdown-item text-danger hover-bg-body small" onclick="deleteFolder(<?= $folder['id'] ?>)"><i class="fas fa-trash me-2"></i> Delete Folder</button></li>
@@ -394,13 +415,13 @@ include __DIR__ . '/../views/header.php';
                      if($ft === 'pdf') { $iconClass='fa-file-pdf'; $colorClass='danger'; } elseif(in_array($ft, ['jpg', 'jpeg', 'png', 'webp', 'gif'])) { $iconClass='fa-image'; $colorClass='info'; }
                 ?>
                 <div class="col-md-3 col-xl-2">
-                    <div class="file-card-modern p-4 text-center h-100">
+                    <div class="file-card-modern p-4 text-center h-100" data-file-id="<?= (int)$f['id'] ?>">
                         
                         <div class="file-icon-large text-<?= $colorClass ?> bg-<?= $colorClass ?> bg-opacity-10">
                             <i class="fas <?= $iconClass ?>"></i>
                         </div>
                         
-                        <div class="fw-bold text-truncate mb-1 text-white fs-6" title="<?= htmlspecialchars($f['filename']) ?>"><?= htmlspecialchars($f['filename']) ?></div>
+                        <div class="file-title mb-1 file-name-label" title="<?= htmlspecialchars($f['filename']) ?>"><?= htmlspecialchars($f['filename']) ?></div>
                         <div class="small text-gray fw-medium"><?= date('M d, Y', strtotime($f['uploaded_at'])) ?></div>
                         
                         <!-- OVERLAY INTERACTIVO -->
@@ -408,12 +429,13 @@ include __DIR__ . '/../views/header.php';
                             <?php if($_SESSION['role'] === 'admin'): ?>
                             <div class="position-absolute top-0 end-0 p-2 d-flex gap-2" style="z-index: 20;">
                                 <button class="overlay-mini-btn move" onclick="event.stopPropagation(); event.preventDefault(); openMoveModal(<?= $f['id'] ?>)" title="Move File"><i class="fas fa-exchange-alt"></i></button>
+                                <button class="overlay-mini-btn" onclick="event.stopPropagation(); event.preventDefault(); openRenameModal('file', <?= (int)$f['id'] ?>, '<?= addslashes(htmlspecialchars($f['filename'])) ?>')" title="Rename"><i class="fas fa-pen"></i></button>
                                 <button class="overlay-mini-btn delete" onclick="event.stopPropagation(); event.preventDefault(); deleteFile(<?= $f['id'] ?>)" title="Delete File"><i class="fas fa-trash"></i></button>
                             </div>
                             <?php endif; ?>
                             
                             <?php $fExt = strtolower(pathinfo($f['filename'], PATHINFO_EXTENSION)); $isExcel = in_array($fExt, ['xlsx','xls','xlsm','csv']); ?>
-                            <a href="<?= $isExcel ? 'preview.php?id='.$f['id'].'&mode=spreadsheet' : 'preview.php?id='.$f['id'] ?>" class="overlay-action overlay-view <?= ($_SESSION['role'] === 'viewer') ? 'w-100' : 'w-50' ?>" <?= $isExcel ? 'target="_blank"' : '' ?>>
+                            <a href="<?= $isExcel ? 'preview.php?id='.$f['id'].'&mode=spreadsheet' : 'preview.php?id='.$f['id'] ?>" onclick="trackFileView(<?= (int)$f['id'] ?>)" class="overlay-action overlay-view <?= ($_SESSION['role'] === 'viewer') ? 'w-100' : 'w-50' ?>" <?= $isExcel ? 'target="_blank"' : '' ?>>
                                 <i class="fas fa-eye fa-lg mb-1"></i><span class="small fw-bold">View</span>
                             </a>
                             <?php if($_SESSION['role'] !== 'viewer' && !$isExcel): ?>
@@ -567,6 +589,8 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
         box-shadow: 0 12px 24px rgba(0,0,0,0.2);
     }
     
+    .file-card-modern .file-title { font-size: 0.82rem !important; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; display: block; color: var(--text-white); }
+
     .file-icon-large {
         font-size: 2.5rem;
         margin: 0.5rem auto 1.2rem auto;
@@ -910,6 +934,16 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
 </div>
 <?php endif; ?>
 
+
+<!-- Modal Rename -->
+<div class="modal fade" id="renameModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered modal-sm"><div class="modal-content p-3"><div class="modal-header"><h6 class="modal-title fw-bold" id="renameModalTitle"><i class="fas fa-pen me-2 text-primary"></i>Rename</h6><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><input type="hidden" id="renameItemId"><input type="hidden" id="renameItemType"><input type="text" id="renameInput" class="form-control" placeholder="New name..." maxlength="255"><div id="renameError" class="text-danger small mt-2 d-none"></div></div><div class="modal-footer"><button type="button" class="btn btn-outline-secondary rounded-pill px-3" data-bs-dismiss="modal">Cancel</button><button type="button" class="btn-main px-3" onclick="submitRename()"><i class="fas fa-check me-1"></i>Save</button></div></div></div>
+</div>
+<!-- Modal Project Details -->
+<div class="modal fade" id="projectDetailsModal" tabindex="-1">
+ <div class="modal-dialog modal-dialog-centered modal-lg"><div class="modal-content p-3"><div class="modal-header"><h5 class="modal-title fw-bold"><i class="fas fa-info-circle me-2 text-primary"></i> <?= htmlspecialchars($project['name']) ?></h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><div class="row g-4"><div class="col-md-6"><div class="p-3 rounded-3 h-100" style="background:var(--bg-input); border:1px solid var(--border-subtle);"><div class="small text-gray fw-bold text-uppercase mb-3" style="letter-spacing:.5px;"><i class="fas fa-building me-1 text-warning"></i> Company & Contact</div><?php $rows1 = [ ['fas fa-building','Company', $projectCompanyName], ['fas fa-phone','Office Phone', $projectCompanyPhone], ['fas fa-map-marker-alt','HQ Address', $projectCompanyAddress], ['fas fa-user','Site Contact', $projectContactName], ['fas fa-mobile-alt','Contact Phone', $projectContactPhone], ['fas fa-map-pin','Job Address', $projectAddress], ]; foreach($rows1 as [$icon,$label,$val]): if(!$val) continue; ?><div class="d-flex gap-2 mb-2"><i class="fas <?= $icon ?> text-gray mt-1 flex-shrink-0" style="width:16px;"></i><div><div class="text-gray" style="font-size:.72rem;"><?= $label ?></div><div class="text-white small fw-semibold"><?= htmlspecialchars($val) ?></div></div></div><?php endforeach; ?></div></div><div class="col-md-6"><div class="p-3 rounded-3 h-100" style="background:var(--bg-input); border:1px solid var(--border-subtle);"><div class="small text-gray fw-bold text-uppercase mb-3" style="letter-spacing:.5px;"><i class="fas fa-calendar me-1 text-success"></i> Timeline & Status</div><?php $rows2 = [ ['fas fa-paper-plane','Bid Sent', $project['date_bid_sent'] ?? ($project['date_bid_send'] ?? '')], ['fas fa-trophy','Bid Awarded', $project['date_bid_awarded'] ?? ''], ['fas fa-play-circle','Start Date', $project['date_started'] ?? ''], ['fas fa-flag-checkered','Target Finish', $project['date_finished'] ?? ''], ['fas fa-shield-alt','Warranty End', $project['date_warranty_end'] ?? ''], ]; foreach($rows2 as [$icon,$label,$val]): if(!$val) continue; ?><div class="d-flex gap-2 mb-2"><i class="fas <?= $icon ?> text-gray mt-1 flex-shrink-0" style="width:16px;"></i><div><div class="text-gray" style="font-size:.72rem;"><?= $label ?></div><div class="text-white small fw-semibold"><?= date('M d, Y', strtotime($val)) ?></div></div></div><?php endforeach; ?></div></div><?php if($projectNotes): ?><div class="col-12"><div class="p-3 rounded-3" style="background:var(--bg-input); border:1px solid var(--border-subtle);"><div class="small text-gray fw-bold text-uppercase mb-2" style="letter-spacing:.5px;"><i class="fas fa-align-left me-1"></i> Description </div><p class="text-white small mb-0" style="line-height:1.7;"><?= nl2br(htmlspecialchars($projectNotes)) ?></p></div></div><?php endif; ?></div></div><?php if($isAdmin): ?><div class="modal-footer"><a href="project_create.php?edit=<?= $projectId ?>" class="btn btn-outline-light rounded-pill px-4"><i class="fas fa-edit me-1"></i> Edit Project </a></div><?php endif; ?></div></div>
+</div>
+
 <input type="file" id="projectUploadInput" class="d-none">
 
 <script>
@@ -948,7 +982,9 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
         applyProjectSidebarState(collapsed);
     });
 
-    function openToolsModal() {
+    function openProjectDetailsModal() { new bootstrap.Modal(document.getElementById('projectDetailsModal')).show(); }
+
+function openToolsModal() {
         const modalEl = document.getElementById('toolsModal');
         if (!modalEl) return;
         new bootstrap.Modal(modalEl).show();
@@ -1498,6 +1534,16 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
             appAlert('Connection error: ' + e.message, 'Error', 'error');
         }
     }
+
+
+// ── Global Search ────────────────────────────────────────────────
+let globalSearchTimer = null;
+function globalSearchFiles(q) { const resultsBox = document.getElementById('globalSearchResults'); const clearBtn = document.getElementById('globalSearchClearBtn'); if (clearBtn) clearBtn.style.display = q ? 'inline-block' : 'none'; clearTimeout(globalSearchTimer); if (!q || q.trim().length < 2) { if (resultsBox) resultsBox.style.display = 'none'; return; } globalSearchTimer = setTimeout(async () => { const fd = new FormData(); fd.append('action', 'search_project_files'); fd.append('project_id', pId); fd.append('query', q.trim()); try { const d = await fetch('../api/api.php', { method:'POST', body:fd }).then(r => r.json()); if (!resultsBox) return; if (!d.results || !d.results.length) { resultsBox.innerHTML = '<div class="p-3 text-gray small text-center">No files found for "' + q + '"</div>'; resultsBox.style.display = 'block'; return; } const iconMap = { pdf:'fa-file-pdf text-danger', jpg:'fa-file-image text-info', jpeg:'fa-file-image text-info', png:'fa-file-image text-info', xlsx:'fa-file-excel text-success', xls:'fa-file-excel text-success', doc:'fa-file-word text-primary', docx:'fa-file-word text-primary', dwg:'fa-drafting-compass text-warning' }; resultsBox.innerHTML = d.results.map(r => { const ext = (r.file_type || r.filename.split('.').pop()).toLowerCase(); const icon = iconMap[ext] || 'fa-file text-gray'; const bc = r.breadcrumb.slice(0,-1).map(p => `<span class="text-gray">${p}</span>`).join(' <span class="text-muted mx-1">›</span> '); const fname = r.breadcrumb[r.breadcrumb.length - 1]; const url = `?id=${pId}&view=files&folder_id=${r.folder_id || ''}`; return `<a href="${url}" class="d-flex align-items-center gap-3 px-4 py-3 text-decoration-none" style="border-bottom:1px solid var(--border-subtle); transition:0.15s;" onmouseover="this.style.background='var(--bg-input)'" onmouseout="this.style.background=''"> <i class="fas ${icon} flex-shrink-0" style="font-size:1.2rem; width:22px;"></i> <div class="overflow-hidden"> <div class="text-white small fw-semibold text-truncate">${fname}</div> <div class="small" style="font-size:0.72rem;">${bc}</div> </div> </a>`; }).join(''); resultsBox.style.display = 'block'; } catch(e) { console.error('Search error:', e); } }, 320); }
+function clearGlobalSearch() { const input = document.getElementById('globalSearchInput'); const box = document.getElementById('globalSearchResults'); const btn = document.getElementById('globalSearchClearBtn'); if (input) input.value = ''; if (box) box.style.display = 'none'; if (btn) btn.style.display = 'none'; }
+document.addEventListener('click', (e) => { const wrap = document.getElementById('global-search-wrap'); if (wrap && !wrap.contains(e.target)) { const box = document.getElementById('globalSearchResults'); if (box) box.style.display = 'none'; } });
+// ── Rename ───────────────────────────────────────────────────────
+function openRenameModal(type, id, currentName) { document.getElementById('renameItemId').value = id; document.getElementById('renameItemType').value = type; document.getElementById('renameInput').value = currentName; document.getElementById('renameModalTitle').innerHTML = `<i class="fas fa-pen me-2 text-primary"></i>Rename ${type === 'file' ? 'File' : 'Folder'}`; const errEl = document.getElementById('renameError'); if (errEl) { errEl.textContent = ''; errEl.classList.add('d-none'); } new bootstrap.Modal(document.getElementById('renameModal')).show(); }
+async function submitRename() { const id = document.getElementById('renameItemId').value; const type = document.getElementById('renameItemType').value; const newName = document.getElementById('renameInput').value.trim(); const errEl = document.getElementById('renameError'); if (!newName) { errEl.textContent = 'Name cannot be empty.'; errEl.classList.remove('d-none'); return; } const fd = new FormData(); fd.append('action', type === 'file' ? 'rename_file' : 'rename_folder'); fd.append('id', id); fd.append('name', newName); try { const d = await fetch('../api/api.php', { method:'POST', body:fd }).then(r => r.json()); if (d.status === 'success') { bootstrap.Modal.getInstance(document.getElementById('renameModal')).hide(); location.reload(); } else { errEl.textContent = d.msg || 'Error renaming.'; errEl.classList.remove('d-none'); } } catch(e) { errEl.textContent = 'Connection error.'; errEl.classList.remove('d-none'); } }
 
 </script>
 
