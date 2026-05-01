@@ -5,3 +5,11 @@
   php_value max_input_time 3600
   php_value memory_limit 512M
 </IfModule>
+
+AddType application/manifest+json .webmanifest
+
+<IfModule mod_headers.c>
+  <Files "sw.js">
+    Header set Cache-Control "no-cache, no-store, must-revalidate"
+  </Files>
+</IfModule>
