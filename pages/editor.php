@@ -45,17 +45,11 @@ if ($fileExt === '' && !empty($file['file_type'])) {
 }
 $filePath = str_replace('\\', '/', (string)($file['filepath'] ?? ''));
 if ($filePath !== '') {
-    if (preg_match('~(api/)?uploads/[^\\s]+$~', $filePath, $m)) {
-        $filePath = $m[0];
-    }
+    // Limpiar cualquier prefijo api/ residual
+    $filePath = preg_replace('~^api/~', '', $filePath);
+
+    // Normalizar a ruta relativa para el JS
     if (strpos($filePath, 'uploads/') === 0) {
-        $expected = __DIR__ . '/../' . $filePath;
-        $legacy = __DIR__ . '/../api/' . $filePath;
-        if (!file_exists($expected) && file_exists($legacy)) {
-            $filePath = 'api/' . $filePath;
-        }
-    }
-    if (strpos($filePath, 'uploads/') === 0 || strpos($filePath, 'api/uploads/') === 0) {
         $filePath = '../' . $filePath;
     }
 }
