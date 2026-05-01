@@ -1240,7 +1240,10 @@ switch($action) {
 
     case 'sync_offline_data':
         try {
-            requireLogin();
+            if (!isset($_SESSION['user_id'])) {
+                echo json_encode(['status'=>'error','msg'=>'Unauthorized']);
+                exit;
+            }
             $userId = $_SESSION['user_id'];
 
             // Log para debug
