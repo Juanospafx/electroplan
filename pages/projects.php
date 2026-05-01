@@ -82,9 +82,10 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
         .table-rounded tr:last-child td { border-bottom: none; }
         .table-rounded tr:hover td { background: var(--bg-body); }
 
-        .btn-action { width: 32px; height: 32px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--border-subtle); color: var(--text-gray); transition: 0.2s; background: var(--bg-card); }
+        .btn-action { border-radius: 8px; display: inline-flex; align-items: center; justify-content: flex-start; border: 1px solid var(--border-subtle); color: var(--text-gray); transition: 0.2s; background: var(--bg-card); gap: 8px; width: 100%; min-height: 34px; padding: 6px 10px; white-space: nowrap; }
         .btn-action:hover { background: var(--primary); color: white; border-color: var(--primary); }
         .btn-action.delete:hover { background: #ef4444; color: white; border-color: #ef4444; }
+        .action-label { font-size: 0.78rem; font-weight: 600; }
 
         .status-badge { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; padding: 5px 10px; border-radius: 8px; letter-spacing: 0.5px; }
         .info-pill { background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 4px 10px; border-radius: 5px; font-size: 0.75rem; color: var(--text-gray); display: inline-flex; align-items: center; gap: 6px; }
@@ -170,7 +171,7 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
                         <th width="12%">Assigned</th>
                         <th width="10%">Status</th>
                         <th width="10%">Files</th>
-                        <th class="text-end">Actions</th>
+                        <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -221,14 +222,23 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
                                 <?= $p['file_count'] ?> Files
                             </span>
                         </td>
-                        <td class="text-end">
-                            <a href="project_dashboard.php?id=<?= $p['id'] ?>" class="btn-action me-1" title="Open Dashboard"><i class="fas fa-columns"></i></a>
-                            
-                            <?php if($isAdmin): ?>
-                                <a class="btn-action me-1" href="project_create.php?id=<?= (int)$p['id'] ?>" title="Edit"><i class="fas fa-pen"></i></a>
-                                <button class="btn-action me-1" onclick="openAssignModal(<?= (int)$p['id'] ?>, '<?= addslashes($p['name']) ?>', <?= isset($p['assigned_user_id']) && $p['assigned_user_id'] !== null ? (int)$p['assigned_user_id'] : 'null' ?>)" title="Assign User"><i class="fas fa-user-plus"></i></button>
-                                <button class="btn-action delete" onclick="deleteProject(<?= $p['id'] ?>)" title="Move to Trash"><i class="fas fa-trash"></i></button>
-                            <?php endif; ?>
+                        <td>
+                            <div class="action-buttons" style="display:flex;flex-direction:column;align-items:flex-start;gap:8px;min-width:140px;">
+                                <a href="project_dashboard.php?id=<?= $p['id'] ?>" class="btn-action" title="View project">
+                                    <i class="fas fa-columns"></i><span class="action-label">View</span>
+                                </a>
+                                <?php if($isAdmin): ?>
+                                    <a class="btn-action" href="project_create.php?id=<?= (int)$p['id'] ?>" title="Edit project">
+                                        <i class="fas fa-pen"></i><span class="action-label">Edit</span>
+                                    </a>
+                                    <button class="btn-action" onclick="openAssignModal(<?= (int)$p['id'] ?>, '<?= addslashes($p['name']) ?>', <?= isset($p['assigned_user_id']) && $p['assigned_user_id'] !== null ? (int)$p['assigned_user_id'] : 'null' ?>)" title="Manage users">
+                                        <i class="fas fa-user-plus"></i><span class="action-label">Users</span>
+                                    </button>
+                                    <button class="btn-action delete" onclick="deleteProject(<?= $p['id'] ?>)" title="Delete project">
+                                        <i class="fas fa-trash"></i><span class="action-label">Delete</span>
+                                    </button>
+                                <?php endif; ?>
+                            </div>
                         </td>
                     </tr>
                     <?php endforeach; ?>
