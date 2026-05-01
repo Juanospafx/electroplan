@@ -124,13 +124,13 @@ include __DIR__ . '/../views/header.php';
 ?>
 
 <div class="main-content p-4 pt-5">
-    <button class="mobile-sidebar-close" type="button" onclick="toggleSidebar()" title="Close menu" aria-label="Close menu">
-        <i class="fas fa-times"></i>
-    </button>
     <header class="header mb-4">
         <div class="d-flex align-items-center gap-3">
             <button class="mobile-toggle" onclick="toggleSidebar()">
                 <i class="fas fa-bars"></i>
+            </button>
+            <button class="mobile-sidebar-close" type="button" onclick="toggleSidebar()" title="Close sidebar" aria-label="Close sidebar">
+                <i class="fas fa-times"></i>
             </button>
             <div class="breadcrumbs">
                 <a href="index.php">Home</a>
@@ -735,19 +735,21 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
 
         .mobile-sidebar-close {
             display: inline-flex;
-            position: fixed;
-            top: 12px;
-            right: 12px;
-            z-index: 1200;
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            border: 1px solid var(--border-subtle);
-            background: var(--bg-card);
-            color: var(--text-white);
+            width: 34px;
+            height: 34px;
+            border-radius: 8px;
+            border: 1px solid rgba(239,68,68,.45);
+            background: rgba(239,68,68,.16);
+            color: #f87171;
             align-items: center;
             justify-content: center;
-            box-shadow: 0 8px 24px rgba(0,0,0,.28);
+            margin-right: 4px;
+            flex-shrink: 0;
+        }
+        .mobile-sidebar-close:hover,
+        .mobile-sidebar-close:active {
+            background: rgba(239,68,68,.24);
+            color: #fecaca;
         }
     }
 
