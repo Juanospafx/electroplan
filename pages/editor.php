@@ -622,11 +622,12 @@ if ($filePath !== '') {
 
     // SERVER VARIABLES
     let fileUrl = "<?= $filePath ?>";
-    // Android path adjustment: Convert relative to absolute
     if (fileUrl.startsWith('../')) {
-        fileUrl = (window.BASE_PATH || '/electroplan') + '/' + fileUrl.substring(3);
+        const relativePath = fileUrl.substring(3);
+        const serverBase = window.SERVER_BASE_URL || 'https://androidelectro.brightronix.net/electroplan';
+        fileUrl = serverBase + '/' + relativePath;
     }
-    console.log('PDF URL (adjusted for Android):', fileUrl);
+    console.log('PDF URL (adjusted):', fileUrl);
     // Guard for Capacitor triggerEvent in Editor
     if (typeof window.Capacitor === 'undefined' || typeof window.Capacitor.triggerEvent !== 'function') {
         window.Capacitor = window.Capacitor || {};
