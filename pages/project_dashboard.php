@@ -124,6 +124,9 @@ include __DIR__ . '/../views/header.php';
 ?>
 
 <div class="main-content p-4 pt-5">
+    <button class="mobile-sidebar-close" type="button" onclick="toggleSidebar()" title="Close menu" aria-label="Close menu">
+        <i class="fas fa-times"></i>
+    </button>
     <header class="header mb-4">
         <div class="d-flex align-items-center gap-3">
             <button class="mobile-toggle" onclick="toggleSidebar()">
@@ -723,8 +726,29 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
         flex-shrink: 0;
     }
 
+    .mobile-sidebar-close {
+        display: none;
+    }
+
     @media (max-width: 768px) {
         .d-flex.flex-wrap.gap-4 { gap: 10px !important; }
+
+        .mobile-sidebar-close {
+            display: inline-flex;
+            position: fixed;
+            top: 12px;
+            right: 12px;
+            z-index: 1200;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            border: 1px solid var(--border-subtle);
+            background: var(--bg-card);
+            color: var(--text-white);
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 8px 24px rgba(0,0,0,.28);
+        }
     }
 
     body.theme-light .file-hover:hover { background: rgba(15,23,42,0.06); }
