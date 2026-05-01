@@ -289,12 +289,15 @@ switch($action) {
                 'date_bid_sent','date_bid_awarded','date_started','date_finished','date_warranty_end'
             ];
 
+            $payload = is_array($input ?? null) ? $input : [];
             $set = [];
             $params = [];
             foreach ($allowed as $col) {
-                if (in_array($col, $cols, true) && array_key_exists($col, $_POST)) {
+                $hasPost = array_key_exists($col, $_POST);
+                $hasJson = array_key_exists($col, $payload);
+                if (in_array($col, $cols, true) && ($hasPost || $hasJson)) {
                     $set[] = "$col = ?";
-                    $val = $_POST[$col];
+                    $val = $hasPost ? $_POST[$col] : $payload[$col];
                     if ($val === '') $val = null;
                     $params[] = $val;
                 }
