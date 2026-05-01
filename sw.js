@@ -28,6 +28,13 @@ self.addEventListener('fetch', (event) => {
   if (request.method !== 'GET') return;
 
   const url = new URL(request.url);
+  // NO interceptar PDFs ni el servidor externo
+  if (
+    url.pathname.endsWith('.pdf') ||
+    url.hostname === 'androidelectro.brightronix.net'
+  ) {
+    return; // Dejar que el navegador lo maneje directamente
+  }
   if (url.origin !== self.location.origin) return;
   if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/uploads/')) return;
 
