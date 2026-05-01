@@ -1,10 +1,11 @@
-const CACHE_NAME = 'electroplan-pwa-v1';
+const CACHE_NAME = 'electroplan-pwa-v2';
+const BASE = '/electroplan';
 const APP_SHELL = [
-  '/offline.html',
-  '/assets/pwa-icon.svg',
-  '/assets/pwa-icon-192.png',
-  '/assets/pwa-icon-512.png',
-  '/assets/logo-text.png'
+  `${BASE}/offline.html`,
+  `${BASE}/assets/pwa-icon.svg`,
+  `${BASE}/assets/pwa-icon-192.png`,
+  `${BASE}/assets/pwa-icon-512.png`,
+  `${BASE}/assets/logo-text.png`
 ];
 
 self.addEventListener('install', (event) => {
@@ -29,11 +30,11 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
-  if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/uploads/')) return;
+  if (url.pathname.startsWith(`${BASE}/api/`) || url.pathname.startsWith(`${BASE}/uploads/`)) return;
 
   if (request.mode === 'navigate') {
     event.respondWith(
-      fetch(request).catch(() => caches.match('/offline.html'))
+      fetch(request).catch(() => caches.match(`${BASE}/offline.html`))
     );
     return;
   }

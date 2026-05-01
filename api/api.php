@@ -1243,9 +1243,9 @@ switch($action) {
         // Proyectos accesibles por el usuario + sus carpetas + metadata de archivos
         try {
             if ($userRole === 'admin') {
-                $stmtProj = $pdo->query("SELECT id, name, status, address, notes, description, company_name, contact_name, date_started, date_finished, updated_at FROM projects WHERE deleted_at IS NULL ORDER BY updated_at DESC");
+                $stmtProj = $pdo->query("SELECT id, name, status, address, notes, description, company_name, contact_name, date_started, date_finished FROM projects WHERE deleted_at IS NULL ORDER BY id DESC");
             } else {
-                $stmtProj = $pdo->prepare("SELECT p.id, p.name, p.status, p.address, p.notes, p.description, p.company_name, p.contact_name, p.date_started, p.date_finished, p.updated_at FROM projects p JOIN directory d ON d.project_id = p.id AND d.user_id = ? WHERE p.deleted_at IS NULL ORDER BY p.updated_at DESC");
+                $stmtProj = $pdo->prepare("SELECT p.id, p.name, p.status, p.address, p.notes, p.description, p.company_name, p.contact_name, p.date_started, p.date_finished FROM projects p JOIN directory d ON d.project_id = p.id AND d.user_id = ? WHERE p.deleted_at IS NULL ORDER BY p.id DESC");
                 $stmtProj->execute([$userId]);
             }
             $projects = $stmtProj->fetchAll(PDO::FETCH_ASSOC);
