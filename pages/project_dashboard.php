@@ -1024,8 +1024,8 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
     }
 
     function syncMobileSidebarCloseState() {
-        const sb = document.querySelector('.sidebar');
-        const isOpen = !!(sb && sb.classList.contains('show'));
+        const overlay = document.getElementById('sidebarOverlay');
+        const isOpen = !!(overlay && overlay.classList.contains('show'));
         document.body.classList.toggle('mobile-sidebar-open', isOpen);
     }
 
@@ -1035,12 +1035,13 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
         applyProjectSidebarState(collapsed);
 
         syncMobileSidebarCloseState();
-        const sb = document.querySelector('.sidebar');
-        if (sb && window.MutationObserver) {
+        const overlay = document.getElementById('sidebarOverlay');
+        if (overlay && window.MutationObserver) {
             const obs = new MutationObserver(syncMobileSidebarCloseState);
-            obs.observe(sb, { attributes: true, attributeFilter: ['class'] });
+            obs.observe(overlay, { attributes: true, attributeFilter: ['class'] });
         }
         window.addEventListener('resize', syncMobileSidebarCloseState);
+        document.addEventListener('click', () => setTimeout(syncMobileSidebarCloseState, 0));
     });
 
     function openProjectDetailsModal() { new bootstrap.Modal(document.getElementById('projectDetailsModal')).show(); }
