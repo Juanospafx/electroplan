@@ -1238,6 +1238,43 @@ switch($action) {
         echo json_encode(['status'=>'success']);
         break;
 
+    case 'sync_offline_data':
+        // Devuelve todos los datos que necesita el dispositivo para funcionar offline
+        // Proyectos accesibles por el usuario + sus carpetas + metadata de archivos
+        try {
+            if ($userRole === 'admin') {
+                $stmtProj = $pdo->query("SELECT id, name, status, address, notes, description, company_name, contact_name, date_started, date_finished, updated_at FROM projects WHERE deleted_at IS NULL ORDER BY updated_at DESC");
+            } else {
+                $stmtProj = $pdo->prepare("SELECT p.id, p.name, p.status, p.address, p.notes, p.description, p.company_name, p.contact_name, p.date_started, p.date_finished, p.updated_at FROM projects p JOIN directory d ON d.project_id = p.id AND d.user_id = ? WHERE p.deleted_at IS NULL ORDER BY p.updated_at DESC");
+                $stmtProj->execute([$userId]);
+            }
+            $projects = $stmtProj->fetchAll(PDO::FETCH_ASSOC);
+
+            $projectIds = array_column($projects, 'id');
+            $foldersAll = [];
+            $filesAll = [];
+            if (!empty($projectIds)) {
+                $in = implode(',', array_map('intval', $projectIds));
+                $stmtF = $pdo->query("SELECT id, project_id, parent_id, name, depth FROM folders WHERE project_id IN ($in) AND deleted_at IS NULL ORDER BY depth ASC, name ASC");
+                $foldersAll = $stmtF->fetchAll(PDO::FETCH_ASSOC);
+
+                $stmtFi = $pdo->query("SELECT id, project_id, folder_id, filename, filepath, file_type, uploaded_at, version_number FROM files WHERE project_id IN ($in) AND deleted_at IS NULL ORDER BY uploaded_at DESC");
+                $filesAll = $stmtFi->fetchAll(PDO::FETCH_ASSOC);
+            }
+
+            echo json_encode([
+                'status' => 'success',
+                'synced_at'=> date('c'),
+                'user' => ['id'=>$userId,'role'=>$userRole,'name'=>$_SESSION['username'] ?? ''],
+                'projects' => $projects,
+                'folders' => $foldersAll,
+                'files' => $filesAll,
+            ]);
+        } catch (Exception $e) {
+            echo json_encode(['status'=>'error','msg'=>$e->getMessage()]);
+        }
+        break;
+
     default: echo json_encode(['status'=>'error', 'msg'=>'Invalid action']);
 }
 ?>
