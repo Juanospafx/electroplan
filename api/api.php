@@ -1195,6 +1195,49 @@ switch($action) {
         echo json_encode(['status' => 'success','files_created' => $filesCreated,'folders_created' => $foldersCreated,'log' => $log]);
         break;
 
+
+    case 'search_project_files':
+        $projectId = (int)($_POST['project_id'] ?? 0);
+        $query = trim($_POST['query'] ?? '');
+        if (!$projectId || strlen($query) < 2) { echo json_encode(['status'=>'success','results'=>[]]); exit; }
+        $stmtAccess = $pdo->prepare("SELECT id FROM projects WHERE id = ? AND deleted_at IS NULL LIMIT 1");
+        $stmtAccess->execute([$projectId]);
+        if (!$stmtAccess->fetch()) { echo json_encode(['status'=>'error','msg'=>'Access denied']); exit; }
+        $stmtFiles = $pdo->prepare("SELECT f.id, f.filename, f.filepath, f.file_type, f.folder_id, fo.name AS folder_name, fo.parent_id, p.name AS parent_folder_name FROM files f LEFT JOIN folders fo ON fo.id = f.folder_id AND fo.deleted_at IS NULL LEFT JOIN folders p ON p.id = fo.parent_id AND p.deleted_at IS NULL WHERE f.project_id = ? AND f.deleted_at IS NULL AND f.filename LIKE ? ORDER BY f.filename ASC LIMIT 30");
+        $stmtFiles->execute([$projectId, '%' . $query . '%']);
+        $files = $stmtFiles->fetchAll(PDO::FETCH_ASSOC); $results = [];
+        foreach($files as $file){ $breadcrumb=[]; if($file['parent_folder_name']) $breadcrumb[]=$file['parent_folder_name']; if($file['folder_name']) $breadcrumb[]=$file['folder_name']; $breadcrumb[]=$file['filename']; $results[]=['id'=>$file['id'],'filename'=>$file['filename'],'file_type'=>$file['file_type'],'folder_id'=>$file['folder_id'],'breadcrumb'=>$breadcrumb]; }
+        echo json_encode(['status'=>'success','results'=>$results]);
+        break;
+
+    case 'rename_file':
+        if($userRole !== 'admin') { echo json_encode(['status'=>'error','msg'=>'Access Denied']); exit; }
+        $id = (int)($_POST['id'] ?? 0); $newName = trim($_POST['name'] ?? '');
+        if(!$id || $newName === '') { echo json_encode(['status'=>'error','msg'=>'Invalid data']); exit; }
+        if(mb_strlen($newName) > 255) { echo json_encode(['status'=>'error','msg'=>'Name too long']); exit; }
+        $stmt = $pdo->prepare("UPDATE files SET filename = ? WHERE id = ? AND deleted_at IS NULL LIMIT 1"); $stmt->execute([$newName, $id]);
+        echo json_encode(['status'=> $stmt->rowCount() ? 'success' : 'error', 'msg'=> $stmt->rowCount() ? '' : 'File not found']);
+        break;
+
+    case 'rename_folder':
+        if($userRole !== 'admin') { echo json_encode(['status'=>'error','msg'=>'Access Denied']); exit; }
+        $id = (int)($_POST['id'] ?? 0); $newName = trim($_POST['name'] ?? '');
+        if(!$id || $newName === '') { echo json_encode(['status'=>'error','msg'=>'Invalid data']); exit; }
+        if(mb_strlen($newName) > 255) { echo json_encode(['status'=>'error','msg'=>'Name too long']); exit; }
+        $stmt = $pdo->prepare("UPDATE folders SET name = ? WHERE id = ? AND deleted_at IS NULL LIMIT 1"); $stmt->execute([$newName, $id]);
+        echo json_encode(['status'=> $stmt->rowCount() ? 'success' : 'error', 'msg'=> $stmt->rowCount() ? '' : 'Folder not found']);
+        break;
+
+    case 'track_file_view':
+        $fileId = (int)($_POST['file_id'] ?? 0);
+        if(!$fileId) { echo json_encode(['status'=>'error']); exit; }
+        $stmtDel = $pdo->prepare("DELETE FROM file_views WHERE file_id=? AND user_id=?");
+        $stmtDel->execute([$fileId, $userId]);
+        $stmtIns = $pdo->prepare("INSERT INTO file_views (file_id, user_id, viewed_at) VALUES (?,?,NOW())");
+        $stmtIns->execute([$fileId, $userId]);
+        echo json_encode(['status'=>'success']);
+        break;
+
     default: echo json_encode(['status'=>'error', 'msg'=>'Invalid action']);
 }
 ?>
