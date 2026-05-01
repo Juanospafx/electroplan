@@ -3,17 +3,17 @@ name: Deploy ANDROID ElectroPlan
 on:
   push:
     branches:
-      -android-app-redesign
+      - android-app-redesign
 
 jobs:
-  ftp-deploy-ios:
+  ftp-deploy-android:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout iOS branch
+      - name: Checkout Android branch
         uses: actions/checkout@v4
 
-      - name: Deploy iOS branch to FTP
+      - name: Deploy Android branch to FTP
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
           server: ${{ secrets.FTP_SERVER }}
