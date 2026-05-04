@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">ElectroPlan</title>
+  <desc id="desc">Electrical planning app icon</desc>
+  <rect width="512" height="512" rx="112" fill="#0b1120"/>
+  <path d="M132 126h248c16.6 0 30 13.4 30 30v200c0 16.6-13.4 30-30 30H132c-16.6 0-30-13.4-30-30V156c0-16.6 13.4-30 30-30Z" fill="#1e293b" stroke="#38bdf8" stroke-width="16"/>
+  <path d="M154 194h204M154 256h204M154 318h204" stroke="#94a3b8" stroke-width="20" stroke-linecap="round"/>
+  <path d="M248 70 178 262h70l-32 180 118-232h-78l50-140h-58Z" fill="#f97316" stroke="#fed7aa" stroke-width="10" stroke-linejoin="round"/>
+</svg>

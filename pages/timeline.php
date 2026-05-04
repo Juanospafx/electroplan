@@ -20,6 +20,7 @@ $canUpload = $isAdmin;
 
 // --- LOGICA DE FILTRO DE FECHA ---
 $filterDate = $_GET['filter_date'] ?? '';
+$fileQuery = trim($_GET['file_q'] ?? '');
 $params = [];
 
 // Consulta Base
@@ -64,10 +65,18 @@ $baseSql = "
     ) AS history
 ";
 
-// Aplicar Filtro si existe
+// Aplicar filtros
+$conditions = [];
 if (!empty($filterDate)) {
-    $baseSql .= " WHERE DATE(activity_date) = ? ";
+    $conditions[] = "DATE(activity_date) = ?";
     $params[] = $filterDate;
+}
+if ($fileQuery !== '') {
+    $conditions[] = "(type = 'file' AND title LIKE ?)";
+    $params[] = '%' . $fileQuery . '%';
+}
+if (!empty($conditions)) {
+    $baseSql .= " WHERE " . implode(' AND ', $conditions);
 }
 
 $baseSql .= " ORDER BY activity_date DESC LIMIT 50";
@@ -140,6 +149,22 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
             body.theme-light .date-separator::before { border-color: #f3f6fb; }
             body.theme-light .form-control,
             body.theme-light .bg-dark { background-color: #ffffff !important; color: #0f172a !important; border-color: #cbd5e1 !important; }
+
+            @media (max-width: 768px) {
+                .timeline-container { margin-left: 0; }
+                .timeline-container::before { left: 16px; }
+                .timeline-item { padding-left: 44px; margin-bottom: 18px; }
+                .timeline-icon { width: 34px; height: 34px; font-size: .85rem; left: 0; }
+                .timeline-card { padding: 14px 14px; border-radius: 14px; }
+                .activity-title { font-size: .98rem; }
+                .activity-desc { font-size: .84rem; }
+                .date-separator { padding-left: 44px; margin: 26px 0 18px 0; }
+                .date-separator::before { left: 11px; width: 10px; height: 10px; }
+
+                form[method="GET"] { width: 100%; }
+                form[method="GET"] .input-group { width: 100%; min-width: 100% !important; }
+                form[method="GET"] .btn { height: 40px; }
+            }
         </style>
 
         <header class="header">
@@ -169,10 +194,23 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
                  <p class="text-gray mb-0">Track all actions performed in the system.</p>
             </div>
             
-            <form method="GET" class="d-flex align-items-center gap-2">
-                <input type="text" name="filter_date" class="form-control form-control-sm app-datepicker bg-dark text-white border-secondary" value="<?= htmlspecialchars($filterDate) ?>">
+            <form method="GET" class="d-flex align-items-center gap-2 flex-wrap justify-content-end">
+                <div class="input-group input-group-sm" style="min-width:260px;">
+                    <span class="input-group-text" style="background:var(--bg-input); border:1px solid var(--primary); color:var(--primary);">
+                        <i class="fas fa-search"></i>
+                    </span>
+                    <input type="text" name="file_q" class="form-control" placeholder="Search text in timeline..." value="<?= htmlspecialchars($fileQuery) ?>" style="background:var(--bg-input); color:var(--text-white); border:1px solid var(--primary);">
+                </div>
+
+                <div class="input-group input-group-sm" style="min-width:190px;">
+                    <span class="input-group-text" style="background:var(--bg-input); border:1px solid var(--primary); color:var(--primary);">
+                        <i class="fas fa-calendar-alt"></i>
+                    </span>
+                    <input type="text" name="filter_date" class="form-control app-datepicker" placeholder="Filter by date..." value="<?= htmlspecialchars($filterDate) ?>" style="background:var(--bg-input); color:var(--text-white); border:1px solid var(--primary);">
+                </div>
+
                 <button type="submit" class="btn btn-sm btn-primary"><i class="fas fa-filter"></i></button>
-                <?php if(!empty($filterDate)): ?>
+                <?php if(!empty($filterDate) || $fileQuery !== ''): ?>
                     <a href="timeline.php" class="btn btn-sm btn-outline-secondary" title="Clear"><i class="fas fa-times"></i></a>
                 <?php endif; ?>
             </form>
