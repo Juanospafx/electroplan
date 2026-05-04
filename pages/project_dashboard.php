@@ -165,6 +165,10 @@ include __DIR__ . '/../views/header.php';
             <?php endif; ?>
 
             <button class="btn btn-tools rounded-pill px-4 py-2 shadow-sm" onclick="openToolsModal()"><i class="fas fa-toolbox me-2"></i> Tools</button>
+            
+            <!-- SMART PM TRIGGER -->
+            <button class="btn btn-warning rounded-pill px-4 py-2 shadow-sm fw-bold text-dark" onclick="toggleSmartPM()"><i class="fas fa-project-diagram me-2"></i> Smart PM</button>
+            
             <?php if($isAdmin): ?>
             <button class="btn btn-outline-light btn-sm" onclick="openBulkZipModal()" title="Upload folder as ZIP">
                 <i class="fas fa-file-archive me-1"></i> Bulk Import (ZIP)
@@ -462,6 +466,23 @@ include __DIR__ . '/../views/header.php';
         --text-muted: #94a3b8;
         --border-subtle: #cbd5e1;
     }
+
+    /* --- SMART PM SHIFT ANIMATION --- */
+    .main-content {
+        transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1), width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        width: 100%;
+    }
+    .main-content.pm-shifted {
+        margin-left: 45%;
+        width: 55%;
+    }
+    @media (max-width: 992px) {
+        .main-content.pm-shifted {
+            margin-left: 0;
+            width: 100%;
+        }
+    }
+
 /* Override Bootstrap text-muted con la paleta del proyecto */
 .text-muted { color: var(--text-gray) !important; }
 body.theme-light .text-muted { color: var(--text-gray) !important; }
@@ -1501,4 +1522,5 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
 
 </script>
 
+<?php include __DIR__ . '/../views/smart_pm_sidebar.php'; ?>
 <?php include __DIR__ . '/../views/footer.php'; ?>
