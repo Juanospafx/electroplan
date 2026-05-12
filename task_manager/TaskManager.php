@@ -64,17 +64,108 @@ class TaskManager {
         int $taskId, 
         int $projectId, 
         string $name, 
-        float $estimatedHours, 
+        int $estimatedMinutes, 
         ?int $assignedUserId
     ): bool {
         $this->validateUserInDirectory($projectId, $assignedUserId);
         
         $stmt = $this->pdo->prepare("
             UPDATE project_tasks 
-            SET name = ?, estimated_hours = ?, assigned_user_id = ? 
+            SET name = ?, estimated_minutes = ?, assigned_user_id = ? 
             WHERE id = ? AND project_id = ?
         ");
-        return $stmt->execute([$name, $estimatedHours, $assignedUserId, $taskId, $projectId]);
+        return $stmt->execute([$name, $estimatedMinutes, $assignedUserId, $taskId, $projectId]);
+    }
+
+    public function getActiveProjects(int $userId = 0, string $role = 'admin'): array {
+        if ($role !== 'admin') {
+            $stmt = $this->pdo->prepare("
+                SELECT DISTINCT p.id, p.name, p.status 
+                FROM projects p
+                JOIN project_tasks pt ON p.id = pt.project_id
+                WHERE p.deleted_at IS NULL AND pt.assigned_user_id = ?
+                ORDER BY p.name ASC
+            ");
+            $stmt->execute([$userId]);
+            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        }
+        $stmt = $this->pdo->query("SELECT id, name, status FROM projects WHERE deleted_at IS NULL ORDER BY name ASC");
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * FASE 58: Endpoint Global de Tareas Activas (Live Radar)
+     * Busca en toda la base de datos qué tareas están corriendo actualmente.
+     */
+    public function getGlobalActiveTasks(int $userId = 0, string $role = 'admin'): array {
+        $sql = "
+            SELECT 
+                pt.id AS task_id, 
+                pt.name AS task_name, 
+                pt.status,
+                p.id AS project_id,
+                p.name AS project_name, 
+                u.username AS assigned_user_name, 
+                u.work_start_time,
+                u.work_end_time,
+                pt.estimated_minutes, 
+                pt.worked_minutes, 
+                pt.actual_start_time AS start_time,
+                pt.expected_end_time
+            FROM project_tasks pt
+            JOIN projects p ON pt.project_id = p.id
+            LEFT JOIN users u ON pt.assigned_user_id = u.id
+            WHERE pt.status IN ('Active', 'On_Hold', 'System_Pause', 'Overdue')
+        ";
+        $params = [];
+        if ($role !== 'admin') {
+            $sql .= " AND pt.assigned_user_id = ?";
+            $params[] = $userId;
+        }
+        $sql .= " ORDER BY pt.status ASC, pt.actual_start_time DESC";
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /**
+     * ========================================================================
+     * FASE 64: SISTEMA DE AUDITORÍA (Project Activity Logs)
+     * ========================================================================
+     */
+    public function addProjectActivityLog(int $projectId, ?int $taskId, ?int $userId, string $actionType, string $description): int {
+        $stmt = $this->pdo->prepare("
+            INSERT INTO project_activity_logs (project_id, task_id, user_id, action_type, description, created_at) 
+            VALUES (?, ?, ?, ?, ?, NOW())
+        ");
+        $stmt->execute([$projectId, $taskId, $userId, $actionType, $description]);
+        return (int) $this->pdo->lastInsertId();
+    }
+
+    public function getProjectAlertLogs(int $projectId): array {
+        $stmt = $this->pdo->prepare("
+            SELECT pal.*, u.username, pt.name as task_name 
+            FROM project_activity_logs pal
+            LEFT JOIN users u ON pal.user_id = u.id
+            LEFT JOIN project_tasks pt ON pal.task_id = pt.id
+            WHERE pal.project_id = ? AND pal.action_type IN ('Hold', 'Overdue')
+            ORDER BY pal.created_at DESC
+        ");
+        $stmt->execute([$projectId]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public function getProjectNotesLogs(int $projectId): array {
+        $stmt = $this->pdo->prepare("
+            SELECT pal.*, u.username, pt.name as task_name 
+            FROM project_activity_logs pal
+            LEFT JOIN users u ON pal.user_id = u.id
+            LEFT JOIN project_tasks pt ON pal.task_id = pt.id
+            WHERE pal.project_id = ?
+            ORDER BY pal.created_at ASC
+        ");
+        $stmt->execute([$projectId]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
     /**
@@ -83,7 +174,8 @@ class TaskManager {
      * ========================================================================
      */
     public function getAllTemplates(): array {
-        $stmt = $this->pdo->query("SELECT id, name, description FROM task_templates ORDER BY name ASC");
+        // AUDITORÍA 3: Payload ligero (No traer descripciones masivas si solo se usa en Dropdowns)
+        $stmt = $this->pdo->query("SELECT id, name FROM task_templates ORDER BY name ASC");
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
@@ -93,13 +185,29 @@ class TaskManager {
         return (int) $this->pdo->lastInsertId();
     }
 
-    public function addTemplateItem(int $templateId, string $stageName, string $name, int $itemOrder, float $estimatedHours = 24.00, ?int $parentItemId = null): int {
+    public function updateTemplate(int $templateId, string $name, ?string $description): void {
+        $stmt = $this->pdo->prepare("UPDATE task_templates SET name = ?, description = ? WHERE id = ?");
+        $stmt->execute([$name, $description, $templateId]);
+    }
+
+    public function clearTemplateItems(int $templateId): void {
+        $stmt = $this->pdo->prepare("DELETE FROM task_template_items WHERE template_id = ?");
+        $stmt->execute([$templateId]);
+    }
+
+    public function deleteTemplate(int $templateId): void {
+        $this->clearTemplateItems($templateId);
+        $stmt = $this->pdo->prepare("DELETE FROM task_templates WHERE id = ?");
+        $stmt->execute([$templateId]);
+    }
+
+    public function addTemplateItem(int $templateId, string $stageName, string $name, int $itemOrder, int $estimatedMinutes = 0, ?int $parentItemId = null): int {
         $stmt = $this->pdo->prepare("
             INSERT INTO task_template_items 
-            (template_id, stage_name, parent_item_id, item_order, name, estimated_hours) 
+            (template_id, stage_name, parent_item_id, item_order, name, estimated_minutes) 
             VALUES (?, ?, ?, ?, ?, ?)
         ");
-        $stmt->execute([$templateId, $stageName, $parentItemId, $itemOrder, $name, $estimatedHours]);
+        $stmt->execute([$templateId, $stageName, $parentItemId, $itemOrder, $name, $estimatedMinutes]);
         return (int) $this->pdo->lastInsertId();
     }
 
@@ -124,7 +232,7 @@ class TaskManager {
             $structuredTemplate[$item['stage_name']]['tasks'][] = [
                 'template_item_id' => (int)$item['id'],
                 'name' => $item['name'],
-                'estimated_hours' => (float)$item['estimated_hours'],
+                'estimated_minutes' => isset($item['estimated_minutes']) ? (int)$item['estimated_minutes'] : 0,
                 'item_order' => (int)$item['item_order']
             ];
         }
@@ -178,7 +286,8 @@ class TaskManager {
                     $assignedUserId = $assignments[$parentItem['id']] ?? null;
 
                     // Create the parent task in the project
-                    $projectParentTaskId = $this->createProjectTask($projectId, $stageId, $parentItem['name'], $taskOrder, (float)$parentItem['estimated_hours'], null, null, $assignedUserId);
+                    $pMinutes = isset($parentItem['estimated_minutes']) ? (int)$parentItem['estimated_minutes'] : 0;
+                    $projectParentTaskId = $this->createProjectTask($projectId, $stageId, $parentItem['name'], $taskOrder, $pMinutes, null, null, $assignedUserId);
 
                     // If this template parent has children, create them as project sub-tasks
                     if (isset($childrenByParentTplId[$parentItem['id']])) {
@@ -190,7 +299,8 @@ class TaskManager {
                             // Obtener el usuario asignado para este sub-item de plantilla, o heredar del padre
                             $subAssignedUserId = $assignments[$childItem['id']] ?? $assignedUserId;
 
-                            $this->createProjectTask($projectId, $stageId, $childItem['name'], $subTaskOrder, (float)$childItem['estimated_hours'], $projectParentTaskId, null, $subAssignedUserId);
+                            $cMinutes = isset($childItem['estimated_minutes']) ? (int)$childItem['estimated_minutes'] : 0;
+                            $this->createProjectTask($projectId, $stageId, $childItem['name'], $subTaskOrder, $cMinutes, $projectParentTaskId, null, $subAssignedUserId);
                         }
                     }
                 }
@@ -227,7 +337,7 @@ class TaskManager {
         int $stageId, 
         string $name, 
         int $taskOrder, 
-        float $estimatedHours = 24.00, 
+        int $estimatedMinutes = 0, 
         ?int $parentTaskId = null, 
         ?int $folderId = null, 
         ?int $assignedUserId = null
@@ -236,12 +346,12 @@ class TaskManager {
 
         $stmt = $this->pdo->prepare("
             INSERT INTO project_tasks 
-            (project_id, stage_id, parent_task_id, folder_id, task_order, name, estimated_hours, assigned_user_id) 
+            (project_id, stage_id, parent_task_id, folder_id, task_order, name, estimated_minutes, assigned_user_id) 
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         ");
         $stmt->execute([
             $projectId, $stageId, $parentTaskId, $folderId, 
-            $taskOrder, $name, $estimatedHours, $assignedUserId
+            $taskOrder, $name, $estimatedMinutes, $assignedUserId
         ]);
         
         $taskId = (int) $this->pdo->lastInsertId();
@@ -251,11 +361,35 @@ class TaskManager {
     }
 
     /**
+     * FASE 84: Creación rápida de tareas sueltas (Quick Task) al final de un proyecto.
+     */
+    public function createQuickTask(int $projectId, string $name, int $estimatedMinutes): int {
+        // 1. Encontrar la última etapa del proyecto
+        $stmtStage = $this->pdo->prepare("SELECT id FROM project_stages WHERE project_id = ? ORDER BY stage_order DESC LIMIT 1");
+        $stmtStage->execute([$projectId]);
+        $stageId = $stmtStage->fetchColumn();
+
+        // Si el proyecto está vacío y no tiene etapas, crear una por defecto llamada "Quick Tasks"
+        if (!$stageId) {
+            $stageId = $this->createProjectStage($projectId, 'Quick Tasks', 1);
+        }
+
+        // 2. Calcular el order al final de la cascada
+        $stmtMax = $this->pdo->prepare("SELECT MAX(task_order) FROM project_tasks WHERE project_id = ?");
+        $stmtMax->execute([$projectId]);
+        $currentMaxOrder = (int)$stmtMax->fetchColumn();
+        $taskOrder = max(10000, (floor($currentMaxOrder / 10000) + 1) * 10000);
+
+        // 3. Insertar como tarea principal
+        return $this->createProjectTask($projectId, (int)$stageId, $name, $taskOrder, $estimatedMinutes, null, null, null);
+    }
+
+    /**
      * ========================================================================
      * RFI / TAREAS INTERMEDIAS (Sub-tareas dinámicas)
      * ========================================================================
      */
-    public function createSubTask(int $projectId, int $parentTaskId, string $name, float $estimatedHours, ?int $assignedUserId = null): int {
+    public function createSubTask(int $projectId, int $parentTaskId, string $name, int $estimatedMinutes, ?int $assignedUserId = null): int {
         $parent = $this->getTask($parentTaskId);
         if (!$parent) {
             throw new Exception("Parent task not found.");
@@ -273,7 +407,7 @@ class TaskManager {
 
         // Reutilizamos el método base para heredar validaciones, stage_id y folder_id.
         // Por defecto, se crea con el status "Pending".
-        return $this->createProjectTask($projectId, (int)$parent['stage_id'], $name, $newOrder, $estimatedHours, $parentTaskId, $inheritedFolderId, $assignedUserId);
+        return $this->createProjectTask($projectId, (int)$parent['stage_id'], $name, $newOrder, $estimatedMinutes, $parentTaskId, $inheritedFolderId, $assignedUserId);
     }
 
     public function applyRfiTemplateToTask(int $projectId, int $parentTaskId, int $rfiTemplateId): bool {
@@ -304,12 +438,19 @@ class TaskManager {
                 // Calculate task order for each step of the RFI
                 $taskOrder = $startOrder + ($itemCounter * 100);
                 
+                // Asegurarnos de que el nombre contenga 'RFI' para que el frontend 
+                // lo identifique correctamente y aplique las formas geométricas y badges.
+                $itemName = $item['name'];
+                if (stripos($itemName, 'RFI') === false) {
+                    $itemName = 'RFI - ' . $itemName;
+                }
+
                 $this->createProjectTask(
                     $projectId,
                     (int)$parent['stage_id'],
-                    $item['name'],
+                    $itemName,
                     $taskOrder,
-                    (float)$item['estimated_hours'],
+                    isset($item['estimated_minutes']) ? (int)$item['estimated_minutes'] : 0,
                     $parentTaskId,
                     $inheritedFolderId, // FASE 24: Fuerza la herencia del directorio padre
                     $inheritedUserId    // HERENCIA: Asignar el mismo usuario que la tarea padre
@@ -337,7 +478,7 @@ class TaskManager {
         string $status, 
         ?string $expectedEndTime = null
     ): bool {
-        $allowedStatuses = ['Pending', 'Active', 'On_Hold', 'System_Pause', 'Overdue', 'Bypassed', 'Completed'];
+        $allowedStatuses = ['Pending', 'Active', 'On_Hold', 'System_Pause', 'Overdue', 'Bypassed', 'Completed', 'Completed_Late'];
         if (!in_array($status, $allowedStatuses, true)) {
             throw new InvalidArgumentException("Invalid status provided.");
         }
@@ -352,9 +493,9 @@ class TaskManager {
                 $query .= ", expected_end_time = ?";
                 $params[] = $expectedEndTime;
             }
-        } elseif ($status === 'Completed' || $status === 'Bypassed') {
+        } elseif ($status === 'Completed' || $status === 'Completed_Late' || $status === 'Bypassed') {
             $query .= ", actual_end_time = NOW()";
-        } elseif ($status === 'On_Hold') {
+        } elseif ($status === 'On_Hold' || $status === 'System_Pause') {
             $query .= ", expected_end_time = NULL";
         }
 
@@ -373,15 +514,29 @@ class TaskManager {
     }
 
     public function getTask(int $taskId): ?array {
-        $stmt = $this->pdo->prepare("SELECT * FROM project_tasks WHERE id = ?");
+        $stmt = $this->pdo->prepare("
+            SELECT pt.*, u.work_start_time, u.work_end_time 
+            FROM project_tasks pt 
+            LEFT JOIN users u ON pt.assigned_user_id = u.id 
+            WHERE pt.id = ?
+        ");
         $stmt->execute([$taskId]);
         $task = $stmt->fetch(PDO::FETCH_ASSOC);
         return $task ?: null;
     }
 
+    /**
+     * FASE 90: Cuenta las tareas activas de un usuario en un proyecto.
+     */
+    public function countUserActiveTasks(int $projectId, int $userId): int {
+        $stmt = $this->pdo->prepare("SELECT COUNT(*) FROM project_tasks WHERE project_id = ? AND assigned_user_id = ? AND status = 'Active'");
+        $stmt->execute([$projectId, $userId]);
+        return (int)$stmt->fetchColumn();
+    }
+
     public function getNextTask(int $projectId): ?array {
         $query = "SELECT * FROM project_tasks 
-                  WHERE project_id = ? AND status NOT IN ('Completed', 'Bypassed') 
+                  WHERE project_id = ? AND status NOT IN ('Completed', 'Completed_Late', 'Bypassed') 
                   ORDER BY task_order ASC LIMIT 1";
         $stmt = $this->pdo->prepare($query);
         $stmt->execute([$projectId]);
@@ -415,7 +570,7 @@ class TaskManager {
 
     public function checkParentTaskCompletion(int $parentTaskId): void {
         $stmt = $this->pdo->prepare(
-            "SELECT COUNT(*) FROM project_tasks WHERE parent_task_id = ? AND status NOT IN ('Completed', 'Bypassed')"
+            "SELECT COUNT(*) FROM project_tasks WHERE parent_task_id = ? AND status NOT IN ('Completed', 'Completed_Late', 'Bypassed')"
         );
         $stmt->execute([$parentTaskId]);
         $pendingChildren = (int)$stmt->fetchColumn();
@@ -426,21 +581,27 @@ class TaskManager {
         }
     }
 
-    public function getProjectStagesAndTasks(int $projectId): array {
+    public function getProjectStagesAndTasks(int $projectId, int $userId = 0, string $role = 'admin'): array {
         // Obtener Stages
         $stmtStages = $this->pdo->prepare("SELECT * FROM project_stages WHERE project_id = ? ORDER BY stage_order ASC");
         $stmtStages->execute([$projectId]);
         $stages = $stmtStages->fetchAll(PDO::FETCH_ASSOC);
 
         // Obtener Tasks
-        $stmtTasks = $this->pdo->prepare("
-            SELECT pt.*, u.username as assigned_user_name 
+        $sql = "
+            SELECT pt.*, u.username as assigned_user_name, u.work_start_time, u.work_end_time 
             FROM project_tasks pt 
             LEFT JOIN users u ON pt.assigned_user_id = u.id 
             WHERE pt.project_id = ? 
-            ORDER BY pt.task_order ASC
-        ");
-        $stmtTasks->execute([$projectId]);
+        ";
+        $params = [$projectId];
+        if ($role !== 'admin') {
+            $sql .= " AND pt.assigned_user_id = ?";
+            $params[] = $userId;
+        }
+        $sql .= " ORDER BY pt.task_order ASC";
+        $stmtTasks = $this->pdo->prepare($sql);
+        $stmtTasks->execute($params);
         $tasks = $stmtTasks->fetchAll(PDO::FETCH_ASSOC);
 
         // Anidar Tasks en Stages (soportando 1 nivel de sub-tareas por ahora)
@@ -487,9 +648,35 @@ class TaskManager {
      * ========================================================================
      */
     public function logTaskAction(int $taskId, ?int $userId, string $actionType, ?string $justificationNote = null): int {
-        $allowedActions = ['Started', 'Paused', 'Resumed', 'Bypassed', 'Completed', 'Extended'];
+        $allowedActions = ['Started', 'Paused', 'Resumed', 'Bypassed', 'Completed', 'Completed_Late', 'Extended'];
         if (!in_array($actionType, $allowedActions, true)) {
             throw new InvalidArgumentException("Invalid action type provided.");
+        }
+
+        // FASE 36.5: Acumulación de tiempo trabajado en la BD
+        if (in_array($actionType, ['Paused', 'Completed', 'Completed_Late', 'Bypassed'])) {
+            $stmtLast = $this->pdo->prepare("
+                SELECT logged_at FROM task_time_logs 
+                WHERE task_id = ? AND action_type IN ('Started', 'Resumed') 
+                ORDER BY logged_at DESC LIMIT 1
+            ");
+            $stmtLast->execute([$taskId]);
+            $lastStart = $stmtLast->fetchColumn();
+
+            if ($lastStart) {
+                $start = new DateTime($lastStart);
+                $end = new DateTime();
+                
+                // FASE 92 (OVERTIME FIX): Se revierte al cálculo absoluto puro.
+                // Si la tarea corre a las 3 AM (Overtime Exception), todos sus segundos deben contar.
+                $diffSeconds = $end->getTimestamp() - $start->getTimestamp();
+                $diffMinutes = (int) floor($diffSeconds / 60);
+
+                if ($diffMinutes > 0) {
+                    $stmtUpdate = $this->pdo->prepare("UPDATE project_tasks SET worked_minutes = COALESCE(worked_minutes, 0) + ? WHERE id = ?");
+                    $stmtUpdate->execute([$diffMinutes, $taskId]);
+                }
+            }
         }
 
         $stmt = $this->pdo->prepare("
@@ -528,7 +715,7 @@ class TaskManager {
             
             if (in_array($log['action_type'], ['Started', 'Resumed'])) {
                 $lastStartTime = $actionTime;
-            } elseif (in_array($log['action_type'], ['Paused', 'Completed', 'Bypassed']) && $lastStartTime !== null) {
+            } elseif (in_array($log['action_type'], ['Paused', 'Completed', 'Completed_Late', 'Bypassed']) && $lastStartTime !== null) {
                 $totalSeconds += $actionTime->getTimestamp() - $lastStartTime->getTimestamp();
                 $lastStartTime = null; // Reset after calculating an interval
             }
@@ -537,30 +724,147 @@ class TaskManager {
         return round($totalSeconds / 3600, 2);
     }
 
+    /**
+     * AUDITORÍA 3 (Anti N+1): Bulk Fetch para obtener las horas reales de TODAS las tareas
+     * de un proyecto en una sola consulta.
+     */
+    public function getProjectActualHours(int $projectId, int $userId = 0, string $role = 'admin'): array {
+        $sql = "
+            SELECT t.id, l.action_type, l.logged_at 
+            FROM project_tasks t
+            JOIN task_time_logs l ON t.id = l.task_id
+            WHERE t.project_id = ?
+        ";
+        $params = [$projectId];
+        if ($role !== 'admin') {
+            $sql .= " AND t.assigned_user_id = ?";
+            $params[] = $userId;
+        }
+        $sql .= " ORDER BY l.task_id, l.logged_at ASC";
+        
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($params);
+        $logs = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        $totalSeconds = [];
+        $lastStartTime = [];
+
+        foreach ($logs as $log) {
+            $tid = (int)$log['id'];
+            if (!isset($totalSeconds[$tid])) { $totalSeconds[$tid] = 0; $lastStartTime[$tid] = null; }
+            
+            $actionTime = new DateTime($log['logged_at']);
+            if (in_array($log['action_type'], ['Started', 'Resumed'])) {
+                $lastStartTime[$tid] = $actionTime;
+            } elseif (in_array($log['action_type'], ['Paused', 'Completed', 'Completed_Late', 'Bypassed']) && $lastStartTime[$tid] !== null) {
+                $totalSeconds[$tid] += $actionTime->getTimestamp() - $lastStartTime[$tid]->getTimestamp();
+                $lastStartTime[$tid] = null;
+            }
+        }
+        return array_map(fn($secs) => round($secs / 3600, 2), $totalSeconds);
+    }
+
     public function getUserPerformanceReport(int $projectId, int $userId): array {
+        // Verificar existencia en directorio y traer datos del usuario
+        $stmtUser = $this->pdo->prepare("SELECT u.username, u.role FROM directory d JOIN users u ON d.user_id = u.id WHERE d.project_id = ? AND d.user_id = ?");
+        $stmtUser->execute([$projectId, $userId]);
+        $userInfo = $stmtUser->fetch(PDO::FETCH_ASSOC);
+        
+        if (!$userInfo) {
+            throw new Exception("User is not in the project directory.");
+        }
+
         $stmt = $this->pdo->prepare("
-            SELECT id, name, estimated_hours 
+            SELECT id, name, estimated_minutes, status, task_order 
             FROM project_tasks
-            WHERE project_id = ? AND assigned_user_id = ? AND status IN ('Completed', 'Bypassed')
+            WHERE project_id = ? AND assigned_user_id = ?
+            ORDER BY task_order ASC
         ");
         $stmt->execute([$projectId, $userId]);
         $tasks = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+        if (empty($tasks)) {
+            return [
+                'user' => $userInfo, 'total_estimated_hours' => 0, 'total_actual_hours' => 0, 
+                'performance_ratio' => 0, 'completed_tasks_count' => 0, 'total_assigned_tasks' => 0, 'tasks' => []
+            ];
+        }
+
+        // AUDITORÍA 3 (Anti N+1): Bulk Fetch para logs y justificaciones
+        $taskIds = array_column($tasks, 'id');
+        $inQuery = implode(',', array_fill(0, count($taskIds), '?'));
+        
+        $stmtLogs = $this->pdo->prepare("SELECT task_id, action_type, logged_at, justification_note FROM task_time_logs WHERE task_id IN ($inQuery) ORDER BY logged_at ASC");
+        $stmtLogs->execute($taskIds);
+        $allLogs = $stmtLogs->fetchAll(PDO::FETCH_ASSOC);
+        
+        $logsByTask = [];
+        $justificationsByTask = [];
+        foreach ($allLogs as $log) {
+            $tid = (int)$log['task_id'];
+            $logsByTask[$tid][] = $log;
+            if (!empty($log['justification_note'])) { $justificationsByTask[$tid] = $log['justification_note']; }
+        }
+
         $totalEstimatedHours = 0.0;
         $totalActualHours = 0.0;
         $detailedTasks = [];
+        $completedCount = 0;
 
         foreach ($tasks as $task) {
-            $estimated = (float)$task['estimated_hours'];
-            $actual = $this->calculateActualHoursTask((int)$task['id']);
+            $tid = (int)$task['id'];
+            $minutos = isset($task['estimated_minutes']) ? (int)$task['estimated_minutes'] : 0;
+            $estimated = round($minutos / 60, 2);
+            
+            // Cálculo en memoria (Ya no ejecuta BD)
+            $actual = 0;
+            if (isset($logsByTask[$tid])) {
+                $tSecs = 0; $lStart = null;
+                foreach ($logsByTask[$tid] as $log) {
+                    $aTime = new DateTime($log['logged_at']);
+                    if (in_array($log['action_type'], ['Started', 'Resumed'])) { $lStart = $aTime; } 
+                    elseif (in_array($log['action_type'], ['Paused', 'Completed', 'Completed_Late', 'Bypassed']) && $lStart !== null) {
+                        $tSecs += $aTime->getTimestamp() - $lStart->getTimestamp();
+                        $lStart = null;
+                    }
+                }
+                $actual = round($tSecs / 3600, 2);
+            }
 
             $totalEstimatedHours += $estimated;
             $totalActualHours += $actual;
 
-            $detailedTasks[] = ['id' => (int)$task['id'], 'name' => $task['name'], 'estimated_hours' => $estimated, 'actual_hours' => $actual, 'variance' => round($estimated - $actual, 2)];
+            if (in_array($task['status'], ['Completed', 'Completed_Late', 'Bypassed'])) {
+                $completedCount++;
+            }
+            
+            $justification = $justificationsByTask[$tid] ?? 'None';
+            
+            $remaining = max(0, $estimated - $actual);
+            if (in_array($task['status'], ['Completed', 'Completed_Late', 'Bypassed'])) $remaining = 0;
+
+            $detailedTasks[] = [
+                'id' => $tid, 
+                'task_order' => $task['task_order'],
+                'name' => $task['name'], 
+                'status' => str_replace('_', ' ', $task['status']),
+                'estimated_hours' => $estimated, 
+                'actual_hours' => $actual, 
+                'remaining_hours' => $remaining,
+                'variance' => round($estimated - $actual, 2),
+                'justification' => $justification
+            ];
         }
 
-        return ['total_estimated_hours' => round($totalEstimatedHours, 2), 'total_actual_hours' => round($totalActualHours, 2), 'performance_ratio' => $totalEstimatedHours > 0 ? round($totalActualHours / $totalEstimatedHours, 2) : 0, 'completed_tasks_count' => count($tasks), 'tasks' => $detailedTasks];
+        return [
+            'user' => $userInfo,
+            'total_estimated_hours' => round($totalEstimatedHours, 2), 
+            'total_actual_hours' => round($totalActualHours, 2), 
+            'performance_ratio' => $totalEstimatedHours > 0 ? round($totalActualHours / $totalEstimatedHours, 2) : 0, 
+            'completed_tasks_count' => $completedCount,
+            'total_assigned_tasks' => count($tasks),
+            'tasks' => $detailedTasks
+        ];
     }
 
     /**
@@ -572,7 +876,7 @@ class TaskManager {
         $stmt = $this->pdo->prepare("
             UPDATE projects 
             SET total_tasks = (SELECT COUNT(*) FROM project_tasks WHERE project_id = ?),
-                completed_tasks = (SELECT COUNT(*) FROM project_tasks WHERE project_id = ? AND status IN ('Completed', 'Bypassed'))
+                completed_tasks = (SELECT COUNT(*) FROM project_tasks WHERE project_id = ? AND status IN ('Completed', 'Completed_Late', 'Bypassed'))
             WHERE id = ?
         ");
         $stmt->execute([$projectId, $projectId, $projectId]);
@@ -586,13 +890,19 @@ class TaskManager {
         $this->validateUserInDirectory($projectId, $userId);
         
         $task = $this->getTask($taskId);
-        if (!$task || (int)$task['project_id'] !== $projectId || (int)$task['folder_id'] !== $folderId) {
-            return ['status' => 'error', 'message' => 'Task/Folder mismatch or not found.'];
+        // FASE 27: Se elimina la validación del folder_id de la tarea porque ahora el usuario lo elige.
+        if (!$task || (int)$task['project_id'] !== $projectId) {
+            return ['status' => 'error', 'message' => 'Task/Project mismatch or task not found.'];
         }
 
-        // 2. Path and Filename Sanitization
+        // 2. Path and Filename Sanitization (Prefix Task Order)
+        $taskOrder = isset($task['task_order']) ? $task['task_order'] : $taskId;
         $filename = basename($file['name']);
-        $filename = preg_replace('/[^A-Za-z0-9._\-]/', '_', $filename);
+        $originalName = pathinfo($filename, PATHINFO_FILENAME);
+        $extension = pathinfo($filename, PATHINFO_EXTENSION);
+        
+        $originalName = preg_replace('/[^A-Za-z0-9._\-]/', '_', $originalName);
+        $filename = $taskOrder . '_Task_' . $originalName . '.' . $extension;
 
         // 3. Directory Structure
         $baseUploadDir = __DIR__ . '/../uploads';
@@ -606,8 +916,6 @@ class TaskManager {
         }
         
         // Avoid overwriting files by appending a counter
-        $originalName = pathinfo($filename, PATHINFO_FILENAME);
-        $extension = pathinfo($filename, PATHINFO_EXTENSION);
         $counter = 1;
         $targetPath = $folderDir . '/' . $filename;
         while (file_exists($targetPath)) {
@@ -624,10 +932,14 @@ class TaskManager {
         // 5. Database record
         $relativePath = 'uploads/' . $projectId . '/' . $folderId . '/' . $filename;
         $stmt = $this->pdo->prepare(
-            "INSERT INTO files (project_id, folder_id, filename, filepath, uploaded_by, file_type, file_size, uploaded_at) 
-             VALUES (?, ?, ?, ?, ?, ?, ?, NOW())"
+            "INSERT INTO files (project_id, folder_id, filename, filepath, uploaded_by, file_type, uploaded_at) 
+             VALUES (?, ?, ?, ?, ?, ?, NOW())"
         );
-        $stmt->execute([$projectId, $folderId, $filename, $relativePath, $userId, $file['type'], $file['size']]);
+        $stmt->execute([$projectId, $folderId, $filename, $relativePath, $userId, $file['type']]);
+
+    // FASE 41 Alternativa: Vincular la tarea a la carpeta seleccionada si no tenía una asignada
+    $stmtTask = $this->pdo->prepare("UPDATE project_tasks SET folder_id = ? WHERE id = ? AND folder_id IS NULL");
+    $stmtTask->execute([$folderId, $taskId]);
 
         return ['status' => 'success', 'message' => 'File attached!'];
     }

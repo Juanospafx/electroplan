@@ -1,4 +1,10 @@
 <?php
+// ============================================================================
+// ARCHIVO COMPLETAMENTE DESHABILITADO (COMENTADO VIRTUALMENTE)
+// Se bloquea el acceso en la línea 1 para anular el archivo en producción.
+// ============================================================================
+die("Acceso Denegado: Este panel de debug ha sido desactivado permanentemente.");
+
 // pages/debug_task_manager.php
 
 require_once __DIR__ . '/../core/auth/session.php';
@@ -105,13 +111,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $pageTitle = "Smart PM - Debug Tools";
+$pageTitle = "Task Manager - Debug Tools";
 include __DIR__ . '/../views/header.php';
 ?>
 
 <div class="main-content p-4 pt-5">
     <header class="header mb-4">
         <div class="d-flex align-items-center gap-3">
-            <h2 class="fw-bold mb-0 text-white"><i class="fas fa-bug text-danger me-2"></i> Smart PM: Debug & Simulation</h2>
+            <h2 class="fw-bold mb-0 text-white"><i class="fas fa-bug text-danger me-2"></i> Task Manager: Debug & Simulation</h2>
         </div>
     </header>
 
@@ -201,7 +208,7 @@ include __DIR__ . '/../views/header.php';
         <div class="col-md-6">
             <div class="box-card h-100">
                 <h5 class="fw-bold text-white mb-3"><i class="fas fa-stopwatch text-danger me-2"></i> Overdue Simulator</h5>
-                <p class="text-gray small mb-4">Fuerza a que todas las tareas activas de un proyecto específico lleguen a su tiempo límite en <strong>10 segundos</strong> para testear el flujo de vencimiento en el Smart PM.</p>
+                <p class="text-gray small mb-4">Fuerza a que todas las tareas activas de un proyecto específico lleguen a su tiempo límite en <strong>10 segundos</strong> para testear el flujo de vencimiento en el Task Manager.</p>
                 
                 <div class="row g-2 align-items-end mt-2">
                     <div class="col-md-4">
@@ -236,7 +243,7 @@ function forceOverdueTest() {
         .then(res => res.json())
         .then(data => {
             if (data.status === 'success') {
-                alert('⏳ TEST INICIADO: Las tareas activas del Proyecto ' + projectId + ' vencerán en 10 segundos. ¡Ve rápido al Smart PM!');
+                alert('⏳ TEST INICIADO: Las tareas activas del Proyecto ' + projectId + ' vencerán en 10 segundos. ¡Ve rápido al Task Manager!');
             } else {
                 alert('Error: ' + data.message);
             }

@@ -5,6 +5,7 @@ require_once __DIR__ . '/../core/auth/session.php';
 require_once __DIR__ . '/../core/db/connection.php';
 
 $projectId = $_GET['id'] ?? 0;
+$userId = $_SESSION['user_id'] ?? 0;
 
 // 1. Obtener Datos del Proyecto
 $stmt = $pdo->prepare("SELECT * FROM projects WHERE id = ? AND deleted_at IS NULL");
@@ -155,7 +156,26 @@ include __DIR__ . '/../views/header.php';
         <div class="flex-grow-1">
             <div class="d-flex align-items-center gap-3 mb-2">
                 <h1 class="project-title-large m-0"><?= htmlspecialchars($project['name']) ?></h1>
-                <span class="badge bg-success bg-opacity-25 text-success px-3 py-1 rounded-pill border border-success border-opacity-25"><?= $project['status'] ?></span>
+                <?php 
+                    $statusColors = ['Planning' => 'info', 'Active' => 'success', 'On Hold' => 'warning', 'Completed' => 'secondary'];
+                    $projStatus = $project['status'] ?? 'Active';
+                    $badgeColor = $statusColors[$projStatus] ?? 'primary';
+                ?>
+                <?php if($isAdmin): ?>
+                <div class="dropdown">
+                    <span class="badge bg-<?= $badgeColor ?> bg-opacity-25 text-<?= $badgeColor ?> px-3 py-1 rounded-pill border border-<?= $badgeColor ?> border-opacity-25 dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false" style="cursor: pointer;">
+                        <?= htmlspecialchars($projStatus) ?>
+                    </span>
+                    <ul class="dropdown-menu dropdown-menu-dark bg-card border-secondary shadow-lg">
+                        <li><a class="dropdown-item text-white hover-bg-body" href="#" onclick="updateProjectGeneralStatus('Planning'); return false;">Planning</a></li>
+                        <li><a class="dropdown-item text-white hover-bg-body" href="#" onclick="updateProjectGeneralStatus('Active'); return false;">Active</a></li>
+                        <li><a class="dropdown-item text-white hover-bg-body" href="#" onclick="updateProjectGeneralStatus('On Hold'); return false;">On Hold</a></li>
+                        <li><a class="dropdown-item text-white hover-bg-body" href="#" onclick="updateProjectGeneralStatus('Completed'); return false;">Completed</a></li>
+                    </ul>
+                </div>
+                <?php else: ?>
+                    <span class="badge bg-<?= $badgeColor ?> bg-opacity-25 text-<?= $badgeColor ?> px-3 py-1 rounded-pill border border-<?= $badgeColor ?> border-opacity-25"><?= htmlspecialchars($projStatus) ?></span>
+                <?php endif; ?>
             </div>
             <div class="d-flex flex-wrap gap-4 text-gray small mb-3">
                 <span><i class="fas fa-map-marker-alt me-1 text-accent"></i> <?= htmlspecialchars($projectAddress ?: 'No address specified') ?></span>
@@ -174,8 +194,10 @@ include __DIR__ . '/../views/header.php';
 
             <button class="btn btn-tools rounded-pill px-4 py-2 shadow-sm" onclick="openToolsModal()"><i class="fas fa-toolbox me-2"></i> Tools</button>
             
+            <?php if($userRole !== 'viewer'): ?>
             <!-- SMART PM TRIGGER -->
-            <button class="btn btn-warning rounded-pill px-4 py-2 shadow-sm fw-bold text-dark" onclick="toggleSmartPM()"><i class="fas fa-project-diagram me-2"></i> Smart PM</button>
+            <button class="btn btn-warning rounded-pill px-4 py-2 shadow-sm fw-bold text-dark" onclick="toggleSmartPM()"><i class="fas fa-project-diagram me-2"></i> Task Manager</button>
+            <?php endif; ?>
             
             <?php if($isAdmin): ?>
             <div id="bulk-import-overlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.82); z-index:10000; align-items:center; justify-content:center;">
@@ -283,7 +305,7 @@ include __DIR__ . '/../views/header.php';
                         <div class="small text-gray fw-medium"><?= date('M d, Y', strtotime($rf['uploaded_at'])) ?></div>
                         <?php $rfExt = strtolower(pathinfo($rf['filename'], PATHINFO_EXTENSION)); $rfIsExcel = in_array($rfExt, ['xlsx','xls','xlsm','csv']); ?>
                         
-                        <!-- OVERLAY INTERACTIVO -->
+                        <!-- INTERACTIVE OVERLAY -->
                         <div class="file-overlay" tabindex="0">
                             <?php if($_SESSION['role'] === 'admin'): ?>
                             <div class="position-absolute top-0 end-0 p-2 d-flex gap-2" style="z-index: 20;">
@@ -428,7 +450,7 @@ include __DIR__ . '/../views/header.php';
                         <div class="file-title mb-1 file-name-label" title="<?= htmlspecialchars($f['filename']) ?>"><?= htmlspecialchars($f['filename']) ?></div>
                         <div class="small text-gray fw-medium"><?= date('M d, Y', strtotime($f['uploaded_at'])) ?></div>
                         
-                        <!-- OVERLAY INTERACTIVO -->
+                        <!-- INTERACTIVE OVERLAY -->
                         <div class="file-overlay" tabindex="0">
                             <?php if($_SESSION['role'] === 'admin'): ?>
                             <div class="position-absolute top-0 end-0 p-2 d-flex gap-2" style="z-index: 20;">
@@ -489,19 +511,34 @@ include __DIR__ . '/../views/header.php';
         --border-subtle: #cbd5e1;
     }
 
-    /* --- SMART PM SHIFT ANIMATION --- */
+    /* --- FASE 51: Rediseño UX - Animación Off-Canvas del Smart PM --- */
     .main-content {
-        transition: margin-left 0.3s cubic-bezier(0.4, 0, 0.2, 1), width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        transition: all 0.3s ease-in-out;
         width: 100%;
     }
-    .main-content.pm-shifted {
-        margin-left: 45%;
-        width: 55%;
+
+    .sidebar {
+        transition: all 0.3s ease-in-out;
     }
-    @media (max-width: 992px) {
-        .main-content.pm-shifted {
-            margin-left: 0;
-            width: 100%;
+
+    @media (min-width: 769px) {
+        body.smart-pm-active .sidebar {
+            transform: translateX(-100%);
+            width: 0;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+        body.smart-pm-active .main-content {
+            margin-left: 0 !important;
+            margin-right: 45vw;
+            width: 55vw;
+        }
+    }
+
+    @media (max-width: 768px) {
+        body.smart-pm-active {
+            overflow: hidden;
         }
     }
 
@@ -679,6 +716,9 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
     }
     .overlay-mini-btn.move:hover { background: var(--color-amber); transform: scale(1.1); }
     .overlay-mini-btn.delete:hover { background: #ef4444; transform: scale(1.1); }
+    
+    .search-result-item { border-bottom: 1px solid var(--border-subtle); transition: 0.15s; }
+    .search-result-item:hover { background: var(--bg-input); }
 
     @media (max-width: 992px) {
         .project-title-large { font-size: 1.8rem; }
@@ -929,7 +969,7 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
                 <div class="modal-body">
                     <div id="addSubfolderError" class="alert alert-danger py-2 px-3 mb-3 d-none" role="alert"></div>
                     <label class="text-gray small mb-2">Subfolder Name</label>
-                    <input type="text" name="name" id="subfolder-name-input" class="form-control" required maxlength="255" placeholder="e.g. Revisiones">
+                    <input type="text" name="name" id="subfolder-name-input" class="form-control" required maxlength="255" placeholder="e.g. Revisions">
                 </div>
                 <div class="modal-footer">
                     <button type="submit" class="btn-main w-100">
@@ -1023,6 +1063,28 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
     });
 
     function openProjectDetailsModal() { new bootstrap.Modal(document.getElementById('projectDetailsModal')).show(); }
+
+    function updateProjectGeneralStatus(newStatus) {
+        appConfirm(`Are you sure you want to change the project status to <strong>${newStatus}</strong>?`, "Change Project Status", () => {
+            const fd = new FormData();
+            fd.append('action', 'update_project_status');
+            fd.append('project_id', pId);
+            fd.append('status', newStatus);
+            fetch('../task_manager/api.php', { method: 'POST', body: fd })
+                .then(r => r.json())
+                .then(d => {
+                    if (d.status === 'success') {
+                        location.reload();
+                    } else {
+                        appAlert('Error: ' + d.message, 'Error', 'error');
+                    }
+                })
+                .catch(e => {
+                    console.error(e);
+                    appAlert('Connection error.', 'Error', 'error');
+                });
+        });
+    }
 
 function openToolsModal() {
         const modalEl = document.getElementById('toolsModal');
@@ -1578,7 +1640,7 @@ function openToolsModal() {
 
 // ── Global Search ────────────────────────────────────────────────
 let globalSearchTimer = null;
-function globalSearchFiles(q) { const resultsBox = document.getElementById('globalSearchResults'); const clearBtn = document.getElementById('globalSearchClearBtn'); if (clearBtn) clearBtn.style.display = q ? 'inline-block' : 'none'; clearTimeout(globalSearchTimer); if (!q || q.trim().length < 2) { if (resultsBox) resultsBox.style.display = 'none'; return; } globalSearchTimer = setTimeout(async () => { const fd = new FormData(); fd.append('action', 'search_project_files'); fd.append('project_id', pId); fd.append('query', q.trim()); try { const d = await fetch('../api/api.php', { method:'POST', body:fd }).then(r => r.json()); if (!resultsBox) return; if (!d.results || !d.results.length) { resultsBox.innerHTML = '<div class="p-3 text-gray small text-center">No files found for "' + q + '"</div>'; resultsBox.style.display = 'block'; return; } const iconMap = { pdf:'fa-file-pdf text-danger', jpg:'fa-file-image text-info', jpeg:'fa-file-image text-info', png:'fa-file-image text-info', xlsx:'fa-file-excel text-success', xls:'fa-file-excel text-success', doc:'fa-file-word text-primary', docx:'fa-file-word text-primary', dwg:'fa-drafting-compass text-warning' }; resultsBox.innerHTML = d.results.map(r => { const ext = (r.file_type || r.filename.split('.').pop()).toLowerCase(); const icon = iconMap[ext] || 'fa-file text-gray'; const bc = r.breadcrumb.slice(0,-1).map(p => `<span class="text-gray">${p}</span>`).join(' <span class="text-muted mx-1">›</span> '); const fname = r.breadcrumb[r.breadcrumb.length - 1]; const url = `?id=${pId}&view=files&folder_id=${r.folder_id || ''}`; return `<a href="${url}" class="d-flex align-items-center gap-3 px-4 py-3 text-decoration-none" style="border-bottom:1px solid var(--border-subtle); transition:0.15s;" onmouseover="this.style.background='var(--bg-input)'" onmouseout="this.style.background=''"> <i class="fas ${icon} flex-shrink-0" style="font-size:1.2rem; width:22px;"></i> <div class="overflow-hidden"> <div class="text-white small fw-semibold text-truncate">${fname}</div> <div class="small" style="font-size:0.72rem;">${bc}</div> </div> </a>`; }).join(''); resultsBox.style.display = 'block'; } catch(e) { console.error('Search error:', e); } }, 320); }
+function globalSearchFiles(q) { const resultsBox = document.getElementById('globalSearchResults'); const clearBtn = document.getElementById('globalSearchClearBtn'); if (clearBtn) clearBtn.style.display = q ? 'inline-block' : 'none'; clearTimeout(globalSearchTimer); if (!q || q.trim().length < 2) { if (resultsBox) resultsBox.style.display = 'none'; return; } globalSearchTimer = setTimeout(async () => { const fd = new FormData(); fd.append('action', 'search_project_files'); fd.append('project_id', pId); fd.append('query', q.trim()); try { const d = await fetch('../api/api.php', { method:'POST', body:fd }).then(r => r.json()); if (!resultsBox) return; if (!d.results || !d.results.length) { resultsBox.innerHTML = '<div class="p-3 text-gray small text-center">No files found for "' + q + '"</div>'; resultsBox.style.display = 'block'; return; } const iconMap = { pdf:'fa-file-pdf text-danger', jpg:'fa-file-image text-info', jpeg:'fa-file-image text-info', png:'fa-file-image text-info', xlsx:'fa-file-excel text-success', xls:'fa-file-excel text-success', doc:'fa-file-word text-primary', docx:'fa-file-word text-primary', dwg:'fa-drafting-compass text-warning' }; resultsBox.innerHTML = d.results.map(r => { const ext = (r.file_type || r.filename.split('.').pop()).toLowerCase(); const icon = iconMap[ext] || 'fa-file text-gray'; const bc = r.breadcrumb.slice(0,-1).map(p => `<span class="text-gray">${p}</span>`).join(' <span class="text-muted mx-1">›</span> '); const fname = r.breadcrumb[r.breadcrumb.length - 1]; const url = `?id=${pId}&view=files&folder_id=${r.folder_id || ''}`; return `<a href="${url}" class="d-flex align-items-center gap-3 px-4 py-3 text-decoration-none search-result-item"> <i class="fas ${icon} flex-shrink-0" style="font-size:1.2rem; width:22px;"></i> <div class="overflow-hidden"> <div class="text-white small fw-semibold text-truncate">${fname}</div> <div class="small" style="font-size:0.72rem;">${bc}</div> </div> </a>`; }).join(''); resultsBox.style.display = 'block'; } catch(e) { console.error('Search error:', e); } }, 320); }
 function clearGlobalSearch() { const input = document.getElementById('globalSearchInput'); const box = document.getElementById('globalSearchResults'); const btn = document.getElementById('globalSearchClearBtn'); if (input) input.value = ''; if (box) box.style.display = 'none'; if (btn) btn.style.display = 'none'; }
 document.addEventListener('click', (e) => { const wrap = document.getElementById('global-search-wrap'); if (wrap && !wrap.contains(e.target)) { const box = document.getElementById('globalSearchResults'); if (box) box.style.display = 'none'; } });
 // ── Rename ───────────────────────────────────────────────────────
@@ -1587,5 +1649,7 @@ async function submitRename() { const id = document.getElementById('renameItemId
 
 </script>
 
-<?php include __DIR__ . '/../views/smart_pm_sidebar.php'; ?>
+<?php if($userRole !== 'viewer'): ?>
+    <?php include __DIR__ . '/../views/smart_pm_sidebar.php'; ?>
+<?php endif; ?>
 <?php include __DIR__ . '/../views/footer.php'; ?>

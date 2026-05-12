@@ -1,4 +1,7 @@
 <?php
+// FASE 34: Sincronización Estricta de Zona Horaria
+date_default_timezone_set('America/Santo_Domingo');
+
 /**
  * Class TimeEngine
  * 
@@ -6,10 +9,6 @@
  * de horarios laborables en el módulo Smart PM.
  */
 class TimeEngine {
-    // Rango horario: 07:00 a 19:00 (12 horas hábiles)
-    private const WORK_START_HOUR = 7;
-    private const WORK_END_HOUR = 19;
-    
     /**
      * Feriados fijos de Florida/USA (Formato: MM-DD)
      * Se pueden agregar más según las políticas de Brightronix.
@@ -22,21 +21,27 @@ class TimeEngine {
     ];
 
     /**
+     * FASE AUDITORÍA 4: Caché en memoria para evitar llamadas masivas a strtotime().
+     */
+    private array $holidayCache = [];
+
+    /**
      * Obtiene un array de feriados combinando los fijos con los dinámicos (calculados)
      * para un año específico.
      */
     private function getHolidaysForYear(int $year): array {
+        if (isset($this->holidayCache[$year])) {
+            return $this->holidayCache[$year];
+        }
+
         $holidays = self::FIXED_HOLIDAYS;
         
         // Feriados dinámicos estadounidenses comunes
-        $thanksgiving = date('m-d', strtotime("fourth thursday of november $year"));
-        $memorialDay = date('m-d', strtotime("last monday of may $year"));
-        $laborDay = date('m-d', strtotime("first monday of september $year"));
+        $holidays[] = date('m-d', strtotime("fourth thursday of november $year")); // Thanksgiving
+        $holidays[] = date('m-d', strtotime("last monday of may $year")); // Memorial Day
+        $holidays[] = date('m-d', strtotime("first monday of september $year")); // Labor Day
         
-        $holidays[] = $thanksgiving;
-        $holidays[] = $memorialDay;
-        $holidays[] = $laborDay;
-        
+        $this->holidayCache[$year] = $holidays;
         return $holidays;
     }
 
@@ -44,22 +49,14 @@ class TimeEngine {
      * Verifica si una fecha específica cae en un día feriado.
      */
     private function isHoliday(DateTime $date): bool {
-        $year = (int)$date->format('Y');
-        $monthDay = $date->format('m-d');
-        $holidays = $this->getHolidaysForYear($year);
-        
-        return in_array($monthDay, $holidays, true);
+        return in_array($date->format('m-d'), $this->getHolidaysForYear((int)$date->format('Y')), true);
     }
 
     /**
      * Verifica si el día actual (o la fecha simulada) es un feriado.
-     * FASE 22: Pausa Física en Días Feriados
      */
     public function isTodayHoliday(DateTime $date = null): bool {
-        if ($date === null) {
-            $date = new DateTime();
-        }
-        return $this->isHoliday($date);
+        return $this->isHoliday($date ?? new DateTime());
     }
 
     /**
@@ -68,62 +65,53 @@ class TimeEngine {
      * Verifica si una acción ocurre dentro del horario permitido.
      * ========================================================================
      */
-    public function isWorkingHour(DateTime $date = null): bool {
-        if ($date === null) {
-            $date = new DateTime();
-        }
+    public function isWorkingHour(DateTime $date = null, string $startStr = '07:00:00', string $endStr = '19:00:00'): bool {
+        $date = $date ?? new DateTime();
 
-        // 1. Domingos son días muertos (0 en formato 'w' de PHP)
-        if ((int)$date->format('w') === 0) {
+        // 1. Domingos (0) y Feriados son no laborables
+        if ((int)$date->format('w') === 0 || $this->isHoliday($date)) {
             return false;
         }
 
-        // 2. Feriados son días muertos
-        if ($this->isHoliday($date)) {
-            return false;
-        }
+        $timeInSeconds = ((int)$date->format('G') * 3600) + ((int)$date->format('i') * 60) + (int)$date->format('s');
+        $startSeconds = $this->timeToSeconds($startStr);
+        $endSeconds = $this->timeToSeconds($endStr);
 
-        // 3. Verificar rango de horas (07:00:00 a 18:59:59 es válido)
-        $hour = (int)$date->format('G');
-        $minute = (int)$date->format('i');
-        $second = (int)$date->format('s');
-        
-        $timeInSeconds = ($hour * 3600) + ($minute * 60) + $second;
-        $startInSeconds = self::WORK_START_HOUR * 3600;
-        $endInSeconds = self::WORK_END_HOUR * 3600;
+        return $timeInSeconds >= $startSeconds && $timeInSeconds < $endSeconds;
+    }
 
-        if ($timeInSeconds < $startInSeconds || $timeInSeconds >= $endInSeconds) {
-            return false;
-        }
-
-        return true;
+    private function timeToSeconds(string $time): int {
+        $parts = explode(':', $time);
+        return ((int)($parts[0] ?? 0) * 3600) + ((int)($parts[1] ?? 0) * 60) + (int)($parts[2] ?? 0);
     }
 
     /**
      * Avanza la fecha al siguiente día laborable a las 07:00 AM.
      */
-    private function jumpToNextWorkingDay(DateTime $date): void {
+    private function jumpToNextWorkingDay(DateTime $date, string $startStr): void {
+        $parts = explode(':', $startStr);
+        $h = (int)$parts[0];
+        $m = (int)($parts[1] ?? 0);
         do {
-            $date->modify('+1 day');
-            $date->setTime(self::WORK_START_HOUR, 0, 0);
+            // modify('+1 day') + setTime() es DST Safe, previniendo bugs de zonas horarias.
+            $date->modify('+1 day')->setTime($h, $m, 0);
         } while ((int)$date->format('w') === 0 || $this->isHoliday($date)); // Repetir si es domingo o feriado
     }
 
     /**
      * Ajusta la fecha a un momento laborable válido si no lo es actualmente.
      */
-    private function snapToValidWorkingTime(DateTime $date): void {
+    private function snapToValidWorkingTime(DateTime $date, string $startStr, string $endStr): void {
         $timeInSeconds = ((int)$date->format('G') * 3600) + ((int)$date->format('i') * 60) + (int)$date->format('s');
-        $startInSeconds = self::WORK_START_HOUR * 3600;
-        $endInSeconds = self::WORK_END_HOUR * 3600;
+        $startSeconds = $this->timeToSeconds($startStr);
+        $endSeconds = $this->timeToSeconds($endStr);
 
-        // Si es un día no laborable (Domingo/Feriado) o ya pasó las 19:00, saltar al siguiente día hábil
-        if ((int)$date->format('w') === 0 || $this->isHoliday($date) || $timeInSeconds >= $endInSeconds) {
-            $this->jumpToNextWorkingDay($date);
+        if ((int)$date->format('w') === 0 || $this->isHoliday($date) || $timeInSeconds >= $endSeconds) {
+            $this->jumpToNextWorkingDay($date, $startStr);
         } 
-        // Si es un día laborable pero antes de las 07:00, ajustar a las 07:00 de hoy
-        elseif ($timeInSeconds < $startInSeconds) {
-            $date->setTime(self::WORK_START_HOUR, 0, 0);
+        elseif ($timeInSeconds < $startSeconds) {
+            $parts = explode(':', $startStr);
+            $date->setTime((int)$parts[0], (int)($parts[1] ?? 0), 0);
         }
     }
 
@@ -133,46 +121,42 @@ class TimeEngine {
      * Calcula la fecha de entrega sumando horas hábiles a una fecha de inicio.
      * ========================================================================
      */
-    public function calculateDeadline(DateTime $startTime, float|string $hoursToSum): DateTime {
-        // Clonar para evitar modificar la variable original pasada por referencia
+    public function calculateDeadline(DateTime $startTime, int $minutesToSum, string $startStr = '07:00:00', string $endStr = '19:00:00'): DateTime {
         $deadline = clone $startTime;
         
-        // FASE 23: Corrección Crítica del TimeEngine (Parseo de Decimales)
-        // Limpiar la variable para evitar errores de coma decimal según el locale
-        $hoursClean = (float)str_replace(',', '.', (string)$hoursToSum);
-        
-        error_log("[TimeEngine Debug] Input hours: '{$hoursToSum}' -> Cleaned float: {$hoursClean}");
-
-        // FASE 24: Forzar un mínimo de 10 minutos (0.1666... horas) para tareas con 0 horas
-        if ($hoursClean <= 0) {
-            $hoursClean = 10 / 60; 
-            error_log("[TimeEngine Debug] Hours were <= 0. Forced minimum of 10 minutes.");
-        }
+        // Establecer un mínimo de 10 minutos (Seguridad algorítmica)
+        $totalSeconds = max(10 * 60, $minutesToSum * 60);
 
         // Asegurarnos de que el cálculo inicie en un punto laborable válido
-        $this->snapToValidWorkingTime($deadline);
+        $this->snapToValidWorkingTime($deadline, $startStr, $endStr);
 
-        // FASE 26: Refactorización Estricta a Minutos Enteros
-        // Ej: 0.5 horas * 60 = 30 minutos
-        $total_minutes = (int) round($hoursClean * 60);
-        $endOfDayMinutes = self::WORK_END_HOUR * 60; // 19 * 60 = 1140
+        $startSeconds = $this->timeToSeconds($startStr);
+        $endSeconds = $this->timeToSeconds($endStr);
+        $workDaySeconds = $endSeconds - $startSeconds;
+        
+        if ($workDaySeconds <= 0) $workDaySeconds = 12 * 3600; // Failsafe
 
-        error_log("[TimeEngine Debug] Total minutes to sum: {$total_minutes}");
+        while ($totalSeconds > 0) {
+            $currentTimeSeconds = ((int)$deadline->format('G') * 3600) + ((int)$deadline->format('i') * 60) + (int)$deadline->format('s');
+            $remainingSecondsToday = $endSeconds - $currentTimeSeconds;
 
-        while ($total_minutes > 0) {
-            $currentTimeMinutes = ((int)$deadline->format('G') * 60) + (int)$deadline->format('i');
-            $remainingMinutesToday = $endOfDayMinutes - $currentTimeMinutes;
-
-            if ($total_minutes <= $remainingMinutesToday) {
-                $deadline->modify("+{$total_minutes} minutes");
-                $total_minutes = 0; // Finalizamos
+            if ($totalSeconds <= $remainingSecondsToday) {
+                $deadline->modify("+{$totalSeconds} seconds");
+                $totalSeconds = 0;
             } else {
-                $total_minutes -= $remainingMinutesToday;
-                $this->jumpToNextWorkingDay($deadline); // Rollover al día siguiente a las 07:00
+                $totalSeconds -= $remainingSecondsToday;
+                $this->jumpToNextWorkingDay($deadline, $startStr);
+                
+                // FAST FORWARD (Optimización): Si el remanente requiere varios días enteros, los saltamos en bloque.
+                if ($totalSeconds >= $workDaySeconds) {
+                    $fullDays = (int)floor($totalSeconds / $workDaySeconds);
+                    for ($i = 0; $i < $fullDays; $i++) {
+                        $this->jumpToNextWorkingDay($deadline, $startStr);
+                    }
+                    $totalSeconds %= $workDaySeconds;
+                }
             }
         }
-
-        error_log("[TimeEngine Debug] Final calculated deadline: " . $deadline->format('Y-m-d H:i:s'));
 
         return $deadline;
     }

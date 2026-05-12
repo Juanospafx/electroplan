@@ -57,16 +57,32 @@ include __DIR__ . '/../views/header.php';
 body.theme-light .text-muted { color: var(--text-gray) !important; }
 
 
-    .table-responsive { border-radius: var(--radius-box); overflow: hidden; border: 1px solid var(--border-subtle); }
-    .table-rounded { width: 100%; border-collapse: separate; border-spacing: 0; background: var(--bg-card); }
+    .table-responsive { border-radius: var(--radius-box); overflow: visible; border: 1px solid var(--border-subtle); }
+    .table-rounded { width: 100%; table-layout: fixed; border-collapse: separate; border-spacing: 0; background: var(--bg-card); }
     .table-rounded th { background: var(--bg-input); color: var(--text-gray); font-weight: 600; text-transform: uppercase; font-size: 0.75rem; padding: 18px 25px; border-bottom: 1px solid var(--border-subtle); white-space: nowrap; }
-    .table-rounded td { padding: 20px 25px; color: var(--text-white); vertical-align: middle; border-bottom: 1px solid var(--border-subtle); }
+    .table-rounded td { padding: 20px 25px; color: var(--text-white); vertical-align: middle; border-bottom: 1px solid var(--border-subtle); word-wrap: break-word; overflow-wrap: break-word; }
     .table-rounded tr:last-child td { border-bottom: none; }
     .table-rounded tr:hover td { background: rgba(255,255,255,0.02); }
+    
+    .table-rounded th:first-child { border-top-left-radius: calc(var(--radius-box) - 1px); }
+    .table-rounded th:last-child { border-top-right-radius: calc(var(--radius-box) - 1px); }
+    .table-rounded tr:last-child td:first-child { border-bottom-left-radius: calc(var(--radius-box) - 1px); }
+    .table-rounded tr:last-child td:last-child { border-bottom-right-radius: calc(var(--radius-box) - 1px); }
 
     .btn-action { width: 32px; height: 32px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--border-subtle); color: var(--text-gray); transition: 0.2s; background: transparent; }
     .btn-action:hover { background: var(--primary); color: white; border-color: var(--primary); }
     .btn-action.text-danger:hover { background: #ef4444; color: white; border-color: #ef4444; }
+
+    /* --- Dropdown Actions Menu Styles --- */
+    .btn-action-menu { color: var(--text-gray); opacity: 0.7; transition: 0.2s; padding: 4px 10px; background: transparent; border: none; font-size: 1.1rem; }
+    .btn-action-menu:hover { opacity: 1; color: var(--primary); }
+    .dropdown-menu.bg-card { background-color: var(--bg-card) !important; border-color: var(--border-subtle) !important; }
+    .dropdown-menu .dropdown-item:hover { background-color: var(--bg-body) !important; color: var(--text-white) !important; }
+    .hover-bg-body:hover { background-color: var(--bg-body) !important; }
+    body.theme-light .dropdown-menu.bg-card { background-color: #ffffff !important; }
+    body.theme-light .dropdown-item { color: #0f172a !important; }
+    body.theme-light .dropdown-item:hover { background-color: #f8fafc !important; }
+    body.theme-light .border-secondary { border-color: rgba(15,23,42,0.18) !important; }
 
     .form-control {
         background: var(--bg-input) !important;
@@ -140,7 +156,7 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
                     <th width="40%">File</th>
                     <th width="30%">Assigned Project</th>
                     <th width="15%">Uploaded</th>
-                    <th class="text-end">Actions</th>
+                    <th class="text-end" width="15%">Actions</th>
                 </tr>
             </thead>
             <tbody>
@@ -166,18 +182,24 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
                     <td class="small text-gray"><?= htmlspecialchars($projectLabel) ?></td>
                     <td class="small text-gray"><?= !empty($f['uploaded_at']) ? date('M d, Y', strtotime($f['uploaded_at'])) : '-' ?></td>
                     <td class="text-end">
-                        <?php $ext = strtolower(pathinfo($f['filename'], PATHINFO_EXTENSION)); $isExcel = in_array($ext, ['xlsx','xls','xlsm','csv']); ?>
-                        <?php if($isExcel): ?>
-                            <a href="preview.php?id=<?= (int)$f['id'] ?>&mode=spreadsheet" class="btn-action me-1" title="Preview Spreadsheet" target="_blank"><i class="fas fa-table"></i></a>
-                        <?php else: ?>
-                            <a href="preview.php?id=<?= (int)$f['id'] ?>" class="btn-action me-1" title="Preview"><i class="fas fa-eye"></i></a>
-                        <?php endif; ?>
-                        <?php if(($_SESSION['role'] ?? '') === 'admin'): ?>
-                            <button class="btn-action text-danger border-danger" title="Delete" onclick="deleteFile(<?= (int)$f['id'] ?>)"><i class="fas fa-trash"></i></button>
-                        <?php endif; ?>
-                        <?php if(!empty($filePath)): ?>
-                            <a href="<?= htmlspecialchars($filePath) ?>" class="btn-action" title="Download" target="_blank" rel="noopener"><i class="fas fa-download"></i></a>
-                        <?php endif; ?>
+                        <div class="dropdown">
+                            <button class="btn-action-menu" data-bs-toggle="dropdown" data-bs-boundary="window" title="Actions"><i class="fas fa-ellipsis-v"></i></button>
+                            <ul class="dropdown-menu dropdown-menu-end bg-card border-secondary shadow-lg rounded-3 py-1">
+                                <?php $ext = strtolower(pathinfo($f['filename'], PATHINFO_EXTENSION)); $isExcel = in_array($ext, ['xlsx','xls','xlsm','csv']); ?>
+                                <?php if($isExcel): ?>
+                                    <li><a class="dropdown-item text-white hover-bg-body small" href="preview.php?id=<?= (int)$f['id'] ?>&mode=spreadsheet" target="_blank"><i class="fas fa-table me-2 text-success"></i> Preview</a></li>
+                                <?php else: ?>
+                                    <li><a class="dropdown-item text-white hover-bg-body small" href="preview.php?id=<?= (int)$f['id'] ?>"><i class="fas fa-eye me-2 text-info"></i> Preview</a></li>
+                                <?php endif; ?>
+                                <?php if(!empty($filePath)): ?>
+                                    <li><a class="dropdown-item text-white hover-bg-body small" href="<?= htmlspecialchars($filePath) ?>" target="_blank" rel="noopener"><i class="fas fa-download me-2 text-primary"></i> Download</a></li>
+                                <?php endif; ?>
+                                <?php if(($_SESSION['role'] ?? '') === 'admin'): ?>
+                                    <li><hr class="dropdown-divider border-secondary my-1"></li>
+                                    <li><button class="dropdown-item text-danger hover-bg-body small" onclick="deleteFile(<?= (int)$f['id'] ?>)"><i class="fas fa-trash me-2"></i> Delete</button></li>
+                                <?php endif; ?>
+                            </ul>
+                        </div>
                     </td>
                 </tr>
                 <?php endforeach; ?>
@@ -196,16 +218,35 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
     <div class="file-cards">
         <?php foreach($files as $f): 
             $projectLabel = !empty($f['project_name']) ? $f['project_name'] : 'No assigned project';
+            $filePath = $f['filepath'] ?? '';
+            if (strpos($filePath, 'uploads/') === 0) {
+                $expected = __DIR__ . '/../' . $filePath;
+                $legacy = __DIR__ . '/../api/' . $filePath;
+                if (!file_exists($expected) && file_exists($legacy)) {
+                    $filePath = 'api/' . $filePath;
+                }
+            }
+            if (strpos($filePath, 'uploads/') === 0 || strpos($filePath, 'api/uploads/') === 0) {
+                $filePath = '../' . $filePath;
+            }
         ?>
             <div class="file-card">
                 <div class="fw-bold"><?= htmlspecialchars($f['filename']) ?></div>
                 <div class="file-meta">Project: <?= htmlspecialchars($projectLabel) ?></div>
                 <div class="file-meta">Uploaded: <?= !empty($f['uploaded_at']) ? date('M d, Y', strtotime($f['uploaded_at'])) : '-' ?></div>
-                <div class="d-flex gap-2 mt-3">
+                
+                <div class="d-flex justify-content-end gap-2 mt-3 pt-3" style="border-top: 1px solid var(--border-subtle);">
                     <?php $ext = strtolower(pathinfo($f['filename'], PATHINFO_EXTENSION)); $isExcel = in_array($ext, ['xlsx','xls','xlsm','csv']); ?>
-                    <a href="preview.php?id=<?= (int)$f['id'] ?><?= $isExcel ? '&mode=spreadsheet' : '' ?>" class="btn-action" title="Preview" <?= $isExcel ? 'target="_blank"' : '' ?>><i class="fas <?= $isExcel ? 'fa-table' : 'fa-eye' ?>"></i></a>
+                    <?php if($isExcel): ?>
+                        <a href="preview.php?id=<?= (int)$f['id'] ?>&mode=spreadsheet" class="btn-action" title="Preview Spreadsheet" target="_blank"><i class="fas fa-table"></i></a>
+                    <?php else: ?>
+                        <a href="preview.php?id=<?= (int)$f['id'] ?>" class="btn-action" title="Preview"><i class="fas fa-eye"></i></a>
+                    <?php endif; ?>
+                    <?php if(!empty($filePath)): ?>
+                        <a href="<?= htmlspecialchars($filePath) ?>" class="btn-action" title="Download" target="_blank" rel="noopener"><i class="fas fa-download"></i></a>
+                    <?php endif; ?>
                     <?php if(($_SESSION['role'] ?? '') === 'admin'): ?>
-                        <button class="btn-action text-danger border-danger" title="Delete" onclick="deleteFile(<?= (int)$f['id'] ?>)"><i class="fas fa-trash"></i></button>
+                        <button class="btn-action text-danger" title="Delete" onclick="deleteFile(<?= (int)$f['id'] ?>)" style="border-color: #ef4444;"><i class="fas fa-trash"></i></button>
                     <?php endif; ?>
                 </div>
             </div>
