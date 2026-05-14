@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Servidor: 127.0.0.1
--- Tiempo de generación: 12-05-2026 a las 05:56:05
+-- Tiempo de generación: 15-05-2026 a las 00:16:46
 -- Versión del servidor: 10.4.32-MariaDB
 -- Versión de PHP: 8.2.12
 
@@ -132,6 +132,23 @@ CREATE TABLE `folder_permissions` (
   `user_id` int(11) NOT NULL,
   `granted_by` int(11) NOT NULL,
   `created_at` datetime DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Estructura de tabla para la tabla `personal_tasks`
+--
+
+CREATE TABLE `personal_tasks` (
+  `id` int(11) NOT NULL,
+  `user_id` int(11) NOT NULL,
+  `name` text NOT NULL,
+  `estimated_minutes` int(11) DEFAULT 60,
+  `worked_minutes` int(11) NOT NULL DEFAULT 0,
+  `status` enum('Pending','Active','On_Hold','System_Pause','Overdue','Completed') DEFAULT 'Pending',
+  `actual_start_time` datetime DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
@@ -354,6 +371,12 @@ ALTER TABLE `folder_permissions`
   ADD KEY `fk_folder_permissions_granted_by` (`granted_by`);
 
 --
+-- Indices de la tabla `personal_tasks`
+--
+ALTER TABLE `personal_tasks`
+  ADD PRIMARY KEY (`id`);
+
+--
 -- Indices de la tabla `projects`
 --
 ALTER TABLE `projects`
@@ -456,6 +479,12 @@ ALTER TABLE `folders`
 -- AUTO_INCREMENT de la tabla `folder_permissions`
 --
 ALTER TABLE `folder_permissions`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT de la tabla `personal_tasks`
+--
+ALTER TABLE `personal_tasks`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
