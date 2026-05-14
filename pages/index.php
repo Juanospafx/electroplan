@@ -288,6 +288,9 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
                 <div><h1 class="fw-bold mb-2">Welcome Back!</h1><p class="text-gray mb-0">Here is the latest activity.</p></div>
                 <?php if($canCreate): ?>
                     <div class="d-flex gap-2">
+                        <a href="../admin/settings.php" class="btn btn-outline-light btn-sm rounded-pill px-3" style="display: flex; align-items: center;" title="System Settings">
+                            <i class="fas fa-cog me-2"></i> Settings
+                        </a>
                         <button class="btn btn-outline-light btn-sm rounded-pill px-3" onclick="document.getElementById('bulk-folder-input').click()" title="Import projects from local folders">
                             <i class="fas fa-folder-tree me-2"></i>Bulk Import
                         </button>
@@ -326,7 +329,11 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
                         <div class="overflow-hidden flex-grow-1">
                             <div class="d-flex align-items-center gap-2 mb-1">
                                 <div class="fw-bold text-white text-truncate" style="font-size: 1.05rem;"><?= htmlspecialchars($p['name']) ?></div>
-                                <span class="badge bg-success bg-opacity-25 text-success px-2 py-0 rounded small d-md-none">Active</span>
+                                <?php 
+                                    $pStatus = $p['status'] ?? 'Active';
+                                    $badgeCol = match($pStatus) { 'Planning'=>'info', 'On Hold'=>'warning', 'Completed'=>'secondary', default=>'success' };
+                                ?>
+                                <span class="badge bg-<?= $badgeCol ?> bg-opacity-25 text-<?= $badgeCol ?> px-2 py-0 rounded small d-md-none"><?= htmlspecialchars($pStatus) ?></span>
                             </div>
                             <div class="small text-gray text-truncate"><?= htmlspecialchars($p['description'] ?: 'No description.') ?></div>
                         </div>
@@ -336,7 +343,7 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
                             <div class="small text-white fw-bold"><?= date('M d, Y', strtotime($p['created_at'])) ?></div>
                         </div>
                         <div class="d-none d-md-block">
-                            <span class="badge bg-success bg-opacity-25 text-success px-2 py-1 rounded">Active</span>
+                            <span class="badge bg-<?= $badgeCol ?> bg-opacity-25 text-<?= $badgeCol ?> px-2 py-1 rounded"><?= htmlspecialchars($pStatus) ?></span>
                         </div>
                         <i class="fas fa-chevron-right text-gray"></i>
                     </div>
