@@ -95,3 +95,17 @@ CREATE INDEX idx_task_logged ON task_time_logs (task_id, logged_at);
 ALTER TABLE `users` 
 ADD COLUMN `work_start_time` TIME DEFAULT '07:00:00',
 ADD COLUMN `work_end_time` TIME DEFAULT '19:00:00';
+
+-- Fase 101 (Cambio de estructura del quick task para convertirlo en un rincon de notas en el dashboard)
+
+CREATE TABLE `personal_tasks` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `user_id` int(11) NOT NULL,
+  `name` text NOT NULL,
+  `estimated_minutes` int(11) DEFAULT 60,
+  `worked_minutes` int(11) NOT NULL DEFAULT 0,
+  `status` enum('Pending','Active','On_Hold','System_Pause','Overdue','Completed') DEFAULT 'Pending',
+  `actual_start_time` datetime DEFAULT NULL,
+  `created_at` timestamp NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

@@ -77,6 +77,139 @@ class TaskManager {
         return $stmt->execute([$name, $estimatedMinutes, $assignedUserId, $taskId, $projectId]);
     }
 
+    public function deleteProjectTask(int $taskId, int $projectId, bool $deleteSubtasks = false): void {
+        $this->pdo->beginTransaction();
+        try {
+            if ($deleteSubtasks) {
+                // Borrar subtareas primero (si es una tarea padre para prevenir conflictos en constraints)
+                $stmtSub = $this->pdo->prepare("DELETE FROM project_tasks WHERE parent_task_id = ? AND project_id = ?");
+                $stmtSub->execute([$taskId, $projectId]);
+            } else {
+                // Desvincular subtareas para que se conviertan en tareas principales en vez de borrarse
+                $stmtSub = $this->pdo->prepare("UPDATE project_tasks SET parent_task_id = NULL WHERE parent_task_id = ? AND project_id = ?");
+                $stmtSub->execute([$taskId, $projectId]);
+            }
+
+            // Borrar la tarea en sí
+            $stmtTask = $this->pdo->prepare("DELETE FROM project_tasks WHERE id = ? AND project_id = ?");
+            $stmtTask->execute([$taskId, $projectId]);
+
+            // Actualizar contadores del proyecto
+            $this->updateProjectTaskCounts($projectId);
+            
+            $this->pdo->commit();
+        } catch (Exception $e) {
+            $this->pdo->rollBack();
+            throw $e;
+        }
+    }
+
+    public function getPersonalTasks(int $userId): array {
+        $stmt = $this->pdo->prepare("SELECT * FROM personal_tasks WHERE user_id = ? ORDER BY created_at ASC");
+        $stmt->execute([$userId]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public function getProjectStagesList(int $projectId): array {
+        $stmt = $this->pdo->prepare("SELECT id, name FROM project_stages WHERE project_id = ? ORDER BY stage_order ASC");
+        $stmt->execute([$projectId]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public function addPersonalTask(int $userId, string $name, int $estimatedMinutes): int {
+        $stmt = $this->pdo->prepare("INSERT INTO personal_tasks (user_id, name, estimated_minutes, status, created_at) VALUES (?, ?, ?, 'Pending', NOW())");
+        $stmt->execute([$userId, $name, $estimatedMinutes]);
+        return (int) $this->pdo->lastInsertId();
+    }
+
+    public function updatePersonalTaskStatus(int $taskId, int $userId, string $status): void {
+        $stmt = $this->pdo->prepare("SELECT * FROM personal_tasks WHERE id = ? AND user_id = ?");
+        $stmt->execute([$taskId, $userId]);
+        $task = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$task) return;
+
+        $worked = (int)$task['worked_minutes'];
+        $now = new DateTime();
+
+        // Si pausamos o detenemos, sumar el tiempo transcurrido
+        if ($task['status'] === 'Active' && in_array($status, ['On_Hold', 'Pending', 'Completed'])) {
+            if ($task['actual_start_time']) {
+                $start = new DateTime($task['actual_start_time']);
+                $diffMins = (int)floor(($now->getTimestamp() - $start->getTimestamp()) / 60);
+                if ($diffMins > 0) $worked += $diffMins;
+            }
+        }
+
+        if ($status === 'Active') {
+            $stmtUpd = $this->pdo->prepare("UPDATE personal_tasks SET status = 'Active', actual_start_time = NOW(), worked_minutes = ? WHERE id = ?");
+            $stmtUpd->execute([$worked, $taskId]);
+        } else {
+            $stmtUpd = $this->pdo->prepare("UPDATE personal_tasks SET status = ?, worked_minutes = ? WHERE id = ?");
+            $stmtUpd->execute([$status, $worked, $taskId]);
+        }
+    }
+
+    public function completePersonalTask(int $taskId, int $userId): void {
+        $stmt = $this->pdo->prepare("UPDATE personal_tasks SET status = 'Completed' WHERE id = ? AND user_id = ?");
+        $stmt->execute([$taskId, $userId]);
+    }
+
+    public function deletePersonalTask(int $taskId, int $userId): void {
+        $stmt = $this->pdo->prepare("DELETE FROM personal_tasks WHERE id = ? AND user_id = ?");
+        $stmt->execute([$taskId, $userId]);
+    }
+
+    public function transferPersonalTaskToProject(int $taskId, int $projectId, ?int $stageId, int $userId, bool $markAsCompleted = true): int {
+        $stmt = $this->pdo->prepare("SELECT * FROM personal_tasks WHERE id = ? AND user_id = ?");
+        $stmt->execute([$taskId, $userId]);
+        $task = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        if (!$task) throw new Exception("Personal task not found.");
+
+        if (!$stageId) {
+            // Buscar o crear la etapa "Quick Tasks" si no se especificó una
+            $stmtStage = $this->pdo->prepare("SELECT id FROM project_stages WHERE project_id = ? AND name = 'Quick Tasks' LIMIT 1");
+            $stmtStage->execute([$projectId]);
+            $stageId = $stmtStage->fetchColumn();
+            if (!$stageId) {
+                $stmtMax = $this->pdo->prepare("SELECT MAX(stage_order) FROM project_stages WHERE project_id = ?");
+                $stmtMax->execute([$projectId]);
+                $stageId = $this->createProjectStage($projectId, 'Quick Tasks', (int)$stmtMax->fetchColumn() + 1);
+            }
+        }
+
+        $stmtMaxTask = $this->pdo->prepare("SELECT MAX(task_order) FROM project_tasks WHERE project_id = ?");
+        $stmtMaxTask->execute([$projectId]);
+        $currentMaxOrder = (int)$stmtMaxTask->fetchColumn();
+        $taskOrder = max(10000, (floor($currentMaxOrder / 10000) + 1) * 10000);
+
+        $newTaskId = $this->createProjectTask($projectId, (int)$stageId, $task['name'], $taskOrder, (int)$task['estimated_minutes']);
+        
+        $workedMins = (int)$task['worked_minutes'];
+        $startTime = $task['actual_start_time'] ? $task['actual_start_time'] : date('Y-m-d H:i:s');
+        
+        if ($markAsCompleted) {
+            $stmtUpdate = $this->pdo->prepare("UPDATE project_tasks SET status = 'Completed', worked_minutes = ?, actual_start_time = ?, actual_end_time = NOW() WHERE id = ?");
+            $stmtUpdate->execute([$workedMins, $startTime, $newTaskId]);
+            
+            $this->logTaskAction($newTaskId, $userId, 'Completed', 'Task completed in Quick Tasks and deployed to project.');
+            $this->addProjectActivityLog($projectId, $newTaskId, $userId, 'Completed', "Task deployed from Quick Tasks.");
+        } else {
+            $newStatus = ($workedMins > 0 || $task['status'] === 'Active' || $task['status'] === 'On_Hold') ? 'On_Hold' : 'Pending';
+            $stmtUpdate = $this->pdo->prepare("UPDATE project_tasks SET status = ?, worked_minutes = ?, actual_start_time = ? WHERE id = ?");
+            $stmtUpdate->execute([$newStatus, $workedMins, $startTime, $newTaskId]);
+            
+            $this->logTaskAction($newTaskId, $userId, 'Started', 'Task deployed from Quick Tasks in progress.');
+            $this->addProjectActivityLog($projectId, $newTaskId, $userId, 'Started', "Task deployed from Quick Tasks in progress.");
+        }
+
+        $this->updateProjectTaskCounts($projectId);
+
+        // Borrar del Scratchpad personal
+        $this->deletePersonalTask($taskId, $userId);
+        return $newTaskId;
+    }
+
     public function getActiveProjects(int $userId = 0, string $role = 'admin'): array {
         if ($role !== 'admin') {
             $stmt = $this->pdo->prepare("
@@ -99,7 +232,7 @@ class TaskManager {
      */
     public function getGlobalActiveTasks(int $userId = 0, string $role = 'admin'): array {
         $sql = "
-            SELECT 
+            (SELECT 
                 pt.id AS task_id, 
                 pt.name AS task_name, 
                 pt.status,
@@ -111,7 +244,8 @@ class TaskManager {
                 pt.estimated_minutes, 
                 pt.worked_minutes, 
                 pt.actual_start_time AS start_time,
-                pt.expected_end_time
+                pt.expected_end_time,
+                'project_task' AS task_type
             FROM project_tasks pt
             JOIN projects p ON pt.project_id = p.id
             LEFT JOIN users u ON pt.assigned_user_id = u.id
@@ -122,7 +256,31 @@ class TaskManager {
             $sql .= " AND pt.assigned_user_id = ?";
             $params[] = $userId;
         }
-        $sql .= " ORDER BY pt.status ASC, pt.actual_start_time DESC";
+        $sql .= ")";
+
+        // FASE 96: Integrar Personal Tasks (Scratchpad) al Radar en Vivo
+        $sql .= " UNION ALL 
+            (SELECT 
+                pt.id AS task_id, 
+                pt.name AS task_name, 
+                pt.status,
+                0 AS project_id,
+                'Quick Tasks' AS project_name, 
+                u.username AS assigned_user_name, 
+                u.work_start_time,
+                u.work_end_time,
+                pt.estimated_minutes, 
+                pt.worked_minutes, 
+                pt.actual_start_time AS start_time,
+                NULL AS expected_end_time,
+                'personal_task' AS task_type
+            FROM personal_tasks pt
+            LEFT JOIN users u ON pt.user_id = u.id
+            WHERE pt.status IN ('Active', 'On_Hold', 'System_Pause', 'Overdue') AND pt.user_id = ?)
+        ";
+        $params[] = ($userId === 0 && isset($_SESSION['user_id'])) ? (int)$_SESSION['user_id'] : $userId;
+
+        $sql .= " ORDER BY status ASC, start_time DESC";
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute($params);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -604,6 +762,36 @@ class TaskManager {
         $stmtTasks->execute($params);
         $tasks = $stmtTasks->fetchAll(PDO::FETCH_ASSOC);
 
+        // Fetch all files for the project to attach to tasks
+        $stmtFiles = $this->pdo->prepare("
+            SELECT f.id, f.folder_id, f.filename, f.filepath, fo.name as folder_name 
+            FROM files f 
+            LEFT JOIN folders fo ON f.folder_id = fo.id 
+            WHERE f.project_id = ?
+        ");
+        $stmtFiles->execute([$projectId]);
+        $allFiles = $stmtFiles->fetchAll(PDO::FETCH_ASSOC);
+        
+        foreach ($tasks as &$task) {
+            $taskFolders = [];
+            $prefix = $task['task_order'] . '_Task_';
+            foreach ($allFiles as $f) {
+                if (strpos($f['filename'], $prefix) === 0) {
+                    $fid = $f['folder_id'];
+                    if (!isset($taskFolders[$fid])) {
+                        $taskFolders[$fid] = [
+                            'folder_id' => $fid,
+                            'folder_name' => $f['folder_name'] ?? 'Root Folder',
+                            'files' => []
+                        ];
+                    }
+                    $taskFolders[$fid]['files'][] = $f;
+                }
+            }
+            $task['attached_folders'] = array_values($taskFolders);
+        }
+        unset($task);
+
         // Anidar Tasks en Stages (soportando 1 nivel de sub-tareas por ahora)
         $structuredData = [];
         foreach ($stages as $stage) {
@@ -882,11 +1070,8 @@ class TaskManager {
         $stmt->execute([$projectId, $projectId, $projectId]);
     }
 
-    public function attachFileToTask(int $taskId, int $projectId, int $folderId, array $file, int $userId): array {
+    public function attachFilesToTask(int $taskId, int $projectId, int $folderId, array $files, int $userId): array {
         // 1. Validations
-        if ($file['error'] !== UPLOAD_ERR_OK) {
-            return ['status' => 'error', 'message' => 'File upload error code: ' . $file['error']];
-        }
         $this->validateUserInDirectory($projectId, $userId);
         
         $task = $this->getTask($taskId);
@@ -897,12 +1082,6 @@ class TaskManager {
 
         // 2. Path and Filename Sanitization (Prefix Task Order)
         $taskOrder = isset($task['task_order']) ? $task['task_order'] : $taskId;
-        $filename = basename($file['name']);
-        $originalName = pathinfo($filename, PATHINFO_FILENAME);
-        $extension = pathinfo($filename, PATHINFO_EXTENSION);
-        
-        $originalName = preg_replace('/[^A-Za-z0-9._\-]/', '_', $originalName);
-        $filename = $taskOrder . '_Task_' . $originalName . '.' . $extension;
 
         // 3. Directory Structure
         $baseUploadDir = __DIR__ . '/../uploads';
@@ -915,32 +1094,56 @@ class TaskManager {
             }
         }
         
-        // Avoid overwriting files by appending a counter
-        $counter = 1;
-        $targetPath = $folderDir . '/' . $filename;
-        while (file_exists($targetPath)) {
-            $filename = $originalName . '_' . $counter . '.' . $extension;
-            $targetPath = $folderDir . '/' . $filename;
-            $counter++;
+        $this->pdo->beginTransaction();
+        try {
+            $fileCount = isset($files['name']) && is_array($files['name']) ? count($files['name']) : 0;
+            
+            $stmtExisting = $this->pdo->prepare("SELECT COUNT(*) FROM files WHERE project_id = ? AND filename LIKE ?");
+            $stmtExisting->execute([$projectId, $taskOrder . '_Task_%']);
+            $existingCount = (int)$stmtExisting->fetchColumn();
+            
+            if (($existingCount + $fileCount) > 20) {
+                throw new Exception("Maximum 20 files allowed per task. You currently have {$existingCount} attached.");
+            }
+
+            for ($i = 0; $i < $fileCount; $i++) {
+                if ($files['error'][$i] !== UPLOAD_ERR_OK) {
+                    continue;
+                }
+
+                $filename = basename($files['name'][$i]);
+                $originalName = pathinfo($filename, PATHINFO_FILENAME);
+                $extension = pathinfo($filename, PATHINFO_EXTENSION);
+                
+                $originalName = preg_replace('/[^A-Za-z0-9._\-]/', '_', $originalName);
+                $filename = $taskOrder . '_Task_' . $originalName . '.' . $extension;
+
+                $counter = 1;
+                $targetPath = $folderDir . '/' . $filename;
+                while (file_exists($targetPath)) {
+                    $filename = $taskOrder . '_Task_' . $originalName . '_' . $counter . '.' . $extension;
+                    $targetPath = $folderDir . '/' . $filename;
+                    $counter++;
+                }
+
+                if (move_uploaded_file($files['tmp_name'][$i], $targetPath)) {
+                    $relativePath = 'uploads/' . $projectId . '/' . $folderId . '/' . $filename;
+                    $stmt = $this->pdo->prepare(
+                        "INSERT INTO files (project_id, folder_id, filename, filepath, uploaded_by, file_type, uploaded_at) 
+                         VALUES (?, ?, ?, ?, ?, ?, NOW())"
+                    );
+                    $stmt->execute([$projectId, $folderId, $filename, $relativePath, $userId, $files['type'][$i]]);
+                }
+            }
+
+            $stmtTask = $this->pdo->prepare("UPDATE project_tasks SET folder_id = ? WHERE id = ? AND folder_id IS NULL");
+            $stmtTask->execute([$folderId, $taskId]);
+
+            $this->pdo->commit();
+            return ['status' => 'success', 'message' => 'Files attached successfully!'];
+        } catch (Exception $e) {
+            $this->pdo->rollBack();
+            return ['status' => 'error', 'message' => $e->getMessage()];
         }
-
-        // 4. Move the file
-        if (!move_uploaded_file($file['tmp_name'], $targetPath)) {
-            return ['status' => 'error', 'message' => 'Failed to save the uploaded file.'];
-        }
-        
-        // 5. Database record
-        $relativePath = 'uploads/' . $projectId . '/' . $folderId . '/' . $filename;
-        $stmt = $this->pdo->prepare(
-            "INSERT INTO files (project_id, folder_id, filename, filepath, uploaded_by, file_type, uploaded_at) 
-             VALUES (?, ?, ?, ?, ?, ?, NOW())"
-        );
-        $stmt->execute([$projectId, $folderId, $filename, $relativePath, $userId, $file['type']]);
-
-    // FASE 41 Alternativa: Vincular la tarea a la carpeta seleccionada si no tenía una asignada
-    $stmtTask = $this->pdo->prepare("UPDATE project_tasks SET folder_id = ? WHERE id = ? AND folder_id IS NULL");
-    $stmtTask->execute([$folderId, $taskId]);
-
-        return ['status' => 'success', 'message' => 'File attached!'];
     }
 }
