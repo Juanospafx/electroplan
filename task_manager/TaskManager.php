@@ -646,7 +646,7 @@ class TaskManager {
 
         // Lógica automática de fechas según el estado
         if ($status === 'Active') {
-            $query .= ", actual_start_time = COALESCE(actual_start_time, NOW())";
+            $query .= ", actual_start_time = NOW()";
             if ($expectedEndTime !== null) {
                 $query .= ", expected_end_time = ?";
                 $params[] = $expectedEndTime;
@@ -700,11 +700,6 @@ class TaskManager {
         $stmt->execute([$projectId]);
         $task = $stmt->fetch(PDO::FETCH_ASSOC);
         return $task ?: null;
-    }
-
-    public function appendProjectNote(int $projectId, string $note): void {
-        $stmt = $this->pdo->prepare("UPDATE projects SET notes = CONCAT(COALESCE(notes, ''), ?) WHERE id = ?");
-        $stmt->execute([$note, $projectId]);
     }
 
     public function resetProjectTasks(int $projectId): void {

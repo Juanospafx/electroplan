@@ -811,7 +811,7 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
     <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content p-3 tools-modal-content">
             <div class="modal-header border-secondary">
-                <h5 class="modal-title fw-bold"><i class="fas fa-toolbox me-2 text-accent"></i>Project Tools</h5>
+                <h5 class="modal-title fw-bold" style="color: var(--text-white);"><i class="fas fa-toolbox me-2 text-accent"></i>Project Tools</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
@@ -827,12 +827,12 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
                                 <div class="d-flex align-items-start gap-3">
                                     <div class="tool-icon"><i class="fas <?= htmlspecialchars($tool['icon']) ?>"></i></div>
                                     <div class="text-start">
-                                        <div class="fw-bold text-white"><?= htmlspecialchars($tool['name']) ?></div>
-                                        <div class="small text-gray"><?= htmlspecialchars($tool['desc']) ?></div>
+                                        <div class="fw-bold" style="color: var(--text-white); font-size: 0.95rem;"><?= htmlspecialchars($tool['name']) ?></div>
+                                        <div class="small" style="color: var(--text-gray); font-size: 0.8rem; margin-top: 2px; line-height: 1.3;"><?= htmlspecialchars($tool['desc']) ?></div>
                                     </div>
                                 </div>
                                 <?php if(!$isActiveTool): ?>
-                                    <span class="badge bg-secondary">Coming Soon</span>
+                                    <span class="badge" style="background: rgba(148, 163, 184, 0.15); color: var(--text-gray); border: 1px solid rgba(148, 163, 184, 0.3); font-size: 0.65rem;">Coming Soon</span>
                                 <?php endif; ?>
                             </div>
                         </button>

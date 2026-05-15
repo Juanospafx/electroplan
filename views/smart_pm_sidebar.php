@@ -350,7 +350,7 @@
     </div>
 
     <!-- FASE 89: SMART FILTER BAR (Sticky) -->
-    <div class="spm-filter-bar d-flex justify-content-center align-items-center gap-2 px-3 py-2 border-bottom" style="background: var(--bg-card); border-color: var(--border-subtle); overflow-x: auto; flex-shrink: 0; z-index: 1040; box-shadow: 0 4px 6px rgba(0,0,0,0.02);">
+    <div class="spm-filter-bar d-flex justify-content-center flex-wrap align-items-center gap-2 px-3 py-2 border-bottom" style="background: var(--bg-card); border-color: var(--border-subtle); flex-shrink: 0; z-index: 1040; box-shadow: 0 4px 6px rgba(0,0,0,0.02);">
         <button id="btnToggleCompleted" class="btn btn-sm btn-success rounded-pill flex-shrink-0 text-white" onclick="toggleCompletedTasks()" title="Toggle Completed Tasks">
             <i class="fas fa-eye"></i>
         </button>
@@ -384,7 +384,7 @@
         </div>
         
         <!-- FASE 74 & 102: Filtros de Categoría Estilo Task Manager -->
-        <div class="mb-3 flex-shrink-0 d-flex justify-content-center align-items-center gap-2 px-1 py-2 border-bottom border-secondary" style="overflow-x: auto; scrollbar-width: none;">
+        <div class="mb-3 flex-shrink-0 d-flex justify-content-center flex-wrap align-items-center gap-2 px-1 py-2 border-bottom border-secondary">
             <button class="btn btn-sm btn-primary text-white fw-bold rounded-pill flex-shrink-0 filter-note-btn" data-filter="all" onclick="filterProjectNotes('all', this)">All</button>
             <div class="vr bg-secondary mx-1 opacity-25"></div>
             <button class="btn btn-sm btn-outline-secondary rounded-pill flex-shrink-0 filter-note-btn" data-filter="notes" onclick="filterProjectNotes('notes', this)"><i class="fas fa-sticky-note me-1" style="font-size:0.6rem"></i>Notes</button>
