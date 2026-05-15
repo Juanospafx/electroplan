@@ -262,8 +262,25 @@ body.theme-light .text-muted { color: var(--text-gray, #64748b) !important; }
 
 <script>
     function toggleSidebar() {
-        document.querySelector('.sidebar').classList.toggle('show');
-        document.getElementById('sidebarOverlay').classList.toggle('show');
+        const sidebar = document.getElementById('mainSidebar')
+            || document.getElementById('sidebar')
+            || document.querySelector('.sidebar')
+            || document.querySelector('.side-menu')
+            || document.querySelector('.mobile-sidebar');
+
+        if (!sidebar) {
+            console.error('Sidebar no encontrado: revisa el id/clase del contenedor lateral.');
+            return;
+        }
+
+        sidebar.classList.toggle('show');
+        sidebar.classList.toggle('active');
+        sidebar.classList.toggle('open');
+
+        const overlay = document.getElementById('sidebarOverlay');
+        if (overlay) {
+            overlay.classList.toggle('show');
+        }
     }
 
     function applyAppTheme(theme) {
