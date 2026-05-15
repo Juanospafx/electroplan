@@ -346,7 +346,10 @@ try {
                 $currentDeadline = clone $now;
             }
 
-            $newDeadline = $timeEngine->calculateDeadline($currentDeadline, $extendMinutes);
+            $workStart = $task['work_start_time'] ?? '07:00:00';
+            $workEnd = $task['work_end_time'] ?? '19:00:00';
+
+            $newDeadline = $timeEngine->calculateDeadline($currentDeadline, $extendMinutes, $workStart, $workEnd);
             $newTotalMinutes = (int)$task['estimated_minutes'] + $extendMinutes;
             
             // Si estaba Overdue, la revivimos a Active para que el cronómetro vuelva a correr
@@ -356,7 +359,8 @@ try {
                 // Si se reactiva, seteamos actual_start_time = NOW() para reiniciar el cronómetro frontal
                 $pdo->prepare("UPDATE project_tasks SET status = ?, estimated_minutes = ?, expected_end_time = ?, actual_start_time = NOW() WHERE id = ?")->execute([$newStatus, $newTotalMinutes, $newDeadline->format('Y-m-d H:i:s'), $taskId]);
             } else {
-                $pdo->prepare("UPDATE project_tasks SET status = ?, estimated_minutes = ?, expected_end_time = ? WHERE id = ?")->execute([$newStatus, $newTotalMinutes, $newDeadline->format('Y-m-d H:i:s'), $taskId]);
+                $expectedEndParam = ($newStatus === 'On_Hold' || $newStatus === 'System_Pause') ? null : $newDeadline->format('Y-m-d H:i:s');
+                $pdo->prepare("UPDATE project_tasks SET status = ?, estimated_minutes = ?, expected_end_time = ? WHERE id = ?")->execute([$newStatus, $newTotalMinutes, $expectedEndParam, $taskId]);
             }
             
             // Log y justificación

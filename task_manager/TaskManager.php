@@ -838,16 +838,17 @@ class TaskManager {
 
         // FASE 36.5: Acumulación de tiempo trabajado en la BD
         if (in_array($actionType, ['Paused', 'Completed', 'Completed_Late', 'Bypassed'])) {
+            // Solo sumar tiempo si la ÚLTIMA acción registrada fue Started o Resumed (evita duplicar el tiempo por triggers paralelos)
             $stmtLast = $this->pdo->prepare("
-                SELECT logged_at FROM task_time_logs 
-                WHERE task_id = ? AND action_type IN ('Started', 'Resumed') 
-                ORDER BY logged_at DESC LIMIT 1
+                SELECT action_type, logged_at FROM task_time_logs 
+                WHERE task_id = ? 
+                ORDER BY id DESC LIMIT 1
             ");
             $stmtLast->execute([$taskId]);
-            $lastStart = $stmtLast->fetchColumn();
+            $lastLog = $stmtLast->fetch(PDO::FETCH_ASSOC);
 
-            if ($lastStart) {
-                $start = new DateTime($lastStart);
+            if ($lastLog && in_array($lastLog['action_type'], ['Started', 'Resumed'])) {
+                $start = new DateTime($lastLog['logged_at']);
                 $end = new DateTime();
                 
                 // FASE 92 (OVERTIME FIX): Se revierte al cálculo absoluto puro.
