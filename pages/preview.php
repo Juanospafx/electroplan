@@ -2,6 +2,7 @@
 // preview.php - Preview Profesional V8.2 (UI Update: Header & Floating Controls Position)
 require_once __DIR__ . '/../core/auth/session.php';
 require_once __DIR__ . '/../core/db/connection.php';
+require_once __DIR__ . '/../core/file_paths.php';
 
 // 1. NORMALIZAR ROL
 $userRoleRaw = $_SESSION['role'] ?? 'viewer';
@@ -41,24 +42,8 @@ if ($fileExt === '' && !empty($file['file_type'])) {
 
 $isSpreadsheet = in_array($fileExt, ['xlsx','xls','xlsm','csv'], true);
 $isEditMode = (isset($_GET['mode']) && strtolower((string)$_GET['mode']) === 'edit');
-// 5. Normalizar ruta publica
-$filePath = str_replace('\\', '/', (string)($file['filepath'] ?? ''));
-if ($filePath !== '') {
-    // Si es ruta absoluta, recortar desde uploads/
-    if (preg_match('~(api/)?uploads/[^\\s]+$~', $filePath, $m)) {
-        $filePath = $m[0];
-    }
-    if (strpos($filePath, 'uploads/') === 0) {
-        $expected = __DIR__ . '/../' . $filePath;
-        $legacy = __DIR__ . '/../api/' . $filePath;
-        if (!file_exists($expected) && file_exists($legacy)) {
-            $filePath = 'api/' . $filePath;
-        }
-    }
-    if (strpos($filePath, 'uploads/') === 0 || strpos($filePath, 'api/uploads/') === 0) {
-        $filePath = '../' . $filePath;
-    }
-}
+$filePath = normalize_file_path((string)($file['filepath'] ?? ''));
+$fileProxyUrl = get_file_url((int)$id);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -806,8 +791,7 @@ body.theme-light .text-muted, body.theme-light .text-gray { color: var(--text-gr
     }, { passive: false });
 
     // VARIABLES
-    const fileUrlRaw = "<?= $filePath ?>";
-    const fileUrl = encodeURI(fileUrlRaw);
+    const fileUrl = "<?= htmlspecialchars($fileProxyUrl, ENT_QUOTES) ?>";
     const fileExt = "<?= $fileExt ?>";
     let allAnnotations = <?= $annotations ?>; 
     if(typeof allAnnotations !== 'object' || allAnnotations === null) allAnnotations = {};

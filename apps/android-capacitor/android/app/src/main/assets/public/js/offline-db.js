@@ -3,7 +3,7 @@ import { Network } from '@capacitor/network';
 import { Filesystem, Directory } from '@capacitor/filesystem';
 
 const sqlite = new SQLiteConnection(CapacitorSQLite);
-const SERVER = 'https://androidelectro.brightronix.net/electroplan';
+const SERVER = (window.APP_BASE_URL || `${window.location.origin}/electroplan`).replace(/\/$/, '');
 let db = null;
 
 export async function initOfflineDB() {
