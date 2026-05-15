@@ -1,0 +1,4 @@
+node_modules/
+ios/App/Pods/
+ios/App/Podfile.lock
+.DS_Store
