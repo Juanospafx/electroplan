@@ -70,6 +70,7 @@ if ($filePath !== '') {
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     
     <script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/fabric@5.3.0/dist/fabric.min.js"></script>
     <?php if(in_array($fileExt, ['xlsx','xls','xlsm','csv'])): ?>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
     <?php endif; ?>
@@ -226,6 +227,11 @@ body.theme-light .text-muted, body.theme-light .text-gray { color: var(--text-gr
         .viewer-content { position: absolute; top: 0; left: 0; transform-origin: 0 0; }
         #pdf-canvas { display: none; }
         #img-view { display: none; max-width: none; max-height: none; }
+        #image-editor-wrap { display:none; position:absolute; top:0; left:0; transform-origin:0 0; }
+        #image-editor-canvas { border:0; }
+        .editor-toolbar { position:absolute; top:85px; left:20px; z-index:1100; background:var(--bg-panel); border:1px solid var(--border); border-radius:14px; padding:10px; display:none; gap:8px; flex-wrap:wrap; max-width:calc(100vw - 40px); }
+        .editor-toolbar.show { display:flex; }
+        .editor-toolbar .btn { border-radius:10px; }
 
         /* FLOATING CONTROLS */
         .floating-controls {
@@ -390,8 +396,25 @@ body.theme-light .text-muted, body.theme-light .text-gray { color: var(--text-gr
         <div id="map" onclick="closeAllSidebars()">
             <canvas id="pdf-canvas" class="viewer-content"></canvas>
             <img id="img-view" class="viewer-content" alt="Preview">
+            <div id="image-editor-wrap" class="viewer-content"><canvas id="image-editor-canvas"></canvas></div>
         </div>
         
+        <div id="editor-toolbar" class="editor-toolbar">
+            <button class="btn btn-sm btn-outline-light" onclick="setEditorMode('select')"><i class="fas fa-mouse-pointer"></i></button>
+            <button class="btn btn-sm btn-outline-light" onclick="setEditorMode('draw')"><i class="fas fa-pen"></i></button>
+            <button class="btn btn-sm btn-outline-light" onclick="setEditorMode('text')"><i class="fas fa-font"></i></button>
+            <button class="btn btn-sm btn-outline-light" onclick="addShape('arrow')"><i class="fas fa-arrow-right"></i></button>
+            <button class="btn btn-sm btn-outline-light" onclick="addShape('rect')"><i class="far fa-square"></i></button>
+            <button class="btn btn-sm btn-outline-light" onclick="addShape('circle')"><i class="far fa-circle"></i></button>
+            <button class="btn btn-sm btn-outline-light" onclick="addShape('line')"><i class="fas fa-minus"></i></button>
+            <input type="color" id="editor-color" value="#fb5a3a" onchange="setEditorStyle()">
+            <input type="range" id="editor-width" min="1" max="20" value="3" onchange="setEditorStyle()">
+            <button class="btn btn-sm btn-outline-light" onclick="editorUndo()"><i class="fas fa-undo"></i></button>
+            <button class="btn btn-sm btn-outline-light" onclick="editorRedo()"><i class="fas fa-redo"></i></button>
+            <button class="btn btn-sm btn-outline-success" onclick="saveImageAnnotations()"><i class="fas fa-save"></i> Save</button>
+            <button class="btn btn-sm btn-warning" onclick="exportEditedImage()"><i class="fas fa-file-export"></i> Save Snapshot</button>
+        </div>
+
         <div class="floating-controls">
             <div class="border-start border-secondary h-75 mx-2 opacity-50"></div>
             
@@ -626,6 +649,7 @@ body.theme-light .text-muted, body.theme-light .text-gray { color: var(--text-gr
             const el = viewer.mode === 'pdf' ? viewer.canvas : viewer.img;
             if (!el) return;
             el.style.transform = `translate(${viewer.translateX}px, ${viewer.translateY}px) scale(${viewer.scale})`;
+            syncEditorViewport();
             setZoomDisplay();
         });
     }
@@ -781,7 +805,12 @@ body.theme-light .text-muted, body.theme-light .text-gray { color: var(--text-gr
     let allAnnotations = <?= $annotations ?>; 
     if(typeof allAnnotations !== 'object' || allAnnotations === null) allAnnotations = {};
 
+    const fileId = <?= (int)$id ?>;
     let pdfDoc = null, pageNum = 1, pdfScale = 2.0; // Scale alto para nitidez en canvas
+    let imageEditor = null;
+    let editorHistory = [];
+    let editorFuture = [];
+    let editorReady = false;
     
     // --- DELETE REPORT LOGIC ---
     async function deleteReport(reportId, btn) {
@@ -892,6 +921,39 @@ body.theme-light .text-muted, body.theme-light .text-gray { color: var(--text-gr
         showToast("Unsupported file type", "error");
     }
 
+    function initImageEditor() {
+        if (editorReady || !window.fabric) return;
+        const c = document.getElementById('image-editor-canvas');
+        imageEditor = new fabric.Canvas('image-editor-canvas', { selection: true, preserveObjectStacking: true });
+        setEditorStyle();
+        imageEditor.on('object:added', () => pushHistory());
+        imageEditor.on('object:modified', () => pushHistory());
+        imageEditor.on('object:removed', () => pushHistory());
+        editorReady = true;
+    }
+
+    function syncEditorViewport() {
+        const wrap = document.getElementById('image-editor-wrap');
+        if (!wrap) return;
+        wrap.style.transform = `translate(${viewer.translateX}px, ${viewer.translateY}px) scale(${viewer.scale})`;
+    }
+
+    function pushHistory() {
+        if (!imageEditor) return;
+        editorHistory.push(JSON.stringify(imageEditor.toJSON()));
+        if (editorHistory.length > 60) editorHistory.shift();
+        editorFuture = [];
+    }
+    function editorUndo(){ if(editorHistory.length<2 || !imageEditor) return; editorFuture.push(editorHistory.pop()); imageEditor.loadFromJSON(editorHistory[editorHistory.length-1], ()=>imageEditor.renderAll()); }
+    function editorRedo(){ if(!editorFuture.length || !imageEditor) return; const s = editorFuture.pop(); editorHistory.push(s); imageEditor.loadFromJSON(s, ()=>imageEditor.renderAll()); }
+    function setEditorStyle(){ if(!imageEditor) return; const color=document.getElementById('editor-color').value; const w=parseInt(document.getElementById('editor-width').value||3,10); imageEditor.freeDrawingBrush.color=color; imageEditor.freeDrawingBrush.width=w; }
+    function setEditorMode(mode){ if(!imageEditor) return; imageEditor.isDrawingMode=(mode==='draw'); imageEditor.selection=(mode==='select'); if(mode==='text'){ const t=new fabric.IText('Text',{left:80,top:80,fill:document.getElementById('editor-color').value,fontSize:26}); imageEditor.add(t); imageEditor.setActiveObject(t);} }
+    function addShape(kind){ if(!imageEditor) return; const c=document.getElementById('editor-color').value; const w=parseInt(document.getElementById('editor-width').value||3,10); let o=null; if(kind==='rect')o=new fabric.Rect({left:80,top:80,width:180,height:100,fill:'transparent',stroke:c,strokeWidth:w}); if(kind==='circle')o=new fabric.Circle({left:90,top:90,radius:60,fill:'transparent',stroke:c,strokeWidth:w}); if(kind==='line')o=new fabric.Line([80,80,260,80],{stroke:c,strokeWidth:w}); if(kind==='arrow'){ const line=new fabric.Line([80,80,260,80],{stroke:c,strokeWidth:w}); const tri=new fabric.Triangle({left:252,top:74,width:18,height:18,fill:c,angle:90}); o=new fabric.Group([line,tri],{left:80,top:80}); } if(o) imageEditor.add(o); }
+
+    async function loadImageAnnotations(){ const fd=new FormData(); fd.append('action','load_annotations'); fd.append('file_id',fileId); const d=await fetch('../api/api.php',{method:'POST',body:fd}).then(r=>r.json()); if(d.status==='success'&&d.annotations_json){ imageEditor.loadFromJSON(JSON.parse(d.annotations_json),()=>imageEditor.renderAll()); pushHistory(); } }
+    async function saveImageAnnotations(){ if(!imageEditor) return; const fd=new FormData(); fd.append('action','save_annotations'); fd.append('file_id',fileId); fd.append('annotations_json',JSON.stringify(imageEditor.toJSON())); const d=await fetch('../api/api.php',{method:'POST',body:fd}).then(r=>r.json()); showToast(d.status==='success'?'Annotations saved':'Error saving','success'); }
+    async function exportEditedImage(){ if(!imageEditor) return; const dataUrl=imageEditor.toDataURL({format:'png',multiplier:1}); const fd=new FormData(); fd.append('action','export_edited_image'); fd.append('file_id',fileId); fd.append('image_data',dataUrl); const d=await fetch('../api/api.php',{method:'POST',body:fd}).then(r=>r.json()); showToast(d.status==='success'?'Snapshot exported':'Export failed', d.status==='success'?'success':'error'); }
+
     function loadSingleImage(url) {
         // Obtener dimensiones reales de imagen
         const img = new Image();
@@ -901,6 +963,14 @@ body.theme-light .text-muted, body.theme-light .text-gray { color: var(--text-gr
             viewer.naturalW = this.width;
             viewer.naturalH = this.height;
             fitToContainer();
+            initImageEditor();
+            const wrap = document.getElementById('image-editor-wrap');
+            wrap.style.display = 'block';
+            const c = document.getElementById('image-editor-canvas');
+            c.width = this.width; c.height = this.height;
+            imageEditor.setWidth(this.width); imageEditor.setHeight(this.height);
+            document.getElementById('editor-toolbar').classList.add('show');
+            loadImageAnnotations().catch(()=>{});
             loadPageAnnotations(1);
         }
         img.onerror = function() {
