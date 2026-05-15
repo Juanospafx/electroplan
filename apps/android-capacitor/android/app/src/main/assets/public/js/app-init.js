@@ -3,7 +3,7 @@ import { StatusBar, Style } from '@capacitor/status-bar';
 import { SplashScreen } from '@capacitor/splash-screen';
 import { Network } from '@capacitor/network';
 
-const SERVER = 'https://androidelectro.brightronix.net/electroplan';
+const SERVER = (window.APP_BASE_URL || `${window.location.origin}/electroplan`).replace(/\/$/, '');
 
 async function bootstrap() {
   try {

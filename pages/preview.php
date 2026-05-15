@@ -2,6 +2,7 @@
 // preview.php - Preview Profesional V8.2 (UI Update: Header & Floating Controls Position)
 require_once __DIR__ . '/../core/auth/session.php';
 require_once __DIR__ . '/../core/db/connection.php';
+require_once __DIR__ . '/../core/file_paths.php';
 
 // 1. NORMALIZAR ROL
 $userRoleRaw = $_SESSION['role'] ?? 'viewer';
@@ -40,24 +41,9 @@ if ($fileExt === '' && !empty($file['file_type'])) {
 }
 
 $isSpreadsheet = in_array($fileExt, ['xlsx','xls','xlsm','csv'], true);
-// 5. Normalizar ruta publica
-$filePath = str_replace('\\', '/', (string)($file['filepath'] ?? ''));
-if ($filePath !== '') {
-    // Si es ruta absoluta, recortar desde uploads/
-    if (preg_match('~(api/)?uploads/[^\\s]+$~', $filePath, $m)) {
-        $filePath = $m[0];
-    }
-    if (strpos($filePath, 'uploads/') === 0) {
-        $expected = __DIR__ . '/../' . $filePath;
-        $legacy = __DIR__ . '/../api/' . $filePath;
-        if (!file_exists($expected) && file_exists($legacy)) {
-            $filePath = 'api/' . $filePath;
-        }
-    }
-    if (strpos($filePath, 'uploads/') === 0 || strpos($filePath, 'api/uploads/') === 0) {
-        $filePath = '../' . $filePath;
-    }
-}
+$isEditMode = (isset($_GET['mode']) && strtolower((string)$_GET['mode']) === 'edit');
+$filePath = normalize_file_path((string)($file['filepath'] ?? ''));
+$fileProxyUrl = get_file_url((int)$id);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -347,10 +333,14 @@ body.theme-light .text-muted, body.theme-light .text-gray { color: var(--text-gr
                 <div class="app-subtitle">Electro Plan</div>
             </a>
             <div class="file-info d-none d-md-block">
-                <small>Viewing Mode</small>
+                <small><?= $isEditMode ? 'Editing Mode' : 'Viewing Mode' ?></small>
                 <span><?= htmlspecialchars($file['filename']) ?></span>
             </div>
-            <span class="badge badge-read ms-4 px-3 py-2 d-none d-md-inline"><i class="fas fa-eye me-1"></i> READ ONLY</span>
+            <?php if($isEditMode): ?>
+                <span class="badge badge-read ms-4 px-3 py-2 d-none d-md-inline"><i class="fas fa-pen me-1"></i> EDIT</span>
+            <?php else: ?>
+                <span class="badge badge-read ms-4 px-3 py-2 d-none d-md-inline"><i class="fas fa-eye me-1"></i> READ ONLY</span>
+            <?php endif; ?>
         </div>
 
         <div class="d-flex align-items-center gap-2">
@@ -399,6 +389,7 @@ body.theme-light .text-muted, body.theme-light .text-gray { color: var(--text-gr
             <div id="image-editor-wrap" class="viewer-content"><canvas id="image-editor-canvas"></canvas></div>
         </div>
         
+        <?php if($isEditMode): ?>
         <div id="editor-toolbar" class="editor-toolbar">
             <button class="btn btn-sm btn-outline-light" onclick="setEditorMode('select')"><i class="fas fa-mouse-pointer"></i></button>
             <button class="btn btn-sm btn-outline-light" onclick="setEditorMode('draw')"><i class="fas fa-pen"></i></button>
@@ -414,6 +405,7 @@ body.theme-light .text-muted, body.theme-light .text-gray { color: var(--text-gr
             <button class="btn btn-sm btn-outline-success" onclick="saveImageAnnotations()"><i class="fas fa-save"></i> Save</button>
             <button class="btn btn-sm btn-warning" onclick="exportEditedImage()"><i class="fas fa-file-export"></i> Save Snapshot</button>
         </div>
+        <?php endif; ?>
 
         <div class="floating-controls">
             <div class="border-start border-secondary h-75 mx-2 opacity-50"></div>
@@ -799,13 +791,13 @@ body.theme-light .text-muted, body.theme-light .text-gray { color: var(--text-gr
     }, { passive: false });
 
     // VARIABLES
-    const fileUrlRaw = "<?= $filePath ?>";
-    const fileUrl = encodeURI(fileUrlRaw);
+    const fileUrl = "<?= htmlspecialchars($fileProxyUrl, ENT_QUOTES) ?>";
     const fileExt = "<?= $fileExt ?>";
     let allAnnotations = <?= $annotations ?>; 
     if(typeof allAnnotations !== 'object' || allAnnotations === null) allAnnotations = {};
 
     const fileId = <?= (int)$id ?>;
+    const isEditMode = <?= $isEditMode ? 'true' : 'false' ?>;
     let pdfDoc = null, pageNum = 1, pdfScale = 2.0; // Scale alto para nitidez en canvas
     let imageEditor = null;
     let editorHistory = [];
@@ -853,9 +845,10 @@ body.theme-light .text-muted, body.theme-light .text-gray { color: var(--text-gr
 
     if(fileExt === 'pdf') {
         setMode('pdf');
+        if (isEditMode) { initImageEditor(); loadImageAnnotations().then(()=>renderPage(pageNum)).catch(()=>renderPage(pageNum)); }
         pdfjsLib.getDocument(fileUrl).promise.then(pdf => {
             pdfDoc = pdf; document.getElementById('p-total').textContent = pdf.numPages;
-            renderPageList(pdf.numPages); renderPage(pageNum);
+            renderPageList(pdf.numPages); if(!isEditMode) renderPage(pageNum);
         }).catch(err => {
             console.error(err);
             showToast("Error loading PDF", "error");
@@ -871,7 +864,8 @@ body.theme-light .text-muted, body.theme-light .text-gray { color: var(--text-gr
     } else if (imageExts.includes(fileExt)) {
         setMode('image');
         document.getElementById('p-total').textContent = '1'; renderPageList(1);
-        loadSingleImage(fileUrl);
+        if (isEditMode) { loadImageAnnotations().then(()=>loadSingleImage(fileUrl)).catch(()=>loadSingleImage(fileUrl)); }
+        else { loadSingleImage(fileUrl); }
     } else if (['xlsx','xls','xlsm','csv'].includes(fileExt)) {
         document.querySelectorAll('.page-nav, #btn-pan, #zoom-controls').forEach(el => { if(el) el.style.display='none'; });
         document.getElementById('p-total').textContent = '1';
@@ -922,7 +916,7 @@ body.theme-light .text-muted, body.theme-light .text-gray { color: var(--text-gr
     }
 
     function initImageEditor() {
-        if (editorReady || !window.fabric) return;
+        if (!isEditMode || editorReady || !window.fabric) return;
         const c = document.getElementById('image-editor-canvas');
         imageEditor = new fabric.Canvas('image-editor-canvas', { selection: true, preserveObjectStacking: true });
         setEditorStyle();
@@ -950,8 +944,30 @@ body.theme-light .text-muted, body.theme-light .text-gray { color: var(--text-gr
     function setEditorMode(mode){ if(!imageEditor) return; imageEditor.isDrawingMode=(mode==='draw'); imageEditor.selection=(mode==='select'); if(mode==='text'){ const t=new fabric.IText('Text',{left:80,top:80,fill:document.getElementById('editor-color').value,fontSize:26}); imageEditor.add(t); imageEditor.setActiveObject(t);} }
     function addShape(kind){ if(!imageEditor) return; const c=document.getElementById('editor-color').value; const w=parseInt(document.getElementById('editor-width').value||3,10); let o=null; if(kind==='rect')o=new fabric.Rect({left:80,top:80,width:180,height:100,fill:'transparent',stroke:c,strokeWidth:w}); if(kind==='circle')o=new fabric.Circle({left:90,top:90,radius:60,fill:'transparent',stroke:c,strokeWidth:w}); if(kind==='line')o=new fabric.Line([80,80,260,80],{stroke:c,strokeWidth:w}); if(kind==='arrow'){ const line=new fabric.Line([80,80,260,80],{stroke:c,strokeWidth:w}); const tri=new fabric.Triangle({left:252,top:74,width:18,height:18,fill:c,angle:90}); o=new fabric.Group([line,tri],{left:80,top:80}); } if(o) imageEditor.add(o); }
 
-    async function loadImageAnnotations(){ const fd=new FormData(); fd.append('action','load_annotations'); fd.append('file_id',fileId); const d=await fetch('../api/api.php',{method:'POST',body:fd}).then(r=>r.json()); if(d.status==='success'&&d.annotations_json){ imageEditor.loadFromJSON(JSON.parse(d.annotations_json),()=>imageEditor.renderAll()); pushHistory(); } }
-    async function saveImageAnnotations(){ if(!imageEditor) return; const fd=new FormData(); fd.append('action','save_annotations'); fd.append('file_id',fileId); fd.append('annotations_json',JSON.stringify(imageEditor.toJSON())); const d=await fetch('../api/api.php',{method:'POST',body:fd}).then(r=>r.json()); showToast(d.status==='success'?'Annotations saved':'Error saving','success'); }
+    let persistedAnnotations = {};
+    async function loadImageAnnotations(){ 
+        const fd=new FormData(); fd.append('action','load_annotations'); fd.append('file_id',fileId); 
+        const d=await fetch('../api/api.php',{method:'POST',body:fd}).then(r=>r.json()); 
+        if(d.status==='success'&&d.annotations_json){ 
+            try { persistedAnnotations = JSON.parse(d.annotations_json) || {}; } catch(_) { persistedAnnotations = {}; }
+        } else {
+            persistedAnnotations = {};
+        }
+    }
+    function loadEditorStateForPage(pg){
+        if(!imageEditor) return;
+        const state = persistedAnnotations[String(pg)];
+        if(state){ imageEditor.loadFromJSON(state,()=>imageEditor.renderAll()); }
+        else { imageEditor.clear(); imageEditor.renderAll(); }
+        pushHistory();
+    }
+    async function saveImageAnnotations(){ 
+        if(!imageEditor || !isEditMode) return; 
+        persistedAnnotations[String(pageNum)] = imageEditor.toJSON();
+        const fd=new FormData(); fd.append('action','save_annotations'); fd.append('file_id',fileId); fd.append('annotations_json',JSON.stringify(persistedAnnotations)); 
+        const d=await fetch('../api/api.php',{method:'POST',body:fd}).then(r=>r.json()); 
+        showToast(d.status==='success'?'Annotations saved':'Error saving', d.status==='success'?'success':'error'); 
+    }
     async function exportEditedImage(){ if(!imageEditor) return; const dataUrl=imageEditor.toDataURL({format:'png',multiplier:1}); const fd=new FormData(); fd.append('action','export_edited_image'); fd.append('file_id',fileId); fd.append('image_data',dataUrl); const d=await fetch('../api/api.php',{method:'POST',body:fd}).then(r=>r.json()); showToast(d.status==='success'?'Snapshot exported':'Export failed', d.status==='success'?'success':'error'); }
 
     function loadSingleImage(url) {
@@ -963,14 +979,16 @@ body.theme-light .text-muted, body.theme-light .text-gray { color: var(--text-gr
             viewer.naturalW = this.width;
             viewer.naturalH = this.height;
             fitToContainer();
-            initImageEditor();
-            const wrap = document.getElementById('image-editor-wrap');
-            wrap.style.display = 'block';
-            const c = document.getElementById('image-editor-canvas');
-            c.width = this.width; c.height = this.height;
-            imageEditor.setWidth(this.width); imageEditor.setHeight(this.height);
-            document.getElementById('editor-toolbar').classList.add('show');
-            loadImageAnnotations().catch(()=>{});
+            if (isEditMode) {
+                initImageEditor();
+                const wrap = document.getElementById('image-editor-wrap');
+                wrap.style.display = 'block';
+                const c = document.getElementById('image-editor-canvas');
+                c.width = this.width; c.height = this.height;
+                imageEditor.setWidth(this.width); imageEditor.setHeight(this.height);
+                const tb = document.getElementById('editor-toolbar'); if (tb) tb.classList.add('show');
+                loadEditorStateForPage(1);
+            }
             loadPageAnnotations(1);
         }
         img.onerror = function() {
@@ -1016,6 +1034,14 @@ body.theme-light .text-muted, body.theme-light .text-gray { color: var(--text-gr
             viewer.naturalW = viewport.width;
             viewer.naturalH = viewport.height;
             fitToContainer();
+            if (isEditMode && imageEditor) {
+                const wrap = document.getElementById('image-editor-wrap');
+                wrap.style.display = 'block';
+                const c = document.getElementById('image-editor-canvas');
+                c.width = viewport.width; c.height = viewport.height;
+                imageEditor.setWidth(viewport.width); imageEditor.setHeight(viewport.height);
+                loadEditorStateForPage(num);
+            }
             loadPageAnnotations(num);
         }
         updatePageListUI(num);

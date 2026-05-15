@@ -2,6 +2,7 @@
 // editor.php - Editor Profesional V9.6 (Fix: Removed Pan Tool & Added 2-Finger Nav)
 require_once __DIR__ . '/../core/auth/session.php';
 require_once __DIR__ . '/../core/db/connection.php';
+require_once __DIR__ . '/../core/file_paths.php';
 
 $userRole = $_SESSION['role'] ?? 'Viewer';
 
@@ -43,16 +44,8 @@ if ($fileExt === '' && !empty($file['file_type'])) {
         $fileExt = $ft;
     }
 }
-$filePath = str_replace('\\', '/', (string)($file['filepath'] ?? ''));
-if ($filePath !== '') {
-    // Limpiar cualquier prefijo api/ residual
-    $filePath = preg_replace('~^api/~', '', $filePath);
-
-    // Normalizar a ruta relativa para el JS
-    if (strpos($filePath, 'uploads/') === 0) {
-        $filePath = '../' . $filePath;
-    }
-}
+$filePath = normalize_file_path((string)($file['filepath'] ?? ''));
+$fileProxyUrl = get_file_url((int)$id);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -615,13 +608,8 @@ if ($filePath !== '') {
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
 
     // SERVER VARIABLES
-    let fileUrl = "<?= $filePath ?>";
-    if (fileUrl.startsWith('../')) {
-        const relativePath = fileUrl.substring(3);
-        const serverBase = window.SERVER_BASE_URL || 'https://androidelectro.brightronix.net/electroplan';
-        fileUrl = serverBase + '/' + relativePath;
-    }
-    console.log('PDF URL (adjusted):', fileUrl);
+    const fileUrl = "<?= htmlspecialchars($fileProxyUrl, ENT_QUOTES) ?>";
+    console.log('File URL (proxy):', fileUrl);
     // Guard for Capacitor triggerEvent in Editor
     if (typeof window.Capacitor === 'undefined' || typeof window.Capacitor.triggerEvent !== 'function') {
         window.Capacitor = window.Capacitor || {};
