@@ -798,49 +798,6 @@ body.theme-light .text-muted, body.theme-light .text-gray { color: var(--text-gr
         }
     }, { passive: false });
 
-    // IMAGE EDITOR (Fabric.js)
-    let imageEditor = null, editorActive = false, editorMode = 'select', historyStack = [], redoStack = [], historyLock = false;
-    const fileId = <?= (int)$id ?>;
-
-    function editorPushState(){
-        if(!imageEditor || historyLock) return;
-        historyStack.push(JSON.stringify(imageEditor.toJSON()));
-        if(historyStack.length > 60) historyStack.shift();
-        redoStack = [];
-    }
-    function editorUndo(){ if(!imageEditor || historyStack.length < 2) return; const curr = historyStack.pop(); redoStack.push(curr); historyLock=true; imageEditor.loadFromJSON(historyStack[historyStack.length-1], ()=>{ imageEditor.renderAll(); historyLock=false; }); }
-    function editorRedo(){ if(!imageEditor || !redoStack.length) return; const st = redoStack.pop(); historyStack.push(st); historyLock=true; imageEditor.loadFromJSON(st, ()=>{ imageEditor.renderAll(); historyLock=false; }); }
-
-    function initImageEditor(){
-        if(imageEditor || !viewer.naturalW || !viewer.naturalH || typeof fabric === 'undefined') return;
-        const canvasEl = document.getElementById('image-editor-canvas');
-        const wrap = document.getElementById('image-editor-wrap');
-        wrap.style.display = 'block';
-        canvasEl.width = viewer.naturalW; canvasEl.height = viewer.naturalH;
-        imageEditor = new fabric.Canvas('image-editor-canvas', { preserveObjectStacking:true, selection:true });
-        setEditorStyle();
-        imageEditor.on('object:added', editorPushState);
-        imageEditor.on('object:modified', editorPushState);
-        imageEditor.on('object:removed', editorPushState);
-        loadImageAnnotations();
-        editorPushState();
-    }
-
-    function toggleImageEditor(){
-        if(viewer.mode !== 'image') return;
-        editorActive = !editorActive;
-        const tb = document.getElementById('editor-toolbar');
-        const wrap = document.getElementById('image-editor-wrap');
-        if(editorActive){ initImageEditor(); tb.classList.add('show'); wrap.style.pointerEvents = 'auto'; }
-        else { tb.classList.remove('show'); wrap.style.pointerEvents = 'none'; if(imageEditor){ imageEditor.isDrawingMode = false; imageEditor.selection = false; }}
-    }
-    function setEditorStyle(){ if(!imageEditor) return; const c=document.getElementById('editor-color').value, w=parseInt(document.getElementById('editor-width').value||'3',10); imageEditor.freeDrawingBrush.color=c; imageEditor.freeDrawingBrush.width=w; }
-    function setEditorMode(mode){ if(!imageEditor) return; editorMode=mode; imageEditor.isDrawingMode = (mode==='draw'); imageEditor.selection = (mode==='select'); imageEditor.forEachObject(o=>o.selectable = (mode==='select')); if(mode==='text'){ const c=document.getElementById('editor-color').value; const t=new fabric.IText('Text',{left:80,top:80,fill:c,fontSize:28}); imageEditor.add(t); imageEditor.setActiveObject(t);} if(mode==='erase'){ const a=imageEditor.getActiveObject(); if(a) imageEditor.remove(a);} }
-    function addShape(type){ if(!imageEditor) return; const c=document.getElementById('editor-color').value,w=parseInt(document.getElementById('editor-width').value||'3',10); let s=null; if(type==='rect') s=new fabric.Rect({left:90,top:90,width:180,height:110,fill:'transparent',stroke:c,strokeWidth:w}); if(type==='circle') s=new fabric.Circle({left:90,top:90,radius:55,fill:'transparent',stroke:c,strokeWidth:w}); if(type==='line') s=new fabric.Line([70,70,250,70],{stroke:c,strokeWidth:w}); if(type==='arrow'){ const ln=new fabric.Line([70,70,240,70],{stroke:c,strokeWidth:w}); const tri=new fabric.Triangle({left:240,top:70,originX:'center',originY:'center',width:14+w*2,height:14+w*2,fill:c,angle:90}); s=new fabric.Group([ln,tri],{left:80,top:80}); } if(s) imageEditor.add(s); }
-    async function loadImageAnnotations(){ if(!imageEditor) return; try{ const fd=new FormData(); fd.append('action','load_annotations'); fd.append('file_id', fileId); const d=await fetch('../api/api.php',{method:'POST',body:fd}).then(r=>r.json()); if(d.status==='success'&&d.annotations_json){ historyLock=true; imageEditor.loadFromJSON(d.annotations_json,()=>{ imageEditor.renderAll(); historyLock=false; editorPushState();}); }}catch(e){console.warn(e);} }
-    async function saveImageAnnotations(){ if(!imageEditor) return; const fd=new FormData(); fd.append('action','save_annotations'); fd.append('file_id', fileId); fd.append('annotations_json', JSON.stringify(imageEditor.toJSON())); const d=await fetch('../api/api.php',{method:'POST',body:fd}).then(r=>r.json()); showToast(d.status==='success'?'Annotations saved':'Save failed', d.status==='success'?'success':'error'); }
-    async function exportEditedImage(){ if(!imageEditor) return; const png=imageEditor.toDataURL({format:'png',multiplier:1}); const fd=new FormData(); fd.append('action','export_edited_image'); fd.append('file_id', fileId); fd.append('image_data', png); const d=await fetch('../api/api.php',{method:'POST',body:fd}).then(r=>r.json()); if(d.status==='success') { showToast('Snapshot exported','success'); window.open(d.url,'_blank'); } else showToast(d.msg||'Export failed','error'); }
-
     // VARIABLES
     const fileUrlRaw = "<?= $filePath ?>";
     const fileUrl = encodeURI(fileUrlRaw);
@@ -914,7 +871,6 @@ body.theme-light .text-muted, body.theme-light .text-gray { color: var(--text-gr
     } else if (imageExts.includes(fileExt)) {
         setMode('image');
         document.getElementById('p-total').textContent = '1'; renderPageList(1);
-        const ebtn = document.getElementById('btn-open-editor'); if (ebtn) ebtn.style.display = 'inline-flex';
         loadSingleImage(fileUrl);
     } else if (['xlsx','xls','xlsm','csv'].includes(fileExt)) {
         document.querySelectorAll('.page-nav, #btn-pan, #zoom-controls').forEach(el => { if(el) el.style.display='none'; });

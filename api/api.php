@@ -67,6 +67,24 @@ function db_has_column(PDO $pdo, string $table, string $column): bool {
     return $cache[$key];
 }
 
+function ensure_image_annotations_table(PDO $pdo): void {
+    static $done = false;
+    if ($done) return;
+    $done = true;
+    $sql = "CREATE TABLE IF NOT EXISTS image_annotations (
+        id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        file_id BIGINT UNSIGNED NOT NULL,
+        user_id BIGINT UNSIGNED NOT NULL,
+        annotations_json LONGTEXT NOT NULL,
+        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (id),
+        UNIQUE KEY uniq_file (file_id),
+        KEY idx_user (user_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4";
+    try { $pdo->exec($sql); } catch (Throwable $e) {}
+}
+
 function ensure_report_attachments_table(PDO $pdo): void {
     static $done = false;
     if ($done) return;
