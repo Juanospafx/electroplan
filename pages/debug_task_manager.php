@@ -3,7 +3,7 @@
 // ARCHIVO COMPLETAMENTE DESHABILITADO (COMENTADO VIRTUALMENTE)
 // Se bloquea el acceso en la línea 1 para anular el archivo en producción.
 // ============================================================================
-//die("Acceso Denegado: Este panel de debug ha sido desactivado permanentemente.");
+die("Acceso Denegado: Este panel de debug ha sido desactivado permanentemente.");
 
 // pages/debug_task_manager.php
 
