@@ -156,9 +156,6 @@
     .stage-header:hover { background: rgba(255,255,255,0.05); border-color: var(--border-subtle); }
     .stage-content { display: block; overflow: hidden; transition: max-height 0.3s ease; }
 
-    /* FASE 29: Filtro Global */
-    .hide-completed .task-completed { display: none !important; }
-
     /* Botón RFI Flotante */
     .btn-insert-rfi {
         margin-left: 3rem;
@@ -298,6 +295,10 @@
     body.theme-light .border-secondary-subtle { border-color: #e2e8f0 !important; }
     body.theme-light .bg-card { background-color: #ffffff !important; }
     
+    /* Filter Bar */
+    .spm-filter-bar::-webkit-scrollbar { display: none; }
+    .spm-filter-bar { -ms-overflow-style: none; scrollbar-width: none; }
+    
 </style>
 
 
@@ -325,15 +326,6 @@
 
             <!-- Panel Derecho (Toolbar de Acciones) -->
             <div class="smart-pm-toolbar d-flex flex-column" style="gap: 8px; width: 100%; max-width: 200px; align-items: flex-end;">
-                <!-- Fila 1: Controles de vista -->
-                <div class="d-flex gap-2 w-100 justify-content-end">
-                    <button id="btnToggleCompleted" class="btn btn-sm btn-outline-secondary rounded-pill flex-grow-1" onclick="toggleCompletedTasks()" title="Hide Completed">
-                        <i class="fas fa-eye-slash"></i>
-                    </button>
-                    <button id="btnToggleCollapseAll" class="btn btn-sm btn-outline-secondary rounded-pill flex-grow-1" onclick="toggleCollapseAll()" title="Collapse All">
-                        <i class="fas fa-compress-arrows-alt"></i>
-                    </button>
-                </div>
                 <!-- Fila 2: Acción Primaria -->
                 <div class="d-flex gap-2 w-100">
                     <?php if(($_SESSION['role'] ?? '') === 'admin'): ?>
@@ -357,6 +349,26 @@
         </div>
     </div>
 
+    <!-- FASE 89: SMART FILTER BAR (Sticky) -->
+    <div class="spm-filter-bar d-flex justify-content-center align-items-center gap-2 px-3 py-2 border-bottom" style="background: var(--bg-card); border-color: var(--border-subtle); overflow-x: auto; flex-shrink: 0; z-index: 1040; box-shadow: 0 4px 6px rgba(0,0,0,0.02);">
+        <button id="btnToggleCompleted" class="btn btn-sm btn-success rounded-pill flex-shrink-0 text-white" onclick="toggleCompletedTasks()" title="Toggle Completed Tasks">
+            <i class="fas fa-eye"></i>
+        </button>
+        <button id="btnToggleCollapseAll" class="btn btn-sm btn-outline-secondary rounded-pill flex-shrink-0" onclick="toggleCollapseAll()" title="Collapse All">
+            <i class="fas fa-compress-arrows-alt"></i>
+        </button>
+        <div class="vr bg-secondary mx-1 opacity-25"></div>
+        <button class="btn btn-sm btn-primary text-white rounded-pill flex-shrink-0 spm-filter-btn" data-filter="all" onclick="setSpmFilter('all')">All</button>
+        <button class="btn btn-sm btn-outline-secondary rounded-pill flex-shrink-0 spm-filter-btn" data-filter="active" onclick="setSpmFilter('active')"><span class="status-dot bg-primary"></span>Active</button>
+        <button class="btn btn-sm btn-outline-secondary rounded-pill flex-shrink-0 spm-filter-btn" data-filter="pending" onclick="setSpmFilter('pending')"><span class="status-dot bg-secondary"></span>Pending</button>
+        <button class="btn btn-sm btn-outline-secondary rounded-pill flex-shrink-0 spm-filter-btn" data-filter="hold" onclick="setSpmFilter('hold')"><span class="status-dot bg-warning"></span>Hold</button>
+        <button class="btn btn-sm btn-outline-secondary rounded-pill flex-shrink-0 spm-filter-btn" data-filter="overdue" onclick="setSpmFilter('overdue')"><span class="status-dot bg-danger"></span>Overdue</button>
+        <button class="btn btn-sm btn-outline-secondary rounded-pill flex-shrink-0 spm-filter-btn" data-filter="completed" onclick="setSpmFilter('completed')"><span class="status-dot bg-success"></span>Completed</button>
+        <div class="vr bg-secondary mx-1 opacity-25"></div>
+        <button class="btn btn-sm btn-outline-secondary rounded-pill flex-shrink-0 spm-filter-btn" data-filter="subtask" onclick="setSpmFilter('subtask')"><i class="fas fa-square text-primary me-1" style="font-size:0.6rem"></i>Sub-tasks</button>
+        <button class="btn btn-sm btn-outline-secondary rounded-pill flex-shrink-0 spm-filter-btn" data-filter="rfi" onclick="setSpmFilter('rfi')"><i class="fas fa-exclamation-triangle text-warning me-1" style="font-size:0.6rem"></i>RFIs</button>
+    </div>
+
     <div class="spm-body" id="spmTaskContainer">
         <div class="text-center text-gray py-5 mt-5">
             <i class="fas fa-spinner fa-spin fa-2x"></i>
@@ -371,13 +383,17 @@
             <h6 class="fw-bold text-white mb-0"><i class="fas fa-clipboard-list text-primary me-2"></i> Audit & Notes</h6>
         </div>
         
-        <!-- FASE 74: Filtros de Categoría para Auditoría -->
-        <div class="mb-3 flex-shrink-0 d-flex gap-2 overflow-auto" style="padding-bottom: 5px; scrollbar-width: none;">
-            <button class="btn btn-sm btn-primary rounded-pill px-3 filter-note-btn text-nowrap" data-filter="all" onclick="filterProjectNotes('all', this)">All</button>
-            <button class="btn btn-sm btn-outline-secondary rounded-pill px-3 filter-note-btn text-nowrap" data-filter="notes" onclick="filterProjectNotes('notes', this)">Manual Notes</button>
-            <button class="btn btn-sm btn-outline-secondary rounded-pill px-3 filter-note-btn text-nowrap" data-filter="rfis" onclick="filterProjectNotes('rfis', this)">RFIs</button>
-            <button class="btn btn-sm btn-outline-secondary rounded-pill px-3 filter-note-btn text-nowrap" data-filter="time" onclick="filterProjectNotes('time', this)">Time & Delays</button>
-            <button class="btn btn-sm btn-outline-secondary rounded-pill px-3 filter-note-btn text-nowrap" data-filter="status" onclick="filterProjectNotes('status', this)">Status</button>
+        <!-- FASE 74 & 102: Filtros de Categoría Estilo Task Manager -->
+        <div class="mb-3 flex-shrink-0 d-flex justify-content-center align-items-center gap-2 px-1 py-2 border-bottom border-secondary" style="overflow-x: auto; scrollbar-width: none;">
+            <button class="btn btn-sm btn-primary text-white fw-bold rounded-pill flex-shrink-0 filter-note-btn" data-filter="all" onclick="filterProjectNotes('all', this)">All</button>
+            <div class="vr bg-secondary mx-1 opacity-25"></div>
+            <button class="btn btn-sm btn-outline-secondary rounded-pill flex-shrink-0 filter-note-btn" data-filter="notes" onclick="filterProjectNotes('notes', this)"><i class="fas fa-sticky-note me-1" style="font-size:0.6rem"></i>Notes</button>
+            <button class="btn btn-sm btn-outline-secondary rounded-pill flex-shrink-0 filter-note-btn" data-filter="active" onclick="filterProjectNotes('active', this)"><i class="fas fa-circle me-1" style="font-size:0.6rem"></i>Active</button>
+            <button class="btn btn-sm btn-outline-secondary rounded-pill flex-shrink-0 filter-note-btn" data-filter="hold" onclick="filterProjectNotes('hold', this)"><i class="fas fa-circle me-1" style="font-size:0.6rem"></i>Hold</button>
+            <button class="btn btn-sm btn-outline-secondary rounded-pill flex-shrink-0 filter-note-btn" data-filter="overdue" onclick="filterProjectNotes('overdue', this)"><i class="fas fa-circle me-1" style="font-size:0.6rem"></i>Overdue</button>
+            <button class="btn btn-sm btn-outline-secondary rounded-pill flex-shrink-0 filter-note-btn" data-filter="completed" onclick="filterProjectNotes('completed', this)"><i class="fas fa-circle me-1" style="font-size:0.6rem"></i>Completed</button>
+            <div class="vr bg-secondary mx-1 opacity-25"></div>
+            <button class="btn btn-sm btn-outline-secondary rounded-pill flex-shrink-0 filter-note-btn" data-filter="rfi" onclick="filterProjectNotes('rfi', this)"><i class="fas fa-exclamation-triangle me-1" style="font-size:0.6rem"></i>RFIs</button>
         </div>
 
         <div id="spmNotesContainer" class="flex-grow-1 overflow-auto mb-3 pe-2">
@@ -421,9 +437,43 @@
                         <small class="text-muted d-block mt-1"><i class="fas fa-shield-alt text-success me-1"></i>Only users linked to this project's directory are available.</small>
                     </div>
                 </div>
-                <div class="modal-footer border-secondary">
+                <div class="modal-footer border-secondary d-flex justify-content-between">
+                    <button type="button" class="btn btn-outline-danger rounded-pill px-3" onclick="openDeleteTaskModal()" title="Delete task">
+                        <i class="fas fa-trash-alt"></i>
+                    </button>
+                    <div>
+                        <button type="button" class="btn btn-outline-secondary rounded-pill px-4" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary rounded-pill px-4 fw-bold"><i class="fas fa-save me-2"></i>Save</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para Confirmar Eliminación -->
+<div class="modal fade" id="deleteTaskModal" tabindex="-1" aria-hidden="true" style="z-index: 1070;">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content p-3 border-danger" style="background: var(--bg-card); box-shadow: 0 0 20px rgba(239,68,68,0.2);">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title fw-bold text-danger"><i class="fas fa-exclamation-triangle me-2"></i>Delete Task</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="deleteTaskForm">
+                <div class="modal-body">
+                    <p class="text-white mb-2">Are you sure you want to permanently delete this task?</p>
+                    
+                    <div class="mb-3 form-check form-switch mt-3">
+                        <input class="form-check-input bg-dark border-danger" type="checkbox" id="del_subtasks" name="delete_subtasks" style="cursor: pointer;">
+                        <label class="form-check-label text-white small" for="del_subtasks" style="cursor: pointer;">
+                            Delete associated sub-tasks and RFIs as well
+                        </label>
+                    </div>
+                    <p class="text-gray small mb-0"><i class="fas fa-info-circle me-1"></i>If unchecked, any existing sub-tasks will be kept and converted into main tasks.</p>
+                </div>
+                <div class="modal-footer border-secondary mt-2">
                     <button type="button" class="btn btn-outline-secondary rounded-pill px-4" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary rounded-pill px-4 fw-bold"><i class="fas fa-save me-2"></i>Save Changes</button>
+                    <button type="submit" class="btn btn-danger rounded-pill px-4 fw-bold"><i class="fas fa-trash-alt me-2"></i> Delete Task</button>
                 </div>
             </form>
         </div>
@@ -682,8 +732,8 @@
                         </select>
                     </div>
                     <div class="mb-3">
-                        <label class="text-gray small mb-2">Select File <span class="text-danger">*</span></label>
-                        <input type="file" id="evidence_file" name="file" class="form-control bg-dark border-secondary text-white" required>
+                        <label class="text-gray small mb-2" id="evidence_file_label">Select Files (Max 20) <span class="text-danger">*</span></label>
+                        <input type="file" id="evidence_file" name="files[]" class="form-control bg-dark border-secondary text-white" required multiple>
                     </div>
                 </div>
                 <div class="modal-footer border-secondary">
@@ -879,6 +929,8 @@
     // --- FASE 66: LÓGICA DEL PANEL DE AUDITORÍA (NOTAS) ---
     function openProjectNotesPanel() {
         document.getElementById('spmTaskContainer').style.display = 'none';
+        const filterBar = document.querySelector('.spm-filter-bar');
+        if (filterBar) filterBar.classList.add('d-none');
         const panel = document.getElementById('spmNotesPanel');
         panel.classList.remove('d-none');
         panel.style.display = 'flex';
@@ -890,6 +942,8 @@
         panel.classList.add('d-none');
         panel.style.display = 'none';
         document.getElementById('spmTaskContainer').style.display = 'block';
+        const filterBar = document.querySelector('.spm-filter-bar');
+        if (filterBar) filterBar.classList.remove('d-none');
     }
 
     let allProjectNotes = []; // FASE 74: Almacenamiento local para filtros rápidos
@@ -906,13 +960,11 @@
                 
                 // Resetear estado visual de los botones de filtro
                 document.querySelectorAll('.filter-note-btn').forEach(b => {
-                    b.classList.remove('btn-primary');
-                    b.classList.add('btn-outline-secondary');
+                    b.className = 'btn btn-sm btn-outline-secondary rounded-pill flex-shrink-0 filter-note-btn';
                 });
                 const allBtn = document.querySelector('.filter-note-btn[data-filter="all"]');
                 if (allBtn) {
-                    allBtn.classList.add('btn-primary');
-                    allBtn.classList.remove('btn-outline-secondary');
+                    allBtn.className = 'btn btn-sm btn-primary text-white fw-bold rounded-pill flex-shrink-0 filter-note-btn';
                 }
             } else { container.innerHTML = `<div class="text-danger small">${d.message}</div>`; }
         }).catch(e => { container.innerHTML = `<div class="text-danger small">Connection error.</div>`; });
@@ -920,12 +972,10 @@
     
     function filterProjectNotes(category, btnElement) {
         document.querySelectorAll('.filter-note-btn').forEach(b => {
-            b.classList.remove('btn-primary');
-            b.classList.add('btn-outline-secondary');
+            b.className = 'btn btn-sm btn-outline-secondary rounded-pill flex-shrink-0 filter-note-btn';
         });
         if (btnElement) {
-            btnElement.classList.add('btn-primary');
-            btnElement.classList.remove('btn-outline-secondary');
+            btnElement.className = 'btn btn-sm btn-primary text-white fw-bold rounded-pill flex-shrink-0 filter-note-btn';
         }
         renderProjectNotes(category);
     }
@@ -936,12 +986,16 @@
         
         if (category === 'notes') {
             filteredNotes = allProjectNotes.filter(log => log.action_type === 'Note');
-        } else if (category === 'rfis') {
+        } else if (category === 'active') {
+            filteredNotes = allProjectNotes.filter(log => ['Started', 'Resumed'].includes(log.action_type));
+        } else if (category === 'hold') {
+            filteredNotes = allProjectNotes.filter(log => ['Hold', 'Paused'].includes(log.action_type));
+        } else if (category === 'overdue') {
+            filteredNotes = allProjectNotes.filter(log => ['Overdue', 'Extend', 'Extended'].includes(log.action_type));
+        } else if (category === 'completed') {
+            filteredNotes = allProjectNotes.filter(log => ['Completed', 'Completed_Late', 'Bypassed'].includes(log.action_type));
+        } else if (category === 'rfi') {
             filteredNotes = allProjectNotes.filter(log => log.action_type === 'RFI_Justification');
-        } else if (category === 'time') {
-            filteredNotes = allProjectNotes.filter(log => ['Hold', 'Overdue', 'Extend'].includes(log.action_type));
-        } else if (category === 'status') {
-            filteredNotes = allProjectNotes.filter(log => ['Completed', 'Completed_Late', 'Bypassed', 'Reset'].includes(log.action_type));
         }
 
         if (filteredNotes.length === 0) {
@@ -1026,9 +1080,18 @@
                     <select id="spmTemplateSelect" class="form-select bg-dark border-secondary text-white mb-3">
                         <option value="">Loading templates...</option>
                     </select>
-                    <button class="btn-main w-100 fw-bold" onclick="applySmartPMTemplate()">
+                    <button class="btn-main w-100 fw-bold mb-3" onclick="applySmartPMTemplate()">
                         <i class="fas fa-magic me-2"></i> Apply Template
                     </button>
+                    
+                    ${spmIsAdmin ? `
+                    <div class="text-center mb-3">
+                        <span class="text-muted small">----- OR -----</span>
+                    </div>
+                    <button class="btn btn-outline-secondary w-100 fw-bold" onclick="openNewStageModal()">
+                        <i class="fas fa-pen me-2"></i> Start from scratch
+                    </button>
+                    ` : ''}
                 </div>
             </div>
         `;
@@ -1064,15 +1127,35 @@
     }
 
     // --- FLUJO: ADJUNTAR ARCHIVOS A TAREAS (FASE 27) ---
-    function triggerTaskAttachment(taskId) {
-        document.getElementById('evidence_task_id').value = taskId;
+    function triggerTaskAttachment(taskId, existingCount = 0) {
+        const evidenceTaskIdEl = document.getElementById('evidence_task_id');
+        evidenceTaskIdEl.value = taskId;
+        evidenceTaskIdEl.dataset.existingCount = existingCount;
+        
         document.getElementById('evidence_file').value = '';
         
+        const remaining = 20 - existingCount;
+        const label = document.getElementById('evidence_file_label');
+        const fileInput = document.getElementById('evidence_file');
+        const submitBtn = document.querySelector('#taskEvidenceForm button[type="submit"]');
+
+        if (label) {
+            if (remaining <= 0) {
+                label.innerHTML = `Maximum limit reached (20 files). <span class="text-danger">*</span>`;
+                fileInput.disabled = true;
+                if(submitBtn) submitBtn.disabled = true;
+            } else {
+                label.innerHTML = `Select Files (Max ${remaining} more) <span class="text-danger">*</span>`;
+                fileInput.disabled = false;
+                if(submitBtn) submitBtn.disabled = false;
+            }
+        }
+
         const select = document.getElementById('evidence_folder_id');
         select.innerHTML = '<option value="">Loading folders...</option>';
         select.disabled = true;
 
-        const modal = new bootstrap.Modal(document.getElementById('taskEvidenceModal'));
+        const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('taskEvidenceModal'));
         modal.show();
 
         // Obtener las carpetas del proyecto consultando a la API Global
@@ -1101,6 +1184,16 @@
         if (evidenceForm) {
             evidenceForm.addEventListener('submit', async function(e) {
                 e.preventDefault();
+                
+                const fileInput = document.getElementById('evidence_file');
+                const existingCount = parseInt(document.getElementById('evidence_task_id').dataset.existingCount || 0);
+                const remaining = 20 - existingCount;
+                
+                if (fileInput.files.length > remaining) {
+                    appAlert(`You can only upload up to ${remaining} more file(s). (Limit is 20 per task)`, 'Limit Exceeded', 'warning');
+                    return;
+                }
+
                 const btn = this.querySelector('button[type="submit"]');
                 const origText = btn.innerHTML;
                 btn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Uploading...';
@@ -1174,7 +1267,7 @@
         const modalBodyContent = document.getElementById('templateAssignmentList');
         modalBodyContent.innerHTML = `<div class="text-center text-gray py-5"><i class="fas fa-spinner fa-spin fa-2x"></i><p class="mt-3">Loading template details...</p></div>`;
         
-        const modal = new bootstrap.Modal(document.getElementById('assignTemplateUsersModal'));
+        const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('assignTemplateUsersModal'));
         modal.show();
 
         const fd = new FormData();
@@ -1303,8 +1396,35 @@
 
                 // FASE 41 Alternativa: Botón a la Carpeta de Evidencias (usando folder_id)
                 let evidenceBadge = '';
-                if (task.folder_id) {
-                    evidenceBadge = `<div class="mt-2"><a href="../pages/project_dashboard.php?id=${pId}&view=files&folder_id=${task.folder_id}" target="_blank" class="badge bg-info text-dark text-decoration-none px-2 py-1" style="font-size: 0.75rem;" title="Open Evidence Folder">📁 View Task Files</a></div>`;
+                let totalAttachedFiles = 0;
+                if (task.attached_folders && task.attached_folders.length > 0) {
+                    evidenceBadge += `<div class="mt-2 d-flex flex-column gap-2">`;
+                    let filesRendered = 0;
+                    task.attached_folders.forEach(folder => {
+                        totalAttachedFiles += folder.files.length;
+                        if (filesRendered >= 20) return;
+                        evidenceBadge += `
+                            <div class="border border-secondary rounded p-2" style="background: rgba(255,255,255,0.02);">
+                                <a href="../pages/project_dashboard.php?id=${pId}&view=files&folder_id=${folder.folder_id}" class="badge bg-info text-dark text-decoration-none px-2 py-1 mb-1 d-inline-block" style="font-size: 0.75rem;" title="Open Folder">📁 ${folder.folder_name}</a>
+                                <div class="d-flex flex-column gap-1 mt-1">`;
+                        folder.files.forEach(f => {
+                            if (filesRendered < 20) {
+                                let fileUrl = `../${f.filepath}`;
+                                const ext = (f.filename.split('.').pop() || '').toLowerCase();
+                                const isPreviewable = ['pdf', 'jpg', 'jpeg', 'png', 'webp', 'gif', 'xlsx', 'xls', 'xlsm', 'csv'].includes(ext);
+                                const isExcel = ['xlsx', 'xls', 'xlsm', 'csv'].includes(ext);
+                                if (isPreviewable && f.id) {
+                                    fileUrl = `../pages/preview.php?id=${f.id}${isExcel ? '&mode=spreadsheet' : ''}`;
+                                }
+                                evidenceBadge += `<a href="${fileUrl}" class="text-info small text-decoration-none text-truncate" title="Open ${f.filename}"><i class="fas fa-file-alt me-1"></i> ${f.filename}</a>`;
+                                filesRendered++;
+                            }
+                        });
+                        evidenceBadge += `</div></div>`;
+                    });
+                    evidenceBadge += `</div>`;
+                } else if (task.folder_id) {
+                    evidenceBadge = `<div class="mt-2"><a href="../pages/project_dashboard.php?id=${pId}&view=files&folder_id=${task.folder_id}" class="badge bg-info text-dark text-decoration-none px-2 py-1" style="font-size: 0.75rem;" title="Open Evidence Folder">📁 View Task Folder</a></div>`;
                 }
 
                 // Mapeo CSS según Estado
@@ -1350,7 +1470,7 @@
 
                     // FASE 25: Botón de adjuntar archivo si la tarea tiene una carpeta asociada
                     if (!['Completed', 'Bypassed', 'Overdue'].includes(task.status)) {
-                        buttonsHtml += `<button class="btn btn-sm btn-outline-secondary rounded-pill px-3 ms-1" onclick="triggerTaskAttachment(${task.id})" title="Attach File"><i class="fas fa-paperclip"></i></button>`;
+                        buttonsHtml += `<button class="btn btn-sm btn-outline-secondary rounded-pill px-3 ms-1" onclick="triggerTaskAttachment(${task.id}, ${totalAttachedFiles})" title="Attach File"><i class="fas fa-paperclip"></i></button>`;
                     }
 
                     innerContent = `
@@ -1394,8 +1514,35 @@
 
                     // FASE 41 Alternativa: Botón a la Carpeta de Evidencias (usando folder_id)
                     let subEvidenceBadge = '';
-                    if (sub.folder_id) {
-                        subEvidenceBadge = `<div class="mt-2"><a href="../pages/project_dashboard.php?id=${pId}&view=files&folder_id=${sub.folder_id}" target="_blank" class="badge bg-info text-dark text-decoration-none px-2 py-1" style="font-size: 0.75rem;" title="Open Evidence Folder">📁 View Task Files</a></div>`;
+                    let subTotalAttachedFiles = 0;
+                    if (sub.attached_folders && sub.attached_folders.length > 0) {
+                        subEvidenceBadge += `<div class="mt-2 d-flex flex-column gap-2">`;
+                        let filesRendered = 0;
+                        sub.attached_folders.forEach(folder => {
+                            subTotalAttachedFiles += folder.files.length;
+                            if (filesRendered >= 20) return;
+                            subEvidenceBadge += `
+                                <div class="border border-secondary rounded p-2" style="background: rgba(255,255,255,0.02);">
+                                    <a href="../pages/project_dashboard.php?id=${pId}&view=files&folder_id=${folder.folder_id}" class="badge bg-info text-dark text-decoration-none px-2 py-1 mb-1 d-inline-block" style="font-size: 0.75rem;" title="Open Folder">📁 ${folder.folder_name}</a>
+                                    <div class="d-flex flex-column gap-1 mt-1">`;
+                            folder.files.forEach(f => {
+                                if (filesRendered < 20) {
+                                    let fileUrl = `../${f.filepath}`;
+                                    const ext = (f.filename.split('.').pop() || '').toLowerCase();
+                                    const isPreviewable = ['pdf', 'jpg', 'jpeg', 'png', 'webp', 'gif', 'xlsx', 'xls', 'xlsm', 'csv'].includes(ext);
+                                    const isExcel = ['xlsx', 'xls', 'xlsm', 'csv'].includes(ext);
+                                    if (isPreviewable && f.id) {
+                                        fileUrl = `../pages/preview.php?id=${f.id}${isExcel ? '&mode=spreadsheet' : ''}`;
+                                    }
+                                    subEvidenceBadge += `<a href="${fileUrl}" class="text-info small text-decoration-none text-truncate" title="Open ${f.filename}"><i class="fas fa-file-alt me-1"></i> ${f.filename}</a>`;
+                                    filesRendered++;
+                                }
+                            });
+                            subEvidenceBadge += `</div></div>`;
+                        });
+                        subEvidenceBadge += `</div>`;
+                    } else if (sub.folder_id) {
+                        subEvidenceBadge = `<div class="mt-2"><a href="../pages/project_dashboard.php?id=${pId}&view=files&folder_id=${sub.folder_id}" class="badge bg-info text-dark text-decoration-none px-2 py-1" style="font-size: 0.75rem;" title="Open Evidence Folder">📁 View Task Folder</a></div>`;
                     }
 
                     if (['Completed', 'Completed_Late', 'Bypassed'].includes(sub.status)) {
@@ -1429,7 +1576,7 @@
                         }
 
                         if (!['Completed', 'Bypassed', 'Overdue'].includes(sub.status)) {
-                            subBtns += `<button class="btn btn-sm btn-outline-secondary rounded-pill px-3 ms-1" onclick="triggerTaskAttachment(${sub.id})" title="Attach File"><i class="fas fa-paperclip"></i></button>`;
+                            subBtns += `<button class="btn btn-sm btn-outline-secondary rounded-pill px-3 ms-1" onclick="triggerTaskAttachment(${sub.id}, ${subTotalAttachedFiles})" title="Attach File"><i class="fas fa-paperclip"></i></button>`;
                         }
 
                         subInner = `<div class="task-body text-gray small mb-3 mt-2">${subAssignedUserDisplay}${subTimer} ${getWorkedTimeHtml(sub)} ${subEvidenceBadge}</div><div class="d-flex gap-2">${subBtns}</div>`;
@@ -1444,7 +1591,6 @@
                             <div class="d-flex gap-2">
                                 <button class="btn btn-sm btn-primary rounded-pill px-3 fw-bold" onclick="updateTaskStatus(${sub.id}, 'Active')"><i class="fas fa-play me-1"></i> Start Task</button>
                                 <button class="btn btn-sm btn-outline-secondary rounded-pill px-3 ms-1" onclick="promptJustification(${sub.id}, 'Bypassed')"><i class="fas fa-forward me-1"></i> Bypass</button>
-                                ${ !['Completed', 'Bypassed', 'Overdue'].includes(sub.status) ? `<button class="btn btn-sm btn-outline-secondary rounded-pill px-3 ms-1" onclick="triggerTaskAttachment(${sub.id})" title="Attach File"><i class="fas fa-paperclip"></i></button>` : '' }
                             </div>
                         `;
                     }
@@ -1463,7 +1609,7 @@
                     const subShapeClass = isRfi ? 'shape-rfi' : 'shape-subtask';
 
                     subTasksHtml += `
-                        <div class="task-card subtask-card ${subClass} ${subShapeClass} mt-2 mb-2" data-task-id="${sub.id}">
+                        <div class="task-card subtask-card ${subClass} ${subShapeClass} mt-2 mb-2" data-task-id="${sub.id}" data-status="${sub.status}">
                             <div class="d-flex justify-content-between align-items-start">
                                 <h6 class="mb-0 fw-bold ${subClass === 'task-pending' ? 'text-gray' : 'text-white'}" style="font-size: 0.9rem;">${subIcon} ${sub.task_order} - ${sub.name} ${typeBadge} ${subEditBtn}</h6>
                                 <div class="text-end ms-3 flex-shrink-0"><span class="badge ${subBadge} mb-1" style="font-size: 0.65rem;">${sub.status.replace('_', ' ')}</span></div>
@@ -1475,7 +1621,7 @@
 
                 // Construcción de la Tarjeta HTML
                 html += `
-                    <div class="task-card ${taskClass} shape-main" data-task-id="${task.id}">
+                    <div class="task-card ${taskClass} shape-main" data-task-id="${task.id}" data-status="${task.status}">
                         <div class="d-flex justify-content-between align-items-start">
                             <h6 class="mb-0 fw-bold ${taskClass === 'task-pending' ? 'text-gray' : 'text-white'}" style="line-height: 1.4;">
                                 ${statusIcon} ${task.task_order} - ${task.name} ${editBtn}
@@ -1493,7 +1639,7 @@
                 if (!['Completed', 'Completed_Late', 'Bypassed'].includes(task.status) && spmIsAdmin) {
                     html += `
                         <div class="task-action-buttons">
-                            <button class="btn btn-sm btn-outline-primary rounded-pill px-3 fw-bold bg-dark" title="Add Sub-Task or RFI" onclick="openTaskCreationModal(${task.id})"><i class="fas fa-plus me-1"></i> Add Task</button>
+                            <button class="btn btn-sm btn-outline-primary rounded-pill px-3 fw-bold bg-dark" title="Add Sub-Task or RFI" onclick="openTaskCreationModal(${task.id})"><i class="fas fa-plus me-1"></i> Add Sub-Task</button>
                         </div>
                     `;
                 }
@@ -1525,6 +1671,7 @@
 
         container.innerHTML = html;
         startSmartPMCountdown(); // Activar el cronómetro una vez que la vista se renderiza
+        applySpmFilters(); // Reaplicar el filtro activo después del renderizado
     }
 
     // --- LÓGICA DE EDICIÓN (TAILORING) ---
@@ -1554,7 +1701,7 @@
         select.innerHTML = '<option value="">Loading users...</option>';
         select.disabled = true;
         
-        const modal = new bootstrap.Modal(document.getElementById('editTaskModal'));
+        const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('editTaskModal'));
         modal.show();
 
         loadProjectUsers().then(users => {
@@ -1596,6 +1743,15 @@
             });
         }
     });
+
+    function openDeleteTaskModal() {
+        const taskId = document.getElementById('edit_task_id').value;
+        if (!taskId) return;
+        
+        document.getElementById('del_subtasks').checked = false;
+        const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('deleteTaskModal'));
+        modal.show();
+    }
 
     // --- FASE 71: MODAL UNIFICADO DE CREACIÓN CON TABS ---
     function switchTaskCreationTab(tab) {
@@ -1662,7 +1818,7 @@
         selectTemplate.innerHTML = '<option value="">Loading templates...</option>';
         selectTemplate.disabled = true;
         
-        const modal = new bootstrap.Modal(document.getElementById('taskCreationModal'));
+        const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('taskCreationModal'));
         modal.show();
 
         loadProjectUsers().then(users => {
@@ -1783,12 +1939,42 @@
                 }
             });
         }
+        
+        const delForm = document.getElementById('deleteTaskForm');
+        if (delForm) {
+            delForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                const taskId = document.getElementById('edit_task_id').value;
+                if (!taskId) return;
+
+                const btn = this.querySelector('button[type="submit"]');
+                const origText = btn.innerHTML;
+                btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+                btn.disabled = true;
+
+                const fd = new FormData();
+                fd.append('action', 'delete_task');
+                fd.append('project_id', pId);
+                fd.append('task_id', taskId);
+                fd.append('delete_subtasks', document.getElementById('del_subtasks').checked ? 1 : 0);
+
+                smartPmApiCall(fd)
+                    .then(d => {
+                        if (d.status === 'success') {
+                            bootstrap.Modal.getInstance(document.getElementById('deleteTaskModal')).hide();
+                            bootstrap.Modal.getInstance(document.getElementById('editTaskModal')).hide();
+                            loadSmartPMTasks(); 
+                        } else { appAlert('Error: ' + d.message, 'Error', 'error'); }
+                    }).catch(e => { appAlert('Connection error.', 'Error', 'error'); })
+                    .finally(() => { btn.innerHTML = origText; btn.disabled = false; });
+            });
+        }
     });
 
     // --- FASE 79: CREAR NUEVA ETAPA ---
     function openNewStageModal() {
         document.getElementById('ns_name').value = '';
-        const modal = new bootstrap.Modal(document.getElementById('newStageModal'));
+        const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('newStageModal'));
         modal.show();
     }
 
@@ -1846,29 +2032,23 @@
     let spmIsCompletedHidden = false;
     function toggleCompletedTasks() {
         spmIsCompletedHidden = !spmIsCompletedHidden;
-        const container = document.getElementById('spmTaskContainer');
         const btn = document.getElementById('btnToggleCompleted');
         if (spmIsCompletedHidden) {
-            container.classList.add('hide-completed');
-            btn.innerHTML = '<i class="fas fa-eye"></i>';
-            btn.classList.replace('btn-outline-secondary', 'btn-secondary');
-            btn.classList.add('text-white');
-        } else {
-            container.classList.remove('hide-completed');
             btn.innerHTML = '<i class="fas fa-eye-slash"></i>';
-            btn.classList.replace('btn-secondary', 'btn-outline-secondary');
-            btn.classList.remove('text-white');
+            btn.className = 'btn btn-sm btn-secondary rounded-pill flex-shrink-0 text-white';
+        } else {
+            btn.innerHTML = '<i class="fas fa-eye"></i>';
+            btn.className = 'btn btn-sm btn-success rounded-pill flex-shrink-0 text-white';
         }
+        applySpmFilters();
     }
 
     let spmIsAllCollapsed = false;
     function toggleCollapseAll() {
         spmIsAllCollapsed = !spmIsAllCollapsed;
-        const contents = document.querySelectorAll('.stage-content');
         const headers = document.querySelectorAll('.stage-header .transition-icon');
         const btn = document.getElementById('btnToggleCollapseAll');
         
-        contents.forEach(c => c.style.display = spmIsAllCollapsed ? 'none' : 'block');
         headers.forEach(i => {
             if (spmIsAllCollapsed) {
                 i.classList.replace('fa-chevron-down', 'fa-chevron-right');
@@ -1885,6 +2065,100 @@
             btn.innerHTML = '<i class="fas fa-compress-arrows-alt"></i>';
             btn.classList.replace('btn-secondary', 'btn-outline-secondary');
             btn.classList.remove('text-white');
+        }
+        applySpmFilters();
+    }
+
+    // --- FASE 89: LÓGICA DE FILTRADO INTELIGENTE ---
+    let currentSpmFilter = 'all';
+    function setSpmFilter(filterName) {
+        currentSpmFilter = filterName;
+        document.querySelectorAll('.spm-filter-btn').forEach(btn => {
+            if (btn.dataset.filter === filterName) {
+                btn.classList.add('btn-primary', 'text-white');
+                btn.classList.remove('btn-outline-secondary');
+            } else {
+                btn.classList.remove('btn-primary', 'text-white');
+                btn.classList.add('btn-outline-secondary');
+            }
+        });
+        applySpmFilters();
+    }
+
+    function applySpmFilters() {
+        const stages = document.querySelectorAll('.stage-content');
+        let totalVisibleTasks = 0;
+
+        stages.forEach(stage => {
+            let visibleCount = 0;
+            const tasks = stage.querySelectorAll('.task-card');
+            tasks.forEach(task => {
+                let isVisible = true;
+                const status = task.getAttribute('data-status');
+                
+                const isMain = task.classList.contains('shape-main');
+                const isSubtask = task.classList.contains('shape-subtask');
+                const isRfi = task.classList.contains('shape-rfi');
+                
+                const isCompleted = ['Completed', 'Completed_Late', 'Bypassed'].includes(status);
+                const isActive = status === 'Active';
+                const isHold = ['On_Hold', 'System_Pause'].includes(status);
+                const isOverdue = status === 'Overdue';
+                const isPending = status === 'Pending';
+
+                if (spmIsCompletedHidden && isCompleted) {
+                    isVisible = false;
+                }
+
+                if (isVisible && currentSpmFilter !== 'all') {
+                    if (currentSpmFilter === 'active' && !isActive) isVisible = false;
+                    if (currentSpmFilter === 'hold' && !isHold) isVisible = false;
+                    if (currentSpmFilter === 'overdue' && !isOverdue) isVisible = false;
+                    if (currentSpmFilter === 'completed' && !isCompleted) isVisible = false;
+                    if (currentSpmFilter === 'pending' && !isPending) isVisible = false;
+                    if (currentSpmFilter === 'rfi' && !isRfi) isVisible = false;
+                    if (currentSpmFilter === 'subtask' && !isSubtask) isVisible = false;
+                }
+
+                task.style.display = isVisible ? 'block' : 'none';
+                if (isVisible) visibleCount++;
+            });
+
+            const actionBtns = stage.querySelectorAll('.task-action-buttons');
+            actionBtns.forEach(btn => {
+                btn.style.display = (currentSpmFilter === 'all' && !spmIsCompletedHidden) ? 'flex' : 'none';
+            });
+            
+            const stageAddBtn = stage.querySelector('.btn-outline-secondary[onclick^="openTaskCreationModal"]');
+            if (stageAddBtn && stageAddBtn.parentElement) {
+                stageAddBtn.parentElement.style.display = (currentSpmFilter === 'all' && !spmIsCompletedHidden) ? 'flex' : 'none';
+            }
+
+            const header = stage.previousElementSibling;
+            if (header && header.classList.contains('stage-header')) {
+                if (visibleCount === 0) {
+                    header.style.display = 'none';
+                    stage.style.display = 'none';
+                } else {
+                    header.style.display = 'flex';
+                    stage.style.display = spmIsAllCollapsed ? 'none' : 'block';
+                }
+            }
+            totalVisibleTasks += visibleCount;
+        });
+
+        let emptyMsg = document.getElementById('spm-filter-empty-msg');
+        if (totalVisibleTasks === 0 && document.querySelectorAll('.stage-content').length > 0) {
+            if (!emptyMsg) {
+                emptyMsg = document.createElement('div');
+                emptyMsg.id = 'spm-filter-empty-msg';
+                emptyMsg.className = 'text-center text-gray py-5 mt-4';
+                emptyMsg.innerHTML = '<i class="fas fa-filter fa-3x mb-3 opacity-25"></i><p>No tasks match the selected filter.</p>';
+                document.getElementById('spmTaskContainer').appendChild(emptyMsg);
+            }
+            emptyMsg.style.display = 'block';
+        } else {
+            if (emptyMsg) emptyMsg.style.display = 'none';
         }
     }
 
@@ -1951,7 +2225,7 @@
         smartPmApiCall(fd)
             .then(d => {
                 if (d.status === 'confirm_overtime') {
-                    const modal = new bootstrap.Modal(document.getElementById('overtimeModal'));
+                    const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('overtimeModal'));
                     document.getElementById('btnConfirmOvertime').onclick = function() {
                         modal.hide();
                         updateTaskStatus(taskId, newStatus, justification, 1);
@@ -1961,14 +2235,14 @@
                     loadSmartPMTasks(); 
                     
                     if (d.is_project_completed) {
-                        const modal = new bootstrap.Modal(document.getElementById('projectCompletedModal'));
+                        const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('projectCompletedModal'));
                         modal.show();
                     } else if (d.next_task_status === 'Already_Running_Somewhere') {
                                 appAlert('Notice: You already have a task in progress. The next one will not auto-start to prevent conflicts.', 'Notice', 'warning');
                     } else if (d.next_task_status === 'Active') {
                                 appAlert('Notice: The next task in the workflow is already running. Close it to continue.', 'Notice', 'warning');
                     } else if (d.next_task_status === 'On_Hold') {
-                        const modal = new bootstrap.Modal(document.getElementById('collisionOnHoldModal'));
+                        const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('collisionOnHoldModal'));
                         document.getElementById('btnResumeNextTask').onclick = function() {
                             modal.hide();
                             updateTaskStatus(d.next_task_id, 'Active');
@@ -2062,8 +2336,10 @@
             autoStartContainer.style.display = 'none';
         }
 
-        const modal = new bootstrap.Modal(modalEl);
-        modal.show();
+        let modalInstance = bootstrap.Modal.getInstance(modalEl);
+        if (modalInstance) modalInstance.dispose();
+        const newModal = new bootstrap.Modal(modalEl);
+        newModal.show();
     }
 
     document.addEventListener('DOMContentLoaded', () => {
@@ -2103,14 +2379,14 @@
                             loadSmartPMTasks();
                             
                             if (d.is_project_completed) {
-                                const pModal = new bootstrap.Modal(document.getElementById('projectCompletedModal'));
+                                const pModal = bootstrap.Modal.getOrCreateInstance(document.getElementById('projectCompletedModal'));
                                 pModal.show();
                             } else if (d.next_task_status === 'Already_Running_Somewhere') {
                         appAlert('Notice: You already have a task in progress. The next one will not auto-start to prevent conflicts.', 'Notice', 'warning');
                             } else if (d.next_task_status === 'Active') {
                         appAlert('Notice: The next task in the workflow is already running. Close it to continue.', 'Notice', 'warning');
                             } else if (d.next_task_status === 'On_Hold') {
-                                const modal = new bootstrap.Modal(document.getElementById('collisionOnHoldModal'));
+                                const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('collisionOnHoldModal'));
                                 document.getElementById('btnResumeNextTask').onclick = function() {
                                     modal.hide();
                                     updateTaskStatus(d.next_task_id, 'Active');
@@ -2181,16 +2457,16 @@
                 if (data.timerElement) {
                     if (data.taskStatus === 'System_Pause') {
                         if (isTodayHolidayFlag) {
-                            if (data.displaySpan) data.displaySpan.innerHTML = "⏸️ HOLIDAY PAUSE";
+                            if (data.displaySpan) data.displaySpan.innerHTML = "HOLIDAY PAUSE";
                             data.timerElement.style.background = 'rgba(239, 68, 68, 0.15)'; 
                             data.timerElement.style.color = '#ef4444';
                         } else {
-                            if (data.displaySpan) data.displaySpan.innerHTML = "⏸️ PAUSED (SYSTEM)";
+                            if (data.displaySpan) data.displaySpan.innerHTML = "PAUSED (SYSTEM)";
                             data.timerElement.style.background = 'rgba(245, 158, 11, 0.15)'; 
                             data.timerElement.style.color = '#f59e0b';
                         }
                     } else if (data.taskStatus === 'On_Hold') {
-                        if (data.displaySpan) data.displaySpan.innerHTML = "⏸️ ON HOLD";
+                        if (data.displaySpan) data.displaySpan.innerHTML = "ON HOLD";
                         data.timerElement.style.background = 'rgba(245, 158, 11, 0.15)'; 
                         data.timerElement.style.color = '#f59e0b';
                     } else if (remainingSecs <= 0 || data.taskStatus === 'Overdue') {
@@ -2324,11 +2600,15 @@
 
         // Configurar para que el usuario NO pueda evadir el Modal (Bloqueo Estricto)
         const modalEl = document.getElementById('justificationModal');
+        
+        let modalInstance = bootstrap.Modal.getInstance(modalEl);
+        if (modalInstance) modalInstance.dispose();
+        
         modalEl.setAttribute('data-bs-backdrop', 'static');
         modalEl.setAttribute('data-bs-keyboard', 'false');
         
-        const modal = new bootstrap.Modal(modalEl);
-        modal.show();
+        const newModal = new bootstrap.Modal(modalEl);
+        newModal.show();
 
         // Event Listener para restaurar los colores originales al cerrar el modal (para no afectar futuras justificaciones)
         modalEl.addEventListener('hidden.bs.modal', function onHide() {
@@ -2358,7 +2638,7 @@
     function openResetTasksModal() {
         const form = document.getElementById('resetTasksForm');
         if (form) form.reset();
-        const modal = new bootstrap.Modal(document.getElementById('resetTasksModal'));
+        const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('resetTasksModal'));
         modal.show();
     }
 
@@ -2408,7 +2688,7 @@
         document.getElementById('tc_holidays').innerText = h.holidays_skipped + ' Days';
         document.getElementById('tc_final_date').innerText = h.project_estimated_end_date;
         
-        const modal = new bootstrap.Modal(document.getElementById('timeCalculationModal'));
+        const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('timeCalculationModal'));
         modal.show();
     }
 </script>

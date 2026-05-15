@@ -314,7 +314,7 @@ include __DIR__ . '/../views/header.php';
 
     /* --- FASE 84: QUICK TASK FLOATING PANEL --- */
     .quick-task-panel { 
-        position: fixed; top: 0; right: 0; width: 400px; height: 100vh; 
+        position: fixed; top: 0; right: 0; width: 450px; height: 100vh; 
         background: var(--bg-card); border-left: 1px solid var(--border-subtle); 
         z-index: 1100; box-shadow: -10px 0 30px rgba(0,0,0,0.3); 
         transform: translateX(100%); transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); 
@@ -327,6 +327,22 @@ include __DIR__ . '/../views/header.php';
     }
     body.qt-panel-active .qt-overlay { opacity: 1; visibility: visible; }
     @media (max-width: 576px) { .quick-task-panel { width: 100vw; } }
+    
+    /* Personal Tasks (Scratchpad) Chat Bubbles */
+    .chat-bubble {
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid var(--border-subtle);
+        border-radius: 12px;
+        padding: 12px 14px;
+        position: relative;
+        transition: 0.2s;
+    }
+    .chat-bubble:hover {
+        background: rgba(255, 255, 255, 0.06);
+        border-color: var(--primary);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    body.theme-light .chat-bubble { background: #ffffff; box-shadow: 0 2px 5px rgba(0,0,0,0.03); }
 </style>
 
 <main class="main-content p-4 pt-5">
@@ -399,12 +415,16 @@ include __DIR__ . '/../views/header.php';
             <div class="d-flex align-items-center mb-4 justify-content-center">
                 <h4 class="fw-bold text-white mb-0"><i class="fas fa-magic text-warning me-2"></i>Master Template Manager</h4>
             </div>
-            <button class="btn btn-lg btn-primary rounded-pill fw-bold px-5 py-3 mb-4 shadow-lg" onclick="openTemplateSetupModal()" style="font-size: 1.2rem;">
-                <i class="fas fa-plus-circle me-2"></i> Create New Template
-            </button>
-            <br>
+            <div class="d-flex justify-content-center gap-3 mb-4 flex-wrap">
+                <button class="btn btn-lg btn-primary rounded-pill fw-bold px-4 py-3 shadow-sm" onclick="openTemplateSetupModal()" style="font-size: 1.05rem;">
+                    <i class="fas fa-plus-circle me-2"></i> Create Template
+                </button>
+                <button class="btn btn-lg btn-outline-info rounded-pill fw-bold px-4 py-3 shadow-sm" onclick="openTemplateLibraryModal()" style="font-size: 1.05rem;">
+                    <i class="fas fa-book me-2"></i> Template Library
+                </button>
+            </div>
             <button class="btn btn-outline-success fw-bold rounded-pill px-4" onclick="openImportCsvModal()">
-                <i class="fas fa-file-excel me-2"></i> Upload via CSV/Excel
+                <i class="fas fa-file-excel me-2"></i> Import via CSV/Excel
             </button>
         </section>
         <?php endif; ?>
@@ -455,32 +475,24 @@ include __DIR__ . '/../views/header.php';
     <div class="qt-overlay" onclick="closeQuickTaskPanel()"></div>
     <div class="quick-task-panel" id="quickTaskPanel">
         <div class="p-3 border-bottom border-secondary d-flex justify-content-between align-items-center" style="background: rgba(245, 158, 11, 0.1);">
-            <h5 class="fw-bold text-warning mb-0"><i class="fas fa-bolt me-2"></i> Quick Task Creator</h5>
+            <h5 class="fw-bold text-warning mb-0"><i class="fas fa-bolt me-2"></i> Quick Tasks</h5>
             <button type="button" class="btn-close btn-close-white" onclick="closeQuickTaskPanel()"></button>
         </div>
-        <div class="p-4 flex-grow-1 overflow-auto">
-            <p class="text-gray small mb-4">Create a task on the fly and send it directly to the end of any active project's timeline.</p>
-            <form id="quickTaskForm" onsubmit="submitQuickTask(event)">
-                <div class="mb-3">
-                    <label class="text-gray small mb-2 fw-bold">Select Project <span class="text-danger">*</span></label>
-                    <select id="qt_project_id" name="project_id" class="form-select" required>
-                        <option value="">Loading projects...</option>
-                    </select>
-                </div>
-                <div class="mb-3">
-                    <label class="text-gray small mb-2 fw-bold">Task Name <span class="text-danger">*</span></label>
-                    <textarea id="qt_name" name="name" class="form-control" rows="3" placeholder="e.g. Call client to verify details..." required style="resize:none;"></textarea>
-                </div>
-                <div class="mb-4">
-                    <label class="text-gray small mb-2 fw-bold">Estimated Time (Minutes) <span class="text-danger">*</span></label>
-                    <div class="input-group">
-                        <span class="input-group-text border-end-0" style="background: var(--bg-input); border-color: var(--border-subtle); color: var(--text-gray); border-radius: 10px 0 0 10px;"><i class="fas fa-clock"></i></span>
-                        <input type="number" id="qt_minutes" name="estimated_minutes" class="form-control border-start-0 ps-1" placeholder="e.g. 60" required min="1" value="60" style="border-radius: 0 10px 10px 0;">
+        <div class="p-3 flex-grow-1 overflow-auto d-flex flex-column gap-2" id="personalTasksContainer">
+            <div class="text-center text-gray mt-5"><i class="fas fa-spinner fa-spin fa-2x"></i></div>
+        </div>
+        <div class="p-3 border-top border-secondary bg-card">
+            <form id="personalTaskForm" onsubmit="submitPersonalTask(event)" class="d-flex flex-column gap-2">
+                <input type="text" id="pt_name" name="name" class="form-control border-secondary text-white" placeholder="What needs to be done?" autocomplete="off" required style="background: var(--bg-input);">
+                <div class="d-flex gap-2">
+                    <div class="input-group input-group-sm w-50">
+                        <span class="input-group-text bg-dark border-secondary text-white"><i class="fas fa-stopwatch text-warning"></i></span>
+                        <input type="number" id="pt_minutes" name="estimated_minutes" class="form-control border-secondary text-white" placeholder="Mins" value="60" min="1" required style="background: var(--bg-input);">
                     </div>
+                    <button type="submit" class="btn btn-warning fw-bold text-dark w-50" title="Save Quick Task">
+                        <i class="fas fa-plus me-1"></i> Add Task
+                    </button>
                 </div>
-                <button type="submit" class="btn btn-warning w-100 fw-bold text-dark rounded-pill py-2 shadow-sm">
-                    <i class="fas fa-paper-plane me-2"></i> Send to Project
-                </button>
             </form>
         </div>
     </div>
@@ -554,21 +566,46 @@ include __DIR__ . '/../views/header.php';
                     <label class="text-gray small fw-bold mb-1">Description</label>
                     <textarea id="setup_template_desc" class="form-control" rows="3" placeholder="Brief explanation..."></textarea>
                 </div>
-                <div class="mb-3 p-3 border rounded border-secondary" style="background: rgba(0,0,0,0.2);">
-                    <label class="form-label text-gray small fw-bold"><i class="fas fa-copy me-2 text-info"></i>Use existing template as base...</label>
-                    <div class="input-group">
-                        <select id="setup_baseTemplateSelect" class="form-select">
-                            <option value="">-- Select Template (Optional) --</option>
-                        </select>
-                        <button type="button" class="btn btn-outline-danger" onclick="deleteSelectedTemplate()" title="Delete Selected Template">
-                            <i class="fas fa-trash"></i>
-                        </button>
-                    </div>
-                </div>
             </div>
             <div class="modal-footer border-secondary">
                 <button type="button" class="btn btn-outline-secondary rounded-pill px-4" data-bs-dismiss="modal">Cancel</button>
                 <button type="button" class="btn btn-primary rounded-pill px-4 fw-bold" onclick="continueToBuilder()">Continue to Builder <i class="fas fa-arrow-right ms-2"></i></button>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- Modal Template Library -->
+<div class="modal fade" id="templateLibraryModal" tabindex="-1" aria-hidden="true" style="z-index: 1060;">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content p-3" style="background: var(--bg-card); border: 1px solid var(--border-subtle);">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title fw-bold text-white"><i class="fas fa-book text-info me-2"></i>Template Library</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body py-3" style="max-height: 65vh; overflow-y: auto;">
+                <div id="templateLibraryList" class="d-flex flex-column gap-2">
+                    <div class="text-center text-gray py-4"><i class="fas fa-spinner fa-spin fa-2x"></i></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Template Preview (Read Only) -->
+<div class="modal fade" id="templatePreviewModal" tabindex="-1" aria-hidden="true" style="z-index: 1070;">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content p-3" style="background: var(--bg-card); border: 1px solid var(--border-subtle);">
+            <div class="modal-header border-secondary">
+                <h5 class="modal-title fw-bold text-white" id="previewModalTitle"><i class="fas fa-eye text-primary me-2"></i>Template Preview</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body py-3" style="max-height: 60vh; overflow-y: auto;">
+                <p class="text-gray small mb-3" id="previewModalDesc"></p>
+                <div id="templatePreviewContent"></div>
+            </div>
+            <div class="modal-footer border-secondary">
+                <button type="button" class="btn btn-outline-secondary rounded-pill px-4" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary rounded-pill px-4 fw-bold" id="btnPreviewEdit"><i class="fas fa-edit me-1"></i> Edit Template</button>
             </div>
         </div>
     </div>
@@ -586,12 +623,17 @@ include __DIR__ . '/../views/header.php';
             </div>
             <div class="modal-body" style="max-height: 60vh; overflow-y: auto;">
                 <!-- FASE 74: Filtros de Categoría para Auditoría -->
-                <div class="mb-3 flex-shrink-0 d-flex gap-2 overflow-auto" style="padding-bottom: 5px; scrollbar-width: none;">
-                    <button class="btn btn-sm btn-primary rounded-pill px-3 filter-alert-btn text-nowrap" data-filter="all" onclick="filterProjectAlerts('all', this)">All</button>
-                    <button class="btn btn-sm btn-outline-secondary rounded-pill px-3 filter-alert-btn text-nowrap" data-filter="notes" onclick="filterProjectAlerts('notes', this)">Manual Notes</button>
-                    <button class="btn btn-sm btn-outline-secondary rounded-pill px-3 filter-alert-btn text-nowrap" data-filter="rfis" onclick="filterProjectAlerts('rfis', this)">RFIs</button>
-                    <button class="btn btn-sm btn-outline-secondary rounded-pill px-3 filter-alert-btn text-nowrap" data-filter="time" onclick="filterProjectAlerts('time', this)">Time & Delays</button>
-                    <button class="btn btn-sm btn-outline-secondary rounded-pill px-3 filter-alert-btn text-nowrap" data-filter="status" onclick="filterProjectAlerts('status', this)">Status</button>
+                <!-- FASE 74 & 102: Filtros de Categoría Estilo Task Manager -->
+                <div class="mb-3 flex-shrink-0 d-flex justify-content-center align-items-center gap-2 px-1 py-2 border-bottom border-secondary" style="overflow-x: auto; scrollbar-width: none;">
+                    <button class="btn btn-sm btn-primary text-white fw-bold rounded-pill flex-shrink-0 filter-alert-btn" data-filter="all" onclick="filterProjectAlerts('all', this)">All</button>
+                    <div class="vr bg-secondary mx-1 opacity-25"></div>
+                    <button class="btn btn-sm btn-outline-secondary rounded-pill flex-shrink-0 filter-alert-btn" data-filter="notes" onclick="filterProjectAlerts('notes', this)"><i class="fas fa-sticky-note me-1" style="font-size:0.6rem"></i>Notes</button>
+                    <button class="btn btn-sm btn-outline-secondary rounded-pill flex-shrink-0 filter-alert-btn" data-filter="active" onclick="filterProjectAlerts('active', this)"><i class="fas fa-circle me-1" style="font-size:0.6rem"></i>Active</button>
+                    <button class="btn btn-sm btn-outline-secondary rounded-pill flex-shrink-0 filter-alert-btn" data-filter="hold" onclick="filterProjectAlerts('hold', this)"><i class="fas fa-circle me-1" style="font-size:0.6rem"></i>Hold</button>
+                    <button class="btn btn-sm btn-outline-secondary rounded-pill flex-shrink-0 filter-alert-btn" data-filter="overdue" onclick="filterProjectAlerts('overdue', this)"><i class="fas fa-circle me-1" style="font-size:0.6rem"></i>Overdue</button>
+                    <button class="btn btn-sm btn-outline-secondary rounded-pill flex-shrink-0 filter-alert-btn" data-filter="completed" onclick="filterProjectAlerts('completed', this)"><i class="fas fa-circle me-1" style="font-size:0.6rem"></i>Completed</button>
+                    <div class="vr bg-secondary mx-1 opacity-25"></div>
+                    <button class="btn btn-sm btn-outline-secondary rounded-pill flex-shrink-0 filter-alert-btn" data-filter="rfi" onclick="filterProjectAlerts('rfi', this)"><i class="fas fa-exclamation-triangle me-1" style="font-size:0.6rem"></i>RFIs</button>
                 </div>
 
                 <div id="projectAlertsTimeline" class="mt-3">
@@ -678,11 +720,93 @@ include __DIR__ . '/../views/header.php';
     </div>
 </div>
 
+<!-- Modal para Mover Tarea Personal al Proyecto -->
+<div class="modal fade" id="movePersonalTaskModal" tabindex="-1" style="z-index: 1200;">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content p-3" style="background: var(--bg-card); border: 1px solid var(--border-subtle);">
+            <div class="modal-header border-secondary pb-2">
+                <h6 class="modal-title fw-bold text-white"><i class="fas fa-share text-info me-2"></i> Deploy / Complete Task</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body py-3">
+                <input type="hidden" id="move_pt_id">
+                
+                <div class="mb-3 border-bottom border-secondary pb-3">
+                    <label class="text-gray small mb-2 fw-bold">Action</label>
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="radio" name="deploy_action" id="deploy_action_complete_move" value="complete_move" checked onchange="toggleDeployAction()">
+                        <label class="form-check-label text-white small" for="deploy_action_complete_move">Complete and move to project</label>
+                    </div>
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="radio" name="deploy_action" id="deploy_action_move" value="move" onchange="toggleDeployAction()">
+                        <label class="form-check-label text-white small" for="deploy_action_move">Move to project without completing</label>
+                    </div>
+                    <div class="form-check">
+                        <input class="form-check-input" type="radio" name="deploy_action" id="deploy_action_complete_local" value="complete_local" onchange="toggleDeployAction()">
+                        <label class="form-check-label text-white small" for="deploy_action_complete_local">Complete here (leave in Quick Tasks as done)</label>
+                    </div>
+                </div>
+
+                <div id="deploy_project_fields">
+                    <div class="mb-3">
+                        <label class="text-gray small mb-2 fw-bold">Select Active Project <span class="text-danger">*</span></label>
+                        <select id="move_pt_project_id" class="form-select bg-dark border-secondary text-white" onchange="loadProjectDetailsForDeploy(this.value)"></select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="text-gray small mb-2 fw-bold">Target Stage (Optional)</label>
+                        <select id="move_pt_stage_id" class="form-select bg-dark border-secondary text-white">
+                            <option value="">Auto-create "Quick Tasks" stage</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="text-gray small mb-2 fw-bold">Evidence Folder</label>
+                        <select id="move_pt_folder_id" class="form-select bg-dark border-secondary text-white">
+                            <option value="">Select project first...</option>
+                        </select>
+                    </div>
+                    <div class="mb-2">
+                        <label class="text-gray small mb-2 fw-bold">Evidence Files (Optional)</label>
+                        <input type="file" id="move_pt_evidence_file" name="files[]" class="form-control bg-dark border-secondary text-white" multiple>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer border-secondary pt-2">
+                <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill px-3" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-sm btn-info rounded-pill px-3 fw-bold text-dark" id="btnConfirmDeploy" onclick="confirmMovePersonalTask()">Confirm Action</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal para Editar Tarea Personal -->
+<div class="modal fade" id="editPersonalTaskModal" tabindex="-1" style="z-index: 1200;">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content p-3" style="background: var(--bg-card); border: 1px solid var(--border-subtle);">
+            <div class="modal-header border-secondary pb-2">
+                <h6 class="modal-title fw-bold text-white"><i class="fas fa-edit text-primary me-2"></i> Edit Task</h6>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body py-3">
+                <input type="hidden" id="edit_pt_id">
+                <div class="mb-2">
+                    <label class="text-gray small mb-2 fw-bold">Task Name <span class="text-danger">*</span></label>
+                    <input type="text" id="edit_pt_name" class="form-control bg-dark border-secondary text-white" required>
+                </div>
+            </div>
+            <div class="modal-footer border-secondary pt-2">
+                <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill px-3" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-sm btn-primary rounded-pill px-4 fw-bold" id="btnConfirmEditPt" onclick="confirmEditPersonalTask()">Save</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <div id="toast-container"></div>
 
 <script>
     const userIsAdmin = <?= $isAdmin ? 'true' : 'false' ?>;
     let stageCounter = 0;
+    let ptTimerInterval = null; // FASE 95: Cronómetro para Tareas Personales
 
     // --- FASE 59: LÓGICA DE RADAR EN VIVO ---
     let liveDashTimerInterval = null;
@@ -716,8 +840,8 @@ include __DIR__ . '/../views/header.php';
                         if (t.status === 'On_Hold' || t.status === 'System_Pause') {
                             const pauseText = t.status === 'System_Pause' ? 'PAUSED (SYSTEM)' : 'ON HOLD';
                             cardStyle = 'border-left: 4px solid #eab308; background: rgba(234, 179, 8, 0.05);';
-                            timerHtml = `<div class="dash-countdown-timer" style="background: rgba(245, 158, 11, 0.15); color: #f59e0b; padding: 6px 12px; border-radius: 8px; font-family: monospace; font-weight: bold; font-size: 1rem; display: inline-block;">
-                                <i class="fas fa-pause-circle me-1"></i> <span class="time-display">⏸️ ${pauseText}</span>
+                            timerHtml = `<div class="dash-countdown-timer" data-status="${t.status}" style="background: rgba(245, 158, 11, 0.15); color: #f59e0b; padding: 6px 12px; border-radius: 8px; font-family: monospace; font-weight: bold; font-size: 1rem; display: inline-block;">
+                                <i class="fas fa-pause-circle me-1"></i> <span class="time-display">${pauseText}</span>
                             </div>`;
                         } else if (t.status === 'Overdue') {
                             cardStyle = 'border-left: 4px solid #ef4444; background: rgba(239, 68, 68, 0.05);';
@@ -730,9 +854,13 @@ include __DIR__ . '/../views/header.php';
                             </div>`;
                         }
 
+                        const clickAction = t.task_type === 'personal_task' 
+                            ? `openQuickTaskPanel()` 
+                            : `window.location.href='project_dashboard.php?id=${t.project_id}&open_task_manager=true'`;
+
                         html += `
                         <div class="col-md-6 col-lg-4 col-xl-3">
-                            <div class="box-card h-100 d-flex flex-column" style="cursor: pointer; padding: 1.25rem; ${cardStyle}" onclick="window.location.href='project_dashboard.php?id=${t.project_id}&open_task_manager=true'">
+                            <div class="box-card h-100 d-flex flex-column" style="cursor: pointer; padding: 1.25rem; ${cardStyle}" onclick="${clickAction}">
                                 <div class="small text-accent fw-bold text-truncate mb-1" style="color: #3b82f6;"><i class="fas fa-folder-open me-1"></i> ${t.project_name}</div>
                                 <div class="fw-bold text-white mb-2" style="font-size: 1.1rem; line-height: 1.2;">${t.task_name}</div>
                                 <div class="text-gray small mb-3"><i class="fas fa-hard-hat me-1 text-warning"></i> ${t.assigned_user_name || 'Unassigned'}</div>
@@ -761,7 +889,6 @@ include __DIR__ . '/../views/header.php';
     function openTemplateSetupModal() {
         document.getElementById('setup_template_name').value = '';
         document.getElementById('setup_template_desc').value = '';
-        document.getElementById('setup_baseTemplateSelect').value = '';
         const typeSelect = document.getElementById('setup_template_type');
         if (typeSelect) typeSelect.value = 'general';
         currentLoadedTemplateId = null;
@@ -769,17 +896,10 @@ include __DIR__ . '/../views/header.php';
         modal.show();
     }
 
-    document.getElementById('setup_baseTemplateSelect').addEventListener('change', function() {
-        const selectedOption = this.options[this.selectedIndex];
-        if (this.value) {
-            document.getElementById('setup_template_name').value = selectedOption.text;
-        }
-    });
 
     function continueToBuilder() {
         const nameInput = document.getElementById('setup_template_name');
         const descInput = document.getElementById('setup_template_desc');
-        const baseSelect = document.getElementById('setup_baseTemplateSelect');
         const typeSelect = document.getElementById('setup_template_type');
         
         let name = nameInput.value.trim();
@@ -800,7 +920,6 @@ include __DIR__ . '/../views/header.php';
         document.getElementById('builder_display_name').innerText = currentTemplateName;
         document.getElementById('builder_display_desc').innerText = currentTemplateDesc || 'No description';
         
-        const baseTemplateId = baseSelect.value;
         
         bootstrap.Modal.getInstance(document.getElementById('templateSetupModal')).hide();
         
@@ -821,11 +940,8 @@ include __DIR__ . '/../views/header.php';
         `;
         stageCounter = 0;
         
-        if (baseTemplateId) {
-            loadBaseTemplate(baseTemplateId, true);
-        } else {
-            document.getElementById('btn-update-template').style.display = 'none';
-        }
+        document.getElementById('btn-update-template').style.display = 'none';
+  
     }
 
     function cancelBuilder() {
@@ -910,44 +1026,277 @@ include __DIR__ . '/../views/header.php';
     let currentLoadedTemplateId = null;
     
     function refreshTemplatesList() {
+        // Función desactivada intencionalmente (mantener por compatibilidad interna)
+    }
+
+    // --- FASE 103: TEMPLATE LIBRARY & PREVIEW ---
+    function openTemplateLibraryModal() {
+        const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('templateLibraryModal'));
+        modal.show();
+        refreshTemplateLibrary();
+    }
+
+    function refreshTemplateLibrary() {
+        const list = document.getElementById('templateLibraryList');
+        if (!list) return;
+        
+        list.innerHTML = '<div class="text-center text-gray py-4"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
+        
         const fd = new FormData();
         fd.append('action', 'get_templates');
         fetch('../task_manager/api.php', { method: 'POST', body: fd })
             .then(r => r.json())
             .then(d => {
                 if (d.status === 'success') {
-                    const sel = document.getElementById('setup_baseTemplateSelect');
-                    if (sel) {
-                        sel.innerHTML = '<option value="">-- Select Template (Optional) --</option>';
-                        d.data.forEach(t => {
-                            sel.innerHTML += `<option value="${t.id}">${t.name}</option>`;
-                        });
+                    if(d.data.length === 0) {
+                        list.innerHTML = '<div class="text-center text-gray py-4"><i class="fas fa-book-open fa-2x mb-3 opacity-50"></i><p>No templates found.</p></div>';
+                        return;
                     }
+                    let html = '';
+                    d.data.forEach(t => {
+                        html += `
+                            <div class="d-flex align-items-center justify-content-between p-3 rounded" style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-subtle);">
+                                <div>
+                                    <h6 class="fw-bold text-white mb-1">${t.name}</h6>
+                                    <div class="text-gray small text-truncate" style="max-width:300px;">${t.description || 'No description'}</div>
+                                </div>
+                                <div class="d-flex gap-2">
+                                    <button class="btn btn-sm btn-outline-info rounded-pill px-3" onclick="previewTemplate(${t.id}, '${t.name.replace(/'/g, "\\'")}')" title="Preview"><i class="fas fa-eye"></i></button>
+                                    <button class="btn btn-sm btn-outline-primary rounded-pill px-3" onclick="editTemplateById(${t.id})" title="Edit"><i class="fas fa-edit"></i></button>
+                                    <button class="btn btn-sm btn-outline-success rounded-pill px-3" onclick="exportTemplateCSVById(${t.id})" title="Export CSV"><i class="fas fa-file-excel"></i></button>
+                                    <button class="btn btn-sm btn-outline-danger rounded-pill px-3" onclick="deleteTemplateById(${t.id})" title="Delete"><i class="fas fa-trash"></i></button>
+                                </div>
+                            </div>
+                        `;
+                    });
+                    list.innerHTML = html;
+                } else {
+                    list.innerHTML = `<div class="text-danger">Error: ${d.message}</div>`;
                 }
             });
     }
 
-    // --- FUNCIÓN: ELIMINAR PLANTILLA ---
-    function deleteSelectedTemplate() {
-        const select = document.getElementById('setup_baseTemplateSelect');
-        const templateId = select.value;
-        if (!templateId) {
-            appAlert('Please select a template from the list to delete.', 'Notice', 'warning');
-            return;
-        }
+    function previewTemplate(id, name) {
+        const content = document.getElementById('templatePreviewContent');
+        if (!content) return;
         
+        document.getElementById('previewModalTitle').innerHTML = `<i class="fas fa-eye text-primary me-2"></i> ${name}`;
+        content.innerHTML = '<div class="text-center text-gray py-4"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
+        
+        const btnEdit = document.getElementById('btnPreviewEdit');
+        btnEdit.onclick = function() {
+            bootstrap.Modal.getInstance(document.getElementById('templatePreviewModal')).hide();
+            const libModal = bootstrap.Modal.getInstance(document.getElementById('templateLibraryModal'));
+            if(libModal) libModal.hide();
+            editTemplateById(id);
+        };
+
+        const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('templatePreviewModal'));
+        modal.show();
+
+        const fd = new FormData();
+        fd.append('action', 'get_template_full');
+        fd.append('template_id', id);
+
+        fetch('../task_manager/api.php', { method: 'POST', body: fd })
+            .then(r => r.json())
+            .then(d => {
+                if (d.status === 'success') {
+                    document.getElementById('previewModalDesc').textContent = d.data.info.description || 'No description provided.';
+                    let html = '';
+                    if (d.data.stages.length === 0) {
+                        html = '<div class="text-gray small text-center">This template has no stages or tasks yet.</div>';
+                    } else {
+                        d.data.stages.forEach((s, idx) => {
+                            html += `
+                            <div class="mb-3 rounded border border-secondary" style="background: rgba(0,0,0,0.1);">
+                                <div class="p-2 border-bottom border-secondary fw-bold text-white bg-dark rounded-top">
+                                    <i class="fas fa-layer-group text-primary me-2"></i> ${s.name}
+                                </div>
+                                <div class="p-2">
+                            `;
+                            s.tasks.forEach(t => {
+                                const hrs = t.estimated_minutes ? (t.estimated_minutes / 60).toFixed(1).replace(/\.0$/, '') : 0;
+                                html += `
+                                    <div class="d-flex justify-content-between align-items-center py-1 border-bottom border-secondary-subtle">
+                                        <span class="text-gray small"><i class="fas fa-check text-success me-2"></i> ${t.name}</span>
+                                        <span class="badge bg-secondary">${hrs}h</span>
+                                    </div>
+                                `;
+                            });
+                            html += `</div></div>`;
+                        });
+                    }
+                    content.innerHTML = html;
+                } else {
+                    content.innerHTML = `<div class="text-danger">Error: ${d.message}</div>`;
+                }
+            });
+    }
+
+    function editTemplateById(id) {
+        const libraryModal = bootstrap.Modal.getInstance(document.getElementById('templateLibraryModal'));
+        if (libraryModal) libraryModal.hide();
+        
+        document.getElementById('dashboard-main-view').classList.add('d-none');
+        const builderView = document.getElementById('template-builder-view');
+        builderView.classList.remove('d-none');
+        
+        const workspace = document.getElementById('template-builder-workspace');
+        setTimeout(() => { workspace.style.opacity = '1'; }, 50);
+        
+        loadBaseTemplate(id, true);
+    }
+
+    function exportTemplateCSVById(id) {
+        window.location.href = '../task_manager/api.php?action=export_template_csv&template_id=' + id;
+    }
+
+    function deleteTemplateById(id) {
         appConfirm('Are you sure you want to delete this template? This action cannot be undone.', 'Delete Template', () => {
             const fd = new FormData();
             fd.append('action', 'delete_template');
-            fd.append('template_id', templateId);
+            fd.append('template_id', id);
 
             fetch('../task_manager/api.php', { method: 'POST', body: fd })
                 .then(r => r.json())
                 .then(d => {
                     if (d.status === 'success') {
-                        appAlert('Template successfully deleted.', 'Success', 'success');
-                        refreshTemplatesList(); // Refresca el Dropdown
-                        document.getElementById('setup_template_name').value = ''; // Limpia el título
+                        showToast('Template successfully deleted.', 'success');
+                        refreshTemplateLibrary();
+                    } else {
+                        appAlert('Error: ' + (d.message || d.msg), 'Error', 'error');
+                    }
+                })
+                .catch(e => { appAlert('Connection error.', 'Error', 'error'); });
+        });
+    }
+
+    function refreshTemplateLibrary() {
+        const list = document.getElementById('templateLibraryList');
+        list.innerHTML = '<div class="text-center text-gray py-4"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
+        
+        const fd = new FormData();
+        fd.append('action', 'get_templates');
+        fetch('../task_manager/api.php', { method: 'POST', body: fd })
+            .then(r => r.json())
+            .then(d => {
+                if (d.status === 'success') {
+                    if(d.data.length === 0) {
+                        list.innerHTML = '<div class="text-center text-gray py-4"><i class="fas fa-book-open fa-2x mb-3 opacity-50"></i><p>No templates found.</p></div>';
+                        return;
+                    }
+                    let html = '';
+                    d.data.forEach(t => {
+                        html += `
+                            <div class="d-flex align-items-center justify-content-between p-3 rounded" style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-subtle);">
+                                <div>
+                                    <h6 class="fw-bold text-white mb-1">${t.name}</h6>
+                                    <div class="text-gray small text-truncate" style="max-width:300px;">${t.description || 'No description'}</div>
+                                </div>
+                                <div class="d-flex gap-2">
+                                    <button class="btn btn-sm btn-outline-info rounded-pill px-3" onclick="previewTemplate(${t.id}, '${t.name.replace(/'/g, "\\'")}')" title="Preview"><i class="fas fa-eye"></i></button>
+                                    <button class="btn btn-sm btn-outline-primary rounded-pill px-3" onclick="editTemplateById(${t.id})" title="Edit"><i class="fas fa-edit"></i></button>
+                                    <button class="btn btn-sm btn-outline-success rounded-pill px-3" onclick="exportTemplateCSVById(${t.id})" title="Export CSV"><i class="fas fa-file-excel"></i></button>
+                                    <button class="btn btn-sm btn-outline-danger rounded-pill px-3" onclick="deleteTemplateById(${t.id})" title="Delete"><i class="fas fa-trash"></i></button>
+                                </div>
+                            </div>
+                        `;
+                    });
+                    list.innerHTML = html;
+                } else {
+                    list.innerHTML = `<div class="text-danger">Error: ${d.message}</div>`;
+                }
+            });
+    }
+
+    function previewTemplate(id, name) {
+        const content = document.getElementById('templatePreviewContent');
+        document.getElementById('previewModalTitle').innerHTML = `<i class="fas fa-eye text-primary me-2"></i> ${name}`;
+        content.innerHTML = '<div class="text-center text-gray py-4"><i class="fas fa-spinner fa-spin fa-2x"></i></div>';
+        
+        const btnEdit = document.getElementById('btnPreviewEdit');
+        btnEdit.onclick = function() {
+            bootstrap.Modal.getInstance(document.getElementById('templatePreviewModal')).hide();
+            const libModal = bootstrap.Modal.getInstance(document.getElementById('templateLibraryModal'));
+            if(libModal) libModal.hide();
+            editTemplateById(id);
+        };
+
+        const modal = new bootstrap.Modal(document.getElementById('templatePreviewModal'));
+        modal.show();
+
+        const fd = new FormData();
+        fd.append('action', 'get_template_full');
+        fd.append('template_id', id);
+
+        fetch('../task_manager/api.php', { method: 'POST', body: fd })
+            .then(r => r.json())
+            .then(d => {
+                if (d.status === 'success') {
+                    document.getElementById('previewModalDesc').textContent = d.data.info.description || 'No description provided.';
+                    let html = '';
+                    if (d.data.stages.length === 0) {
+                        html = '<div class="text-gray small text-center">This template has no stages or tasks yet.</div>';
+                    } else {
+                        d.data.stages.forEach((s, idx) => {
+                            html += `
+                            <div class="mb-3 rounded border border-secondary" style="background: rgba(0,0,0,0.1);">
+                                <div class="p-2 border-bottom border-secondary fw-bold text-white bg-dark rounded-top">
+                                    <i class="fas fa-layer-group text-primary me-2"></i> ${s.name}
+                                </div>
+                                <div class="p-2">
+                            `;
+                            s.tasks.forEach(t => {
+                                const hrs = t.estimated_minutes ? (t.estimated_minutes / 60).toFixed(1).replace(/\.0$/, '') : 0;
+                                html += `
+                                    <div class="d-flex justify-content-between align-items-center py-1 border-bottom border-secondary-subtle">
+                                        <span class="text-gray small"><i class="fas fa-check text-success me-2"></i> ${t.name}</span>
+                                        <span class="badge bg-secondary">${hrs}h</span>
+                                    </div>
+                                `;
+                            });
+                            html += `</div></div>`;
+                        });
+                    }
+                    content.innerHTML = html;
+                } else {
+                    content.innerHTML = `<div class="text-danger">Error: ${d.message}</div>`;
+                }
+            });
+    }
+
+    function editTemplateById(id) {
+        const libraryModal = bootstrap.Modal.getInstance(document.getElementById('templateLibraryModal'));
+        if (libraryModal) libraryModal.hide();
+        
+        document.getElementById('dashboard-main-view').classList.add('d-none');
+        const builderView = document.getElementById('template-builder-view');
+        builderView.classList.remove('d-none');
+        
+        const workspace = document.getElementById('template-builder-workspace');
+        setTimeout(() => { workspace.style.opacity = '1'; }, 50);
+        
+        loadBaseTemplate(id, true);
+    }
+
+    function exportTemplateCSVById(id) {
+        window.location.href = '../task_manager/api.php?action=export_template_csv&template_id=' + id;
+    }
+
+    function deleteTemplateById(id) {
+        appConfirm('Are you sure you want to delete this template? This action cannot be undone.', 'Delete Template', () => {
+            const fd = new FormData();
+            fd.append('action', 'delete_template');
+            fd.append('template_id', id);
+
+            fetch('../task_manager/api.php', { method: 'POST', body: fd })
+                .then(r => r.json())
+                .then(d => {
+                    if (d.status === 'success') {
+                        showToast('Template successfully deleted.', 'success');
+                        refreshTemplateLibrary();
+                        refreshTemplatesList(); // Actualizar el select interno
                     } else {
                         appAlert('Error: ' + (d.message || d.msg), 'Error', 'error');
                     }
@@ -968,7 +1317,7 @@ include __DIR__ . '/../views/header.php';
         initDragAndDrop(); // FASE 87: Inicializar lógica de arrastrar y soltar
     });
 
-    function loadBaseTemplate(templateId, bypassConfirm = false) {
+    function loadBaseTemplate(templateId, bypassConfirm = false, isCloning = false) {
         if (!templateId) return;
 
         const loadContent = () => {
@@ -980,8 +1329,18 @@ include __DIR__ . '/../views/header.php';
                 .then(r => r.json())
                 .then(d => {
                     if (d.status === 'success') {
-                        currentLoadedTemplateId = templateId;
-                        document.getElementById('btn-update-template').style.display = 'inline-block';
+                        if (!isCloning) {
+                            currentLoadedTemplateId = templateId;
+                            
+                            currentTemplateName = d.data.info.name;
+                            currentTemplateDesc = d.data.info.description || '';
+                            document.getElementById('builder_display_name').innerText = currentTemplateName;
+                            document.getElementById('builder_display_desc').innerText = currentTemplateDesc || 'No description';
+    
+                            document.getElementById('btn-update-template').style.display = 'inline-block';
+                        } else {
+                            document.getElementById('btn-update-template').style.display = 'none';
+                        }
                         loadTemplateToCanvas(d.data);
                     } else {
                         appAlert("Error loading template: " + d.message, "Error", "error");
@@ -993,7 +1352,6 @@ include __DIR__ . '/../views/header.php';
             appConfirm("Loading a template will replace the current canvas content. Do you want to continue?", "Load Template", () => {
                 loadContent();
             });
-            document.getElementById('setup_baseTemplateSelect').value = '';
             return;
         }
         
@@ -1041,8 +1399,6 @@ include __DIR__ . '/../views/header.php';
                 addTask(stageId, task.name, hours);
             });
         });
-
-        document.getElementById('setup_baseTemplateSelect').value = '';
     }
 
     // --- FASE 47: EXPORTAR PLANTILLA A CSV ---
@@ -1073,7 +1429,7 @@ include __DIR__ . '/../views/header.php';
                 status: status,
                 estSecs: estMins * 60,
                 baseWorkedSecs: workedMins * 60,
-                startObj: startStr ? new Date(startStr.replace(/-/g, '/')) : null
+                startObj: (startStr && startStr !== 'null') ? new Date(startStr.replace(/-/g, '/')) : null
             });
         });
 
@@ -1083,6 +1439,10 @@ include __DIR__ . '/../views/header.php';
             const now = new Date(); // Una sola vez por tick
             timerData.forEach(data => {
                 if (!data.displaySpan) return;
+                
+                if (data.status === 'On_Hold' || data.status === 'System_Pause') {
+                    return;
+                }
                 
                 let totalWorkedSecs = data.baseWorkedSecs;
                 if (data.status === 'Active' && data.startObj) {
@@ -1229,13 +1589,11 @@ include __DIR__ . '/../views/header.php';
                     renderProjectAlerts('all');
                     
                     document.querySelectorAll('.filter-alert-btn').forEach(b => {
-                        b.classList.remove('btn-primary');
-                        b.classList.add('btn-outline-secondary');
+                        b.className = 'btn btn-sm btn-outline-secondary rounded-pill flex-shrink-0 filter-alert-btn';
                     });
                     const allBtn = document.querySelector('.filter-alert-btn[data-filter="all"]');
                     if (allBtn) {
-                        allBtn.classList.add('btn-primary');
-                        allBtn.classList.remove('btn-outline-secondary');
+                        allBtn.className = 'btn btn-sm btn-primary text-white fw-bold rounded-pill flex-shrink-0 filter-alert-btn';
                     }
                 } else { container.innerHTML = `<div class="text-danger text-center py-4">${d.message}</div>`; }
             }).catch(e => { container.innerHTML = `<div class="text-danger text-center py-4">Connection error.</div>`; });
@@ -1249,10 +1607,9 @@ include __DIR__ . '/../views/header.php';
         })
         .then(r => r.json())
         .then(d => {
-            const sel = document.getElementById('qt_project_id');
-            if (!sel) return;
+            const sel = document.getElementById('move_pt_project_id');
             if (d.status === 'success') {
-                sel.innerHTML = '<option value="">-- Select Active Project --</option>';
+                sel.innerHTML = '<option value="">-- Select a Project --</option>';
                 d.data.forEach(p => {
                     sel.innerHTML += `<option value="${p.id}">${p.name} (${p.status})</option>`;
                 });
@@ -1262,45 +1619,329 @@ include __DIR__ . '/../views/header.php';
         });
     }
 
-    function submitQuickTask(e) {
+    function loadProjectDetailsForDeploy(projectId) {
+        const stageSel = document.getElementById('move_pt_stage_id');
+        const folderSel = document.getElementById('move_pt_folder_id');
+        
+        stageSel.innerHTML = '<option value="">Auto-create "Quick Tasks" stage</option>';
+        folderSel.innerHTML = '<option value="">Loading folders...</option>';
+        
+        if (!projectId) {
+            folderSel.innerHTML = '<option value="">Select project first...</option>';
+            return;
+        }
+        
+        // Load Stages
+        fetch('../task_manager/api.php', { method: 'POST', body: new URLSearchParams({ action: 'get_project_stages_list', project_id: projectId }) })
+        .then(r => r.json()).then(d => {
+            if (d.status === 'success') {
+                d.data.forEach(s => {
+                    stageSel.innerHTML += `<option value="${s.id}">${s.name}</option>`;
+                });
+            }
+        });
+
+        // Load Folders
+        const fd = new FormData();
+        fd.append('action', 'get_folders_list');
+        fd.append('project_id', projectId);
+
+        fetch('../api/api.php', { method: 'POST', body: fd })
+            .then(r => r.json())
+            .then(res => {
+                if (res.status === 'success' && res.data.length > 0) {
+                    folderSel.innerHTML = '<option value="">-- Select a Folder --</option>';
+                    res.data.forEach(f => {
+                        folderSel.innerHTML += `<option value="${f.id}">${f.name}</option>`;
+                    });
+                } else {
+                    folderSel.innerHTML = '<option value="">No folders available.</option>';
+                }
+            })
+            .catch(e => { folderSel.innerHTML = '<option value="">Error loading folders</option>'; });
+    }
+
+    function loadPersonalTasks() {
+        const container = document.getElementById('personalTasksContainer');
+        fetch('../task_manager/api.php', { method: 'POST', body: new URLSearchParams({ action: 'get_personal_tasks' }) })
+        .then(r => r.json()).then(d => {
+            if (d.status === 'success') {
+                if (d.data.length === 0) {
+                    container.innerHTML = '<div class="text-center text-gray mt-5 pt-5"><i class="fas fa-clipboard-list fa-3x mb-3 opacity-25"></i><p class="small">Your Quick Tasks list is empty.<br>Write a task below.</p></div>';
+                    return;
+                }
+                let html = '';
+                d.data.forEach(t => {
+                    let timeHtml = `<div class="badge bg-secondary text-white" style="font-size: 0.8rem; padding: 5px 10px; border-radius: 6px;"><i class="fas fa-clock me-1"></i>${t.estimated_minutes}m</div>`;
+                    
+                    if (t.status === 'Active') {
+                         timeHtml = `<div class="pt-timer" data-task-id="${t.id}" data-status="${t.status}" data-start="${t.actual_start_time}" data-worked="${t.worked_minutes}" data-est="${t.estimated_minutes}" style="background: rgba(239, 68, 68, 0.1); color: #ef4444; padding: 4px 10px; border-radius: 6px; font-family: monospace; font-weight: bold; font-size: 0.85rem; display: inline-flex; align-items: center;"><i class="fas fa-stopwatch me-1"></i> Calculating...</div>`;
+                    } else if (t.status === 'On_Hold' || t.status === 'System_Pause') {
+                         timeHtml = `<div style="background: rgba(245, 158, 11, 0.15); color: #f59e0b; padding: 4px 10px; border-radius: 6px; font-family: monospace; font-weight: bold; font-size: 0.85rem; display: inline-flex; align-items: center;"><i class="fas fa-pause-circle me-1"></i> PAUSED</div>`;
+                    } else if (t.status === 'Overdue') {
+                         timeHtml = `<div style="background: rgba(239, 68, 68, 0.2); color: #ef4444; padding: 4px 10px; border-radius: 6px; font-family: monospace; font-weight: bold; font-size: 0.85rem; display: inline-flex; align-items: center;"><i class="fas fa-exclamation-triangle me-1"></i> OVERDUE</div>`;
+                    } else if (t.status === 'Completed') {
+                         timeHtml = `<div style="background: rgba(16, 185, 129, 0.15); color: #10b981; padding: 4px 10px; border-radius: 6px; font-family: monospace; font-weight: bold; font-size: 0.85rem; display: inline-flex; align-items: center;"><i class="fas fa-check-circle me-1"></i> DONE</div>`;
+                    }
+
+                    let playBtn = '';
+                    if (t.status === 'Pending' || t.status === 'On_Hold' || t.status === 'System_Pause') {
+                         playBtn = `<button class="btn btn-sm btn-outline-primary rounded-pill px-2 py-0 flex-grow-1 fw-bold" onclick="updatePtStatus(${t.id}, 'Active')"><i class="fas fa-play me-1"></i> Start</button>`;
+                    } else if (t.status === 'Active' || t.status === 'Overdue') {
+                         playBtn = `<button class="btn btn-sm btn-outline-warning rounded-pill px-2 py-0 flex-grow-1 fw-bold" onclick="updatePtStatus(${t.id}, 'On_Hold')"><i class="fas fa-pause me-1"></i> Pause</button>`;
+                    }
+
+                    let opacityClass = t.status === 'Completed' ? 'opacity-50' : '';
+                    let textClass = t.status === 'Completed' ? 'text-decoration-line-through text-gray' : 'text-white';
+                    let editBtn = t.status === 'Completed' ? '' : `<button class="btn btn-sm btn-link text-gray p-0 ms-1" onclick="openEditPersonalTaskModal(${t.id}, '${t.name.replace(/'/g, "\\'")}')"><i class="fas fa-edit"></i></button>`;
+
+                    let actionsHtml = '';
+                    if (t.status !== 'Completed') {
+                        actionsHtml = `
+                            ${playBtn}
+                            <button class="btn btn-sm btn-info rounded-pill px-2 py-0 flex-grow-1 fw-bold text-dark" onclick="openMovePersonalTaskModal(${t.id}, '${t.status}')" title="Deploy or Complete Task"><i class="fas fa-share me-1"></i> Deploy</button>
+                            <button class="btn btn-sm btn-outline-danger rounded-pill px-2 py-0 flex-shrink-0" onclick="deletePersonalTask(${t.id})" title="Delete"><i class="fas fa-trash"></i></button>
+                        `;
+                    } else {
+                        actionsHtml = `
+                            <button class="btn btn-sm btn-info rounded-pill px-2 py-0 flex-grow-1 fw-bold text-dark" onclick="openMovePersonalTaskModal(${t.id}, '${t.status}')" title="Deploy to Project"><i class="fas fa-share me-1"></i> Deploy</button>
+                            <button class="btn btn-sm btn-outline-danger rounded-pill px-2 py-0 flex-shrink-0" onclick="deletePersonalTask(${t.id})" title="Delete Task permanently"><i class="fas fa-trash"></i></button>
+                        `;
+                    }
+
+                    html += `
+                        <div class="chat-bubble ${t.status === 'Active' ? 'border-primary' : ''} ${opacityClass}">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <div class="${textClass} fw-bold" style="font-size: 0.9rem; line-height: 1.3;">
+                                    ${t.name} ${editBtn}
+                                </div>
+                                <div class="flex-shrink-0" style="font-size: 0.65rem;">${timeHtml}</div>
+                            </div>
+                            <div class="d-flex gap-2 mt-3">
+                                ${actionsHtml}
+                            </div>
+                        </div>
+                    `;
+                });
+                container.innerHTML = html;
+                container.scrollTop = container.scrollHeight; // Auto-scroll al final (estilo chat)
+                startPtTimers();
+            }
+        });
+    }
+
+    function startPtTimers() {
+        if (ptTimerInterval) clearInterval(ptTimerInterval);
+        const timers = document.querySelectorAll('.pt-timer');
+        if (timers.length === 0) return;
+
+        ptTimerInterval = setInterval(() => {
+            const now = new Date();
+            timers.forEach(el => {
+                const startStr = el.getAttribute('data-start');
+                const workedMins = parseInt(el.getAttribute('data-worked')) || 0;
+                if (!startStr) return;
+                
+                const startObj = (startStr && startStr !== 'null') ? new Date(startStr.replace(/-/g, '/')) : new Date();
+                const diffSecs = Math.floor((now - startObj) / 1000);
+                const totalSecs = (workedMins * 60) + diffSecs;
+                
+                const estMins = parseInt(el.getAttribute('data-est')) || 0;
+                const remainingSecs = (estMins * 60) - totalSecs;
+
+                if (remainingSecs <= 0) {
+                    if (el.getAttribute('data-status') === 'Active') { el.setAttribute('data-status', 'Overdue'); updatePtStatus(el.getAttribute('data-task-id'), 'Overdue'); }
+                    el.innerHTML = `<i class="fas fa-exclamation-triangle me-1"></i> 00:00:00 (OVERDUE)`;
+                    el.style.background = 'rgba(239, 68, 68, 0.2)';
+                } else {
+                    const h = Math.floor(remainingSecs / 3600); const m = Math.floor((remainingSecs % 3600) / 60); const s = remainingSecs % 60;
+                    el.innerHTML = `<i class="fas fa-stopwatch me-1"></i> ${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+                }
+            });
+        }, 1000);
+    }
+
+    function submitPersonalTask(e) {
         e.preventDefault();
         const form = e.target;
         const btn = form.querySelector('button[type="submit"]');
-        const originalHtml = btn.innerHTML;
-        
         btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
         btn.disabled = true;
 
         const fd = new FormData(form);
-        fd.append('action', 'create_quick_task');
+        fd.append('action', 'add_personal_task');
 
         fetch('../task_manager/api.php', { method: 'POST', body: fd })
-            .then(r => r.json())
-            .then(d => {
+            .then(r => r.json()).then(d => {
                 if (d.status === 'success') {
-                    showToast(d.message, 'success');
-                    document.getElementById('qt_name').value = '';
-                    document.getElementById('qt_minutes').value = '';
-                    loadActiveProjectsHealth(); // Refrescar métricas inferiores
-                    closeQuickTaskPanel(); // FASE 84: Cerrar el panel
-                } else { appAlert('Error: ' + d.message, 'Error', 'error'); }
-            })
-            .catch(err => { console.error(err); appAlert('Connection error.', 'Error', 'error'); })
-            .finally(() => { btn.innerHTML = originalHtml; btn.disabled = false; });
+                    document.getElementById('pt_name').value = '';
+                    loadPersonalTasks();
+                } else appAlert('Error: ' + d.message, 'Error', 'error');
+            }).finally(() => { btn.innerHTML = '<i class="fas fa-plus me-1"></i> Add Task'; btn.disabled = false; document.getElementById('pt_name').focus(); });
+    }
+
+    function openEditPersonalTaskModal(taskId, currentName) {
+        document.getElementById('edit_pt_id').value = taskId;
+        document.getElementById('edit_pt_name').value = currentName;
+        const modal = new bootstrap.Modal(document.getElementById('editPersonalTaskModal'));
+        modal.show();
+    }
+
+    function confirmEditPersonalTask() {
+        const taskId = document.getElementById('edit_pt_id').value;
+        const newName = document.getElementById('edit_pt_name').value.trim();
+        
+        if (!newName) {
+            appAlert('Task name cannot be empty.', 'Notice', 'warning');
+            return;
+        }
+
+        const btn = document.getElementById('btnConfirmEditPt');
+        const origText = btn.innerHTML;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>'; btn.disabled = true;
+
+        fetch('../task_manager/api.php', { method: 'POST', body: new URLSearchParams({ action: 'edit_personal_task', task_id: taskId, name: newName }) })
+        .then(r => r.json()).then(d => { 
+            if(d.status==='success') {
+                bootstrap.Modal.getInstance(document.getElementById('editPersonalTaskModal')).hide();
+                loadPersonalTasks(); 
+                loadLiveOperations(); 
+            } else {
+                appAlert('Error: ' + d.message, 'Error', 'error');
+            }
+        }).finally(() => { btn.innerHTML = origText; btn.disabled = false; });
+    }
+
+    function updatePtStatus(id, newStatus, forceOvertime = 0) {
+        const fd = new URLSearchParams({ action: 'update_personal_task_status', task_id: id, status: newStatus });
+        if (forceOvertime) fd.append('force_overtime', 1);
+
+        fetch('../task_manager/api.php', { method: 'POST', body: fd })
+        .then(r => r.json()).then(d => { 
+            if (d.status === 'confirm_overtime') {
+                appConfirm(d.message + '<br><br>Do you want to log this time as an exception (Overtime) and start it anyway?', 'Outside Working Hours', () => {
+                    updatePtStatus(id, newStatus, 1);
+                });
+            } else if(d.status === 'success') {
+                loadPersonalTasks(); 
+                loadLiveOperations();
+            } else {
+                appAlert(d.message, 'Error', 'error');
+            }
+        });
+    }
+    
+    function deletePersonalTask(id) {
+        fetch('../task_manager/api.php', { method: 'POST', body: new URLSearchParams({ action: 'delete_personal_task', task_id: id }) })
+        .then(r => r.json()).then(d => { if(d.status==='success') { loadPersonalTasks(); loadLiveOperations(); } });
+    }
+
+    function openMovePersonalTaskModal(taskId, currentStatus) {
+        // Pausar la tarea SOLO si estaba corriendo para registrar el tiempo antes de moverla
+        if (currentStatus === 'Active') {
+            updatePtStatus(taskId, 'On_Hold');
+        }
+        document.getElementById('move_pt_id').value = taskId;
+        
+        // Ocultar opción "Complete here" si ya está completada
+        const localOption = document.getElementById('deploy_action_complete_local');
+        if (localOption && localOption.parentElement) {
+            if (currentStatus === 'Completed') {
+                localOption.parentElement.style.display = 'none';
+                document.getElementById('deploy_action_complete_move').checked = true;
+                toggleDeployAction();
+            } else {
+                localOption.parentElement.style.display = 'block';
+            }
+        }
+        
+        const modal = new bootstrap.Modal(document.getElementById('movePersonalTaskModal'));
+        modal.show();
+    }
+
+    function toggleDeployAction() {
+        const action = document.querySelector('input[name="deploy_action"]:checked').value;
+        const projectFields = document.getElementById('deploy_project_fields');
+        if (action === 'complete_local') {
+            projectFields.style.display = 'none';
+        } else {
+            projectFields.style.display = 'block';
+        }
+    }
+
+    function confirmMovePersonalTask() {
+        const taskId = document.getElementById('move_pt_id').value;
+        const action = document.querySelector('input[name="deploy_action"]:checked').value;
+        
+        if (action === 'complete_local') {
+            const btn = document.getElementById('btnConfirmDeploy');
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>'; btn.disabled = true;
+            
+            fetch('../task_manager/api.php', { method: 'POST', body: new URLSearchParams({ action: 'complete_personal_task', task_id: taskId }) })
+            .then(r => r.json()).then(d => { 
+                if(d.status === 'success') {
+                    bootstrap.Modal.getInstance(document.getElementById('movePersonalTaskModal')).hide();
+                    loadPersonalTasks();
+                } else appAlert('Error: ' + d.message, 'Error', 'error');
+            }).finally(() => { btn.innerHTML = 'Confirm Action'; btn.disabled = false; });
+            return;
+        }
+
+        const targetProjectId = document.getElementById('move_pt_project_id').value;
+        const targetStageId = document.getElementById('move_pt_stage_id').value;
+        const targetFolderId = document.getElementById('move_pt_folder_id').value;
+        const fileInput = document.getElementById('move_pt_evidence_file');
+        
+        if (!targetProjectId) {
+            appAlert("Please select a project.", "Notice", "warning"); return;
+        }
+        
+        if (fileInput.files.length > 0 && !targetFolderId) {
+            appAlert("Please select a destination folder for your evidence files.", "Notice", "warning"); return;
+        }
+        
+        if (fileInput.files.length > 20) {
+            appAlert("You can only upload up to 20 files at once.", "Notice", "warning"); return;
+        }
+
+        const btn = document.getElementById('btnConfirmDeploy');
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>'; btn.disabled = true;
+        
+        const fd = new FormData();
+        fd.append('action', 'transfer_personal_task');
+        fd.append('task_id', taskId);
+        fd.append('target_project_id', targetProjectId);
+        fd.append('mark_as_completed', action === 'complete_move' ? '1' : '0');
+        if (targetStageId) fd.append('target_stage_id', targetStageId);
+        if (targetFolderId) fd.append('folder_id', targetFolderId);
+        
+        for (let i = 0; i < fileInput.files.length; i++) {
+            fd.append('files[]', fileInput.files[i]);
+        }
+
+        fetch('../task_manager/api.php', { method: 'POST', body: fd })
+        .then(r => r.json()).then(d => {
+            if (d.status === 'success') {
+                bootstrap.Modal.getInstance(document.getElementById('movePersonalTaskModal')).hide();
+                showToast(d.message, 'success');
+                fileInput.value = '';
+                loadPersonalTasks();
+                loadActiveProjectsHealth(); // Refresca dashboard
+                loadLiveOperations();
+            } else appAlert('Error: ' + d.message, 'Error', 'error');
+        }).finally(() => { btn.innerHTML = 'Confirm Action'; btn.disabled = false; });
     }
     
     // Toggle Sidebar Funciones
-    function openQuickTaskPanel() { document.body.classList.add('qt-panel-active'); }
+    function openQuickTaskPanel() { document.body.classList.add('qt-panel-active'); loadPersonalTasks(); }
     function closeQuickTaskPanel() { document.body.classList.remove('qt-panel-active'); }
 
     function filterProjectAlerts(category, btnElement) {
         document.querySelectorAll('.filter-alert-btn').forEach(b => {
-            b.classList.remove('btn-primary');
-            b.classList.add('btn-outline-secondary');
+            b.className = 'btn btn-sm btn-outline-secondary rounded-pill flex-shrink-0 filter-alert-btn';
         });
         if (btnElement) {
-            btnElement.classList.add('btn-primary');
-            btnElement.classList.remove('btn-outline-secondary');
+            btnElement.className = 'btn btn-sm btn-primary text-white fw-bold rounded-pill flex-shrink-0 filter-alert-btn';
         }
         renderProjectAlerts(category);
     }
@@ -1311,12 +1952,16 @@ include __DIR__ . '/../views/header.php';
         
         if (category === 'notes') {
             filteredNotes = allProjectAlerts.filter(log => log.action_type === 'Note');
-        } else if (category === 'rfis') {
+        } else if (category === 'active') {
+            filteredNotes = allProjectAlerts.filter(log => ['Started', 'Resumed'].includes(log.action_type));
+        } else if (category === 'hold') {
+            filteredNotes = allProjectAlerts.filter(log => ['Hold', 'Paused'].includes(log.action_type));
+        } else if (category === 'overdue') {
+            filteredNotes = allProjectAlerts.filter(log => ['Overdue', 'Extend', 'Extended'].includes(log.action_type));
+        } else if (category === 'completed') {
+            filteredNotes = allProjectAlerts.filter(log => ['Completed', 'Completed_Late', 'Bypassed'].includes(log.action_type));
+        } else if (category === 'rfi') {
             filteredNotes = allProjectAlerts.filter(log => log.action_type === 'RFI_Justification');
-        } else if (category === 'time') {
-            filteredNotes = allProjectAlerts.filter(log => ['Hold', 'Overdue', 'Extend'].includes(log.action_type));
-        } else if (category === 'status') {
-            filteredNotes = allProjectAlerts.filter(log => ['Completed', 'Completed_Late', 'Bypassed', 'Reset'].includes(log.action_type));
         }
 
         if (filteredNotes.length === 0) {

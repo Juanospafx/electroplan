@@ -136,6 +136,19 @@ try {
             echo json_encode(['status' => 'success', 'message' => 'Task updated successfully.']);
             break;
         
+        case 'delete_task':
+            if ($userRole !== 'admin') throw new Exception("Access Denied: Only administrators can delete tasks.");
+            $taskId = (int)($_POST['task_id'] ?? 0);
+            $deleteSubtasks = isset($_POST['delete_subtasks']) && $_POST['delete_subtasks'] == '1';
+            
+            if (!$projectId || !$taskId) {
+                throw new Exception("Missing project ID or task ID.");
+            }
+            
+            $taskManager->deleteProjectTask($taskId, $projectId, $deleteSubtasks);
+            echo json_encode(['status' => 'success', 'message' => 'Task deleted successfully.']);
+            break;
+
         case 'create_stage_task':
             if ($userRole !== 'admin') throw new Exception("Access Denied: Only administrators can create tasks.");
             $stageId = (int)($_POST['stage_id'] ?? 0);
@@ -167,6 +180,90 @@ try {
             
             $taskManager->createQuickTask($projectId, $nameQuick, $estimatedMinutesQuick);
             echo json_encode(['status' => 'success', 'message' => 'Quick task sent to project successfully.']);
+            break;
+            
+        case 'get_personal_tasks':
+            if ($userRole !== 'admin') throw new Exception("Access Denied");
+            $tasks = $taskManager->getPersonalTasks((int)$_SESSION['user_id']);
+            echo json_encode(['status' => 'success', 'data' => $tasks]);
+            break;
+
+        case 'add_personal_task':
+            if ($userRole !== 'admin') throw new Exception("Access Denied");
+            $name = trim($_POST['name'] ?? '');
+            $minutes = (int)($_POST['estimated_minutes'] ?? 60);
+            if (empty($name)) throw new Exception("Task name required.");
+            
+            $taskManager->addPersonalTask((int)$_SESSION['user_id'], $name, $minutes);
+            echo json_encode(['status' => 'success', 'message' => 'Added to scratchpad.']);
+            break;
+
+        case 'edit_personal_task':
+            if ($userRole !== 'admin') throw new Exception("Access Denied");
+            $taskId = (int)($_POST['task_id'] ?? 0);
+            $name = trim($_POST['name'] ?? '');
+            $pdo->prepare("UPDATE personal_tasks SET name = ? WHERE id = ? AND user_id = ?")->execute([$name, $taskId, (int)$_SESSION['user_id']]);
+            echo json_encode(['status' => 'success']);
+            break;
+
+        case 'update_personal_task_status':
+            if ($userRole !== 'admin') throw new Exception("Access Denied");
+            $taskId = (int)($_POST['task_id'] ?? 0);
+            $status = trim($_POST['status'] ?? 'Pending');
+            $forceOvertime = isset($_POST['force_overtime']) && $_POST['force_overtime'] == '1';
+            
+            $task = $pdo->prepare("SELECT * FROM personal_tasks WHERE id = ? AND user_id = ?");
+            $task->execute([$taskId, (int)$_SESSION['user_id']]);
+            if (!$task->fetch()) throw new Exception("Task not found.");
+            
+            if ($status === 'Active' && !$forceOvertime) {
+                $stmtU = $pdo->prepare("SELECT work_start_time, work_end_time FROM users WHERE id = ?");
+                $stmtU->execute([(int)$_SESSION['user_id']]);
+                $uData = $stmtU->fetch(PDO::FETCH_ASSOC);
+                
+                if (!$timeEngine->isWorkingHour(null, $uData['work_start_time'] ?? '07:00:00', $uData['work_end_time'] ?? '19:00:00')) {
+                    echo json_encode(['status' => 'confirm_overtime', 'message' => 'You are trying to start this task outside of your established working hours.']);
+                    exit;
+                }
+            }
+            $taskManager->updatePersonalTaskStatus($taskId, (int)$_SESSION['user_id'], $status);
+            echo json_encode(['status' => 'success']);
+            break;
+
+        case 'complete_personal_task':
+            if ($userRole !== 'admin') throw new Exception("Access Denied");
+            $taskManager->completePersonalTask((int)($_POST['task_id'] ?? 0), (int)$_SESSION['user_id']);
+            echo json_encode(['status' => 'success']);
+            break;
+
+        case 'delete_personal_task':
+            if ($userRole !== 'admin') throw new Exception("Access Denied");
+            $taskManager->deletePersonalTask((int)($_POST['task_id'] ?? 0), (int)$_SESSION['user_id']);
+            echo json_encode(['status' => 'success']);
+            break;
+
+        case 'get_project_stages_list':
+            $projectId = (int)($_POST['project_id'] ?? 0);
+            $stages = $taskManager->getProjectStagesList($projectId);
+            echo json_encode(['status' => 'success', 'data' => $stages]);
+            break;
+
+        case 'transfer_personal_task':
+            if ($userRole !== 'admin') throw new Exception("Access Denied");
+            $targetProjectId = (int)($_POST['target_project_id'] ?? 0);
+            $targetStageId = !empty($_POST['target_stage_id']) ? (int)$_POST['target_stage_id'] : null;
+            $markAsCompleted = isset($_POST['mark_as_completed']) ? ($_POST['mark_as_completed'] == '1') : true;
+            
+            $newTaskId = $taskManager->transferPersonalTaskToProject((int)($_POST['task_id'] ?? 0), $targetProjectId, $targetStageId, (int)$_SESSION['user_id'], $markAsCompleted);
+            
+            if (!empty($_FILES['files']['name'][0])) {
+                $folderId = (int)($_POST['folder_id'] ?? 0);
+                if ($folderId > 0) {
+                    $taskManager->attachFilesToTask($newTaskId, $targetProjectId, $folderId, $_FILES['files'], (int)$_SESSION['user_id']);
+                }
+            }
+
+            echo json_encode(['status' => 'success', 'message' => 'Task deployed successfully!']);
             break;
 
         case 'create_subtask': // ANTES: create_rfi
@@ -299,13 +396,13 @@ try {
         case 'upload_task_attachment':
             $taskId = (int)($_POST['task_id'] ?? 0);
             $folderId = (int)($_POST['folder_id'] ?? 0);
-            $file = $_FILES['file'] ?? null;
+            $files = $_FILES['files'] ?? null;
 
-            if (!$projectId || !$taskId || !$folderId || !$file) {
+            if (!$projectId || !$taskId || !$folderId || !$files) {
                 throw new Exception("Missing required data for file attachment.");
             }
 
-            $result = $taskManager->attachFileToTask($taskId, $projectId, $folderId, $file, (int)$_SESSION['user_id']);
+            $result = $taskManager->attachFilesToTask($taskId, $projectId, $folderId, $files, (int)$_SESSION['user_id']);
             echo json_encode($result);
             break;
             
