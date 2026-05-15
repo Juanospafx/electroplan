@@ -150,6 +150,10 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
             body.theme-light .form-control,
             body.theme-light .bg-dark { background-color: #ffffff !important; color: #0f172a !important; border-color: #cbd5e1 !important; }
 
+            .form-control { background: var(--bg-input) !important; border: 1px solid var(--border-subtle) !important; color: var(--text-white) !important; border-radius: 8px; }
+            .form-control::placeholder { color: var(--text-gray) !important; opacity: 1; }
+            .form-control:focus { border-color: var(--primary) !important; box-shadow: 0 0 0 3px rgba(251, 90, 58, 0.2) !important; }
+
             @media (max-width: 768px) {
                 .timeline-container { margin-left: 0; }
                 .timeline-container::before { left: 16px; }
@@ -196,22 +200,22 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
             
             <form method="GET" class="d-flex align-items-center gap-2 flex-wrap justify-content-end">
                 <div class="input-group input-group-sm" style="min-width:260px;">
-                    <span class="input-group-text" style="background:var(--bg-input); border:1px solid var(--primary); color:var(--primary);">
+                    <span class="input-group-text" style="background:var(--bg-input); border-color:var(--border-subtle); color:var(--text-gray);">
                         <i class="fas fa-search"></i>
                     </span>
-                    <input type="text" name="file_q" class="form-control" placeholder="Search text in timeline..." value="<?= htmlspecialchars($fileQuery) ?>" style="background:var(--bg-input); color:var(--text-white); border:1px solid var(--primary);">
+                    <input type="text" name="file_q" class="form-control" placeholder="Search timeline..." value="<?= htmlspecialchars($fileQuery) ?>">
                 </div>
 
                 <div class="input-group input-group-sm" style="min-width:190px;">
-                    <span class="input-group-text" style="background:var(--bg-input); border:1px solid var(--primary); color:var(--primary);">
+                    <span class="input-group-text" style="background:var(--bg-input); border-color:var(--border-subtle); color:var(--text-gray);">
                         <i class="fas fa-calendar-alt"></i>
                     </span>
-                    <input type="text" name="filter_date" class="form-control app-datepicker" placeholder="Filter by date..." value="<?= htmlspecialchars($filterDate) ?>" style="background:var(--bg-input); color:var(--text-white); border:1px solid var(--primary);">
+                    <input type="text" name="filter_date" class="form-control app-datepicker" placeholder="Filter by date..." value="<?= htmlspecialchars($filterDate) ?>">
                 </div>
 
-                <button type="submit" class="btn btn-sm btn-primary"><i class="fas fa-filter"></i></button>
+                <button type="submit" class="btn btn-outline-light btn-sm rounded-pill px-3"><i class="fas fa-filter"></i></button>
                 <?php if(!empty($filterDate) || $fileQuery !== ''): ?>
-                    <a href="timeline.php" class="btn btn-sm btn-outline-secondary" title="Clear"><i class="fas fa-times"></i></a>
+                    <a href="timeline.php" class="btn btn-outline-danger btn-sm rounded-pill px-3" title="Clear Filters"><i class="fas fa-times"></i></a>
                 <?php endif; ?>
             </form>
         </div>
