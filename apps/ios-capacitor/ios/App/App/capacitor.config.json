@@ -1,0 +1,18 @@
+{
+	"appId": "net.brightronix.electroplan",
+	"appName": "ElectroPlan",
+	"webDir": "www",
+	"bundledWebRuntime": false,
+	"server": {
+		"cleartext": false,
+		"iosScheme": "https"
+	},
+	"packageClassList": [
+		"CapacitorSQLitePlugin",
+		"FilesystemPlugin",
+		"CAPNetworkPlugin",
+		"PreferencesPlugin",
+		"SplashScreenPlugin",
+		"StatusBarPlugin"
+	]
+}

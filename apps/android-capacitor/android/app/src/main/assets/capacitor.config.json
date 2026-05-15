@@ -1,0 +1,10 @@
+{
+	"appId": "com.brightronix.electroplan.android",
+	"appName": "ElectroPlan Android",
+	"webDir": "www",
+	"bundledWebRuntime": false,
+	"server": {
+		"cleartext": false,
+		"androidScheme": "https"
+	}
+}
