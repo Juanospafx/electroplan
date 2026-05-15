@@ -1228,6 +1228,41 @@ switch($action) {
         echo json_encode(['status'=> $stmt->rowCount() ? 'success' : 'error', 'msg'=> $stmt->rowCount() ? '' : 'Folder not found']);
         break;
 
+    case 'load_annotations':
+        $fileId = (int)($_POST['file_id'] ?? 0);
+        if(!$fileId){ echo json_encode(['status'=>'error','msg'=>'Invalid file_id']); exit; }
+        $pdo->exec("CREATE TABLE IF NOT EXISTS image_annotations (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY, file_id BIGINT UNSIGNED NOT NULL, user_id BIGINT UNSIGNED NOT NULL, annotations_json LONGTEXT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, UNIQUE KEY uq_file_user(file_id,user_id), KEY idx_file(file_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+        $s = $pdo->prepare("SELECT annotations_json FROM image_annotations WHERE file_id=? AND user_id=? LIMIT 1");
+        $s->execute([$fileId, (int)$userId]);
+        $row = $s->fetch(PDO::FETCH_ASSOC);
+        echo json_encode(['status'=>'success','annotations_json'=>$row['annotations_json'] ?? null]);
+        break;
+
+    case 'save_annotations':
+        if($userRole === 'viewer'){ echo json_encode(['status'=>'error','msg'=>'Access Denied']); exit; }
+        $fileId = (int)($_POST['file_id'] ?? 0);
+        $json = $_POST['annotations_json'] ?? '{}';
+        if(!$fileId){ echo json_encode(['status'=>'error','msg'=>'Invalid file_id']); exit; }
+        $pdo->exec("CREATE TABLE IF NOT EXISTS image_annotations (id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY, file_id BIGINT UNSIGNED NOT NULL, user_id BIGINT UNSIGNED NOT NULL, annotations_json LONGTEXT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, UNIQUE KEY uq_file_user(file_id,user_id), KEY idx_file(file_id)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+        $s = $pdo->prepare("INSERT INTO image_annotations (file_id,user_id,annotations_json) VALUES (?,?,?) ON DUPLICATE KEY UPDATE annotations_json=VALUES(annotations_json), updated_at=CURRENT_TIMESTAMP");
+        $s->execute([$fileId,(int)$userId,$json]);
+        echo json_encode(['status'=>'success']);
+        break;
+
+    case 'export_edited_image':
+        if($userRole === 'viewer'){ echo json_encode(['status'=>'error','msg'=>'Access Denied']); exit; }
+        $fileId = (int)($_POST['file_id'] ?? 0);
+        $imageData = (string)($_POST['image_data'] ?? '');
+        if(!$fileId || strpos($imageData,'data:image/png;base64,') !== 0){ echo json_encode(['status'=>'error','msg'=>'Invalid payload']); exit; }
+        $raw = base64_decode(substr($imageData, strlen('data:image/png;base64,')));
+        if($raw === false){ echo json_encode(['status'=>'error','msg'=>'Invalid image']); exit; }
+        $dir = __DIR__ . '/uploads/edited'; if(!is_dir($dir)) @mkdir($dir,0775,true);
+        $name = 'edited_' . $fileId . '_' . time() . '.png';
+        $path = $dir . '/' . $name;
+        file_put_contents($path, $raw);
+        echo json_encode(['status'=>'success','path'=>'uploads/edited/'.$name]);
+        break;
+
     case 'track_file_view':
         $fileId = (int)($_POST['file_id'] ?? 0);
         if(!$fileId) { echo json_encode(['status'=>'error']); exit; }
