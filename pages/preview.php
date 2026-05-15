@@ -534,49 +534,70 @@ body.theme-light .text-muted, body.theme-light .text-gray { color: var(--text-gr
 <script>
     // --- UI HELPERS ---
     function toggleSidebar(side) {
+        const fallbackSidebar = document.getElementById('mainSidebar') || document.getElementById('sidebar') || document.querySelector('.sidebar');
+        const overlay = document.getElementById('sidebarOverlay') || document.querySelector('.sidebar-overlay');
+
+        // Modo fallback defensivo (si la vista no tiene sidebars left/right)
+        if (side !== 'left' && side !== 'right') {
+            if (!fallbackSidebar) { console.warn('Sidebar no encontrado en esta página.'); return; }
+            fallbackSidebar.classList.toggle('active');
+            fallbackSidebar.classList.toggle('open');
+            return;
+        }
+
         const el = side === 'left' ? document.getElementById('sidebarLeft') : document.getElementById('sidebarRight');
         const other = side === 'left' ? document.getElementById('sidebarRight') : document.getElementById('sidebarLeft');
-        
+
+        if (!el) {
+            if (!fallbackSidebar) { console.warn('Sidebar no encontrado en esta página.'); return; }
+            fallbackSidebar.classList.toggle('active');
+            fallbackSidebar.classList.toggle('open');
+            return;
+        }
+
         const btn = document.getElementById(side === 'left' ? 'btn-toggle-left' : 'btn-toggle-right');
         const otherBtn = document.getElementById(side === 'left' ? 'btn-toggle-right' : 'btn-toggle-left');
-        
         const mobBtn = document.getElementById(side === 'left' ? 'mobile-toggle-left' : 'mobile-toggle-right');
         const otherMobBtn = document.getElementById(side === 'left' ? 'mobile-toggle-right' : 'mobile-toggle-left');
         const centerMobBtn = document.getElementById('mobile-toggle-center');
 
         if (el.classList.contains('show')) {
             el.classList.remove('show');
-            if(btn) btn.classList.remove('active');
-            if(mobBtn) mobBtn.classList.remove('active');
-            
-            if(!other.classList.contains('show')) {
-                if(centerMobBtn) centerMobBtn.classList.add('active');
-                document.getElementById('sidebarOverlay').classList.remove('show');
+            if (btn) btn.classList.remove('active');
+            if (mobBtn) mobBtn.classList.remove('active');
+            if (!other || !other.classList.contains('show')) {
+                if (centerMobBtn) centerMobBtn.classList.add('active');
+                if (overlay) overlay.classList.remove('show');
             }
         } else {
             el.classList.add('show');
-            if(btn) btn.classList.add('active');
-            if(mobBtn) mobBtn.classList.add('active');
-            if(centerMobBtn) centerMobBtn.classList.remove('active');
-            
-            other.classList.remove('show');
-            if(otherBtn) otherBtn.classList.remove('active');
-            if(otherMobBtn) otherMobBtn.classList.remove('active');
-            
-            document.getElementById('sidebarOverlay').classList.add('show');
+            if (btn) btn.classList.add('active');
+            if (mobBtn) mobBtn.classList.add('active');
+            if (centerMobBtn) centerMobBtn.classList.remove('active');
+            if (other) other.classList.remove('show');
+            if (otherBtn) otherBtn.classList.remove('active');
+            if (otherMobBtn) otherMobBtn.classList.remove('active');
+            if (overlay) overlay.classList.add('show');
         }
     }
-    
+
     function closeAllSidebars() {
-        document.getElementById('sidebarLeft').classList.remove('show');
-        document.getElementById('sidebarRight').classList.remove('show');
-        document.getElementById('sidebarOverlay').classList.remove('show');
+        const sidebarLeft = document.getElementById('sidebarLeft');
+        const sidebarRight = document.getElementById('sidebarRight');
+        const sidebar = document.getElementById('mainSidebar') || document.getElementById('sidebar') || document.querySelector('.sidebar');
+        const overlay = document.getElementById('sidebarOverlay') || document.querySelector('.sidebar-overlay');
+
+        if (sidebarLeft) sidebarLeft.classList.remove('show');
+        if (sidebarRight) sidebarRight.classList.remove('show');
+        if (sidebar) { sidebar.classList.remove('active'); sidebar.classList.remove('open'); }
+        if (overlay) { overlay.classList.remove('show'); overlay.classList.remove('active'); }
 
         ['btn-toggle-left', 'btn-toggle-right', 'mobile-toggle-left', 'mobile-toggle-right'].forEach(id => {
             const btn = document.getElementById(id);
-            if(btn) btn.classList.remove('active');
+            if (btn) btn.classList.remove('active');
         });
-        if(document.getElementById('mobile-toggle-center')) document.getElementById('mobile-toggle-center').classList.add('active');
+        const center = document.getElementById('mobile-toggle-center');
+        if (center) center.classList.add('active');
     }
 
     function applyTheme(theme) {
