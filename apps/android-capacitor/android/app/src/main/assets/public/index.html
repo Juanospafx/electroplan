@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>ElectroPlan Android</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    * { box-sizing: border-box; margin: 0; }
+    body { background:#0b1120; color:#f8fafc; min-height:100vh; font-family: Arial, sans-serif; }
+    #loading-screen { position:fixed; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px; background:#0b1120; }
+    .spinner { width:40px; height:40px; border:3px solid rgba(251,90,58,.2); border-top-color:#fb5a3a; border-radius:50%; animation:spin .9s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #offline-screen { display:none; min-height:100vh; padding:22px; }
+    .offline-project-card { display:flex; align-items:center; gap:12px; background:#1e293b; border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:14px; margin-bottom:10px; }
+    #last-sync-time { font-size:.75rem; color:#94a3b8; margin:10px 0 14px; }
+    .retry-btn { width:100%; border:none; border-radius:999px; background:#fb5a3a; color:#fff; font-weight:700; padding:12px; margin-top:18px; }
+  </style>
+</head>
+<body>
+  <div id="loading-screen">
+    <div style="font-size:2rem;">⚡</div>
+    <div class="spinner"></div>
+    <p style="color:#94a3b8;font-size:.85rem;">Connecting...</p>
+  </div>
+
+  <div id="offline-screen">
+    <div style="font-size:1.9rem; margin-bottom:8px;">⚡</div>
+    <h1 style="font-size:1.35rem;">ElectroPlan</h1>
+    <p style="color:#94a3b8; font-size:.85rem; margin-top:4px;">Offline mode — cached data</p>
+    <div id="last-sync-time"></div>
+    <div id="offline-projects"></div>
+    <button class="retry-btn" onclick="window.location.reload()">Retry Connection</button>
+  </div>
+
+  <script type="module" src="./js/app-init.js"></script>
+</body>
+</html>

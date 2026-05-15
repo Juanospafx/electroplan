@@ -25,6 +25,21 @@ $stmt = $pdo->query("
 ");
 $projects = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+$users = [];
+$assignedUsersByProject = [];
+if ($isAdmin) {
+    $stmtUsers = $pdo->query("SELECT id, username, role FROM users ORDER BY username ASC");
+    $users = $stmtUsers->fetchAll(PDO::FETCH_ASSOC);
+
+    $stmtDir = $pdo->query("SELECT project_id, user_id FROM directory ORDER BY project_id, user_id");
+    foreach ($stmtDir->fetchAll(PDO::FETCH_ASSOC) as $row) {
+        $pid = (int)$row['project_id'];
+        $uid = (int)$row['user_id'];
+        if (!isset($assignedUsersByProject[$pid])) $assignedUsersByProject[$pid] = [];
+        $assignedUsersByProject[$pid][] = $uid;
+    }
+}
+
 $pageTitle = "Projects | Brightronix";
 include __DIR__ . '/../views/header.php';
 ?>
@@ -60,7 +75,7 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
 
         body.theme-light .bg-dark { background-color: var(--bg-input) !important; color: var(--text-white) !important; border-color: var(--border-subtle) !important; }
 
-        .table-responsive { border-radius: var(--radius-box); overflow-x: auto; overflow-y: visible; border: 1px solid var(--border-subtle); padding-right: 12px; }
+        .table-responsive { border-radius: var(--radius-box); overflow: hidden; border: 1px solid var(--border-subtle); }
         .table-rounded { width: 100%; border-collapse: separate; border-spacing: 0; background: var(--bg-card); }
         .table-rounded th { background: var(--bg-input); color: var(--text-gray); font-weight: 600; text-transform: uppercase; font-size: 0.75rem; padding: 18px 25px; border-bottom: 1px solid var(--border-subtle); white-space: nowrap; }
         .table-rounded td { padding: 20px 25px; color: var(--text-white); vertical-align: middle; border-bottom: 1px solid var(--border-subtle); }
@@ -71,10 +86,6 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
         .btn-action:hover { background: var(--primary); color: white; border-color: var(--primary); }
         .btn-action.delete:hover { background: #ef4444; color: white; border-color: #ef4444; }
         .action-label { font-size: 0.78rem; font-weight: 600; }
-        .action-buttons { display:flex; flex-direction:column; align-items:flex-start; gap:8px; min-width:140px; }
-        .table-rounded th.actions-col,
-        .table-rounded td.actions-cell { min-width: 60px; }
-        .table-rounded td.actions-cell { overflow: visible; white-space: nowrap; }
 
         .status-badge { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; padding: 5px 10px; border-radius: 8px; letter-spacing: 0.5px; }
         .info-pill { background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 4px 10px; border-radius: 5px; font-size: 0.75rem; color: var(--text-gray); display: inline-flex; align-items: center; gap: 6px; }
@@ -144,25 +155,9 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
             </div>
             
             <?php if($isAdmin): ?>
-            <div class="d-flex gap-2">
-                <button class="btn btn-outline-light btn-sm rounded-pill px-3" onclick="document.getElementById('bulk-folder-input').click()" title="Import projects from local folders" style="display: flex; align-items: center;">
-                    <i class="fas fa-folder-tree me-2"></i>Bulk Import
-                </button>
-                <input type="file" id="bulk-folder-input" webkitdirectory multiple style="display:none" onchange="handleBulkFolderImport(this)">
-                <a href="project_create.php" class="btn-main text-decoration-none" style="display: flex; align-items: center;">
-                    <i class="fas fa-plus me-2"></i> New Project
-                </a>
-            </div>
-            <div id="bulk-import-overlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.75); z-index:9999; align-items:center; justify-content:center;">
-                <div style="background:var(--bg-card); border-radius:16px; padding:32px; width:380px; text-align:center;">
-                    <div class="fw-bold text-white mb-2" id="bulk-status-title">Importing...</div>
-                    <div class="text-gray small mb-3" id="bulk-status-detail">Starting...</div>
-                    <div class="progress mb-3" style="height:8px; border-radius:4px;">
-                        <div id="bulk-progress-bar" class="progress-bar bg-primary" style="width:0%; transition:width 0.3s;"></div>
-                    </div>
-                    <div class="text-gray small" id="bulk-status-count">0 / 0 files</div>
-                </div>
-            </div>
+            <a href="project_create.php" class="btn-main text-decoration-none">
+                <i class="fas fa-plus me-2"></i> New Project
+            </a>
             <?php endif; ?>
         </div>
 
@@ -170,20 +165,20 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
             <table class="table-rounded">
                 <thead>
                     <tr>
-                        <th width="30%">Project Details</th>
+                        <th width="35%">Project Details</th>
                         <th width="20%">Company / Client</th>
                         <th width="15%">Timeline</th>
                         <th width="12%">Assigned</th>
                         <th width="10%">Status</th>
-                        <th width="8%">Files</th>
-                        <th class="actions-col text-end">Actions</th>
+                        <th width="10%">Files</th>
+                        <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody>
                     <?php foreach($projects as $p): 
                         $stColor = getStatusColor($p['status'] ?? 'Active');
                     ?>
-                    <tr style="cursor: pointer;" onclick="window.location.href='project_dashboard.php?id=<?= $p['id'] ?>'">
+                    <tr>
                         <td>
                             <div class="d-flex align-items-start gap-3">
                                 <div class="bg-primary bg-opacity-10 p-2 rounded text-primary mt-1">
@@ -219,7 +214,7 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
                         </td>
                         <td>
                             <span class="status-badge bg-<?= $stColor ?> bg-opacity-25 text-<?= $stColor ?>">
-                                <?= htmlspecialchars($p['status'] ?? 'Active') ?>
+                                <?= $p['status'] ?? 'Active' ?>
                             </span>
                         </td>
                         <td>
@@ -227,12 +222,23 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
                                 <?= $p['file_count'] ?> Files
                             </span>
                         </td>
-                        <td class="actions-cell text-end" onclick="event.stopPropagation();">
-                            <?php if($isAdmin): ?>
-                                <button class="btn-action delete d-inline-flex justify-content-center" style="width: 36px; min-width: 36px; padding: 0;" onclick="deleteProject(<?= $p['id'] ?>)" title="Delete project">
-                                    <i class="fas fa-trash"></i>
-                                </button>
-                            <?php endif; ?>
+                        <td>
+                            <div class="action-buttons" style="display:flex;flex-direction:column;align-items:flex-start;gap:8px;min-width:140px;">
+                                <a href="project_dashboard.php?id=<?= $p['id'] ?>" class="btn-action" title="View project">
+                                    <i class="fas fa-columns"></i><span class="action-label">View</span>
+                                </a>
+                                <?php if($isAdmin): ?>
+                                    <a class="btn-action" href="project_create.php?id=<?= (int)$p['id'] ?>" title="Edit project">
+                                        <i class="fas fa-pen"></i><span class="action-label">Edit</span>
+                                    </a>
+                                    <button class="btn-action" onclick="openAssignModal(<?= (int)$p['id'] ?>, '<?= addslashes($p['name']) ?>', <?= isset($p['assigned_user_id']) && $p['assigned_user_id'] !== null ? (int)$p['assigned_user_id'] : 'null' ?>)" title="Manage users">
+                                        <i class="fas fa-user-plus"></i><span class="action-label">Users</span>
+                                    </button>
+                                    <button class="btn-action delete" onclick="deleteProject(<?= $p['id'] ?>)" title="Delete project">
+                                        <i class="fas fa-trash"></i><span class="action-label">Delete</span>
+                                    </button>
+                                <?php endif; ?>
+                            </div>
                         </td>
                     </tr>
                     <?php endforeach; ?>
@@ -252,7 +258,7 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
             <?php foreach($projects as $p): 
                 $stColor = getStatusColor($p['status'] ?? 'Active');
             ?>
-                <div class="proj-card" style="cursor: pointer;" onclick="window.location.href='project_dashboard.php?id=<?= $p['id'] ?>'">
+                <div class="proj-card">
                     <div class="d-flex align-items-center gap-3 mb-2">
                         <div class="bg-primary bg-opacity-10 p-2 rounded text-primary">
                             <i class="fas fa-folder"></i>
@@ -264,15 +270,18 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
                     </div>
                     <div class="proj-meta mb-2">
                         <span class="status-badge bg-<?= $stColor ?> bg-opacity-25 text-<?= $stColor ?>">
-                            <?= htmlspecialchars($p['status'] ?? 'Active') ?>
+                            <?= $p['status'] ?? 'Active' ?>
                         </span>
                     </div>
                     <div class="proj-meta mb-2"><?= htmlspecialchars($p['description'] ?: 'No description') ?></div>
                     <div class="proj-meta mb-2">Assigned: <?= htmlspecialchars($p['assigned_name'] ?: 'Unassigned') ?></div>
                     <div class="proj-meta mb-3">Created: <?= date('M d, Y', strtotime($p['created_at'])) ?> ?? <?= $p['file_count'] ?> Files</div>
-                    <div class="d-flex justify-content-end mt-2" onclick="event.stopPropagation();">
+                    <div class="d-flex gap-2">
+                        <a href="project_dashboard.php?id=<?= $p['id'] ?>" class="btn-action" title="Open"><i class="fas fa-external-link-alt"></i></a>
                         <?php if($isAdmin): ?>
-                            <button class="btn-icon text-danger border-danger" onclick="deleteProject(<?= $p['id'] ?>)" title="Move to Trash"><i class="fas fa-trash"></i></button>
+                            <a class="btn-action" href="project_create.php?id=<?= (int)$p['id'] ?>" title="Edit"><i class="fas fa-pen"></i></a>
+                            <button class="btn-action" onclick="openAssignModal(<?= (int)$p['id'] ?>, '<?= addslashes($p['name']) ?>', <?= isset($p['assigned_user_id']) && $p['assigned_user_id'] !== null ? (int)$p['assigned_user_id'] : 'null' ?>)" title="Assign User"><i class="fas fa-user-plus"></i></button>
+                            <button class="btn-action delete" onclick="deleteProject(<?= $p['id'] ?>)" title="Move to Trash"><i class="fas fa-trash"></i></button>
                         <?php endif; ?>
                     </div>
                 </div>
@@ -284,7 +293,101 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
         </div>
     </main>
 
+<?php if($isAdmin): ?>
+<div class="modal fade" id="editProjectModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content p-3">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold">Edit Project Status</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="editForm">
+                <input type="hidden" name="action" value="update_project">
+                <input type="hidden" name="id" id="edit_id">
+                <div class="modal-body">
+                    <label class="text-gray small mb-2">Project Name</label>
+                    <input type="text" name="name" id="edit_name" class="form-control mb-3" required>
+                    
+                    <label class="text-gray small mb-2">Status</label>
+                    <select name="status" id="edit_status" class="form-control mb-3">
+                        <option value="Planning">Planning</option>
+                        <option value="Active">Active</option>
+                        <option value="On Hold">On Hold</option>
+                        <option value="Completed">Completed</option>
+                    </select>
+
+                    <label class="text-gray small mb-2">Description</label>
+                    <textarea name="description" id="edit_desc" class="form-control" rows="3"></textarea>
+                    
+                    <div class="alert alert-info mt-3 small">
+                        <i class="fas fa-info-circle me-1"></i> To edit dates and contacts, please use the "Edit Info" button inside the Project Dashboard.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="submit" class="btn-main w-100">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
+
+<?php if($isAdmin): ?>
+<div class="modal fade" id="assignUserModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content p-3">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold">Assign User to Project</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="assignForm">
+                <input type="hidden" name="action" value="assign_project_users">
+                <input type="hidden" name="project_id" id="assign_project_id">
+                <div class="modal-body">
+                    <label class="text-gray small mb-2">Project</label>
+                    <input type="text" id="assign_project_name" class="form-control mb-3" disabled>
+
+                    <label class="text-gray small mb-2">Users</label>
+                    <div class="border rounded p-2" style="max-height:240px; overflow:auto;">
+                        <?php foreach($users as $u): ?>
+                            <label class="d-flex align-items-center gap-2 small text-gray mb-2">
+                                <input type="checkbox" name="user_ids[]" value="<?= (int)$u['id'] ?>" data-role="<?= htmlspecialchars($u['role']) ?>">
+                                <span><?= htmlspecialchars($u['username']) ?> (<?= htmlspecialchars($u['role']) ?>)</span>
+                            </label>
+                        <?php endforeach; ?>
+                    </div>
+                    <small class="text-gray d-block mt-2" style="font-size:0.75rem;">At least one admin must be assigned.</small>
+                </div>
+                <div class="modal-footer">
+                    <button type="submit" class="btn-main w-100">Save assignment</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <script>
+    // 1. Editar
+    function editProject(id, name, desc, status) {
+        document.getElementById('edit_id').value = id;
+        document.getElementById('edit_name').value = name;
+        document.getElementById('edit_desc').value = desc;
+        const stSelect = document.getElementById('edit_status');
+        if(stSelect) stSelect.value = status;
+        new bootstrap.Modal(document.getElementById('editProjectModal')).show();
+    }
+    document.getElementById('editForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        const fd = new FormData(this);
+        fetch('../api/api.php', { method:'POST', body:fd })
+        .then(r => r.json()).then(d => {
+            if(d.status === 'success') location.reload();
+            else appAlert('Error updating project: ' + (d.msg || 'Unknown'), "Update Error", "error");
+        })
+        .catch(() => appAlert('Connection error', "Error", "error"));
+    });
+
+    // 2. Eliminar (SOFT DELETE)
     function deleteProject(id) {
         appConfirm("Move project to Recycle Bin?", "Delete Project", () => {
             const fd = new FormData();
@@ -298,120 +401,41 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
         });
     }
 
-    async function handleBulkFolderImport(input) {
-        const files = Array.from(input.files || []);
-        input.value = '';
-        if (!files.length) return;
+    const assignedUsersByProject = <?= json_encode($assignedUsersByProject, JSON_UNESCAPED_UNICODE) ?>;
 
-        const projectMap = {};
-        files.forEach(file => {
-            const parts = (file.webkitRelativePath || '').split('/');
-            if (parts.length < 2) return;
-            const projectName = parts[0];
-            if (!projectMap[projectName]) projectMap[projectName] = [];
-            projectMap[projectName].push({ file, parts });
+    // 3. Asignar Usuario(s)
+    function openAssignModal(projectId, projectName, assignedUserId = null) {
+        document.getElementById('assign_project_id').value = projectId;
+        document.getElementById('assign_project_name').value = projectName;
+
+        const selected = (assignedUsersByProject[String(projectId)] || assignedUsersByProject[projectId] || []).map(String);
+        const fallback = (assignedUserId !== null && assignedUserId !== undefined) ? [String(assignedUserId)] : [];
+        const finalSelected = selected.length ? selected : fallback;
+
+        document.querySelectorAll('#assignForm input[name="user_ids[]"]').forEach(ch => {
+            ch.checked = finalSelected.includes(String(ch.value));
         });
 
-        const projectNames = Object.keys(projectMap);
-        if (!projectNames.length) {
-            appAlert('No valid files found. Make sure your folders have at least one subfolder with files.', 'Empty Selection', 'warning');
+        new bootstrap.Modal(document.getElementById('assignUserModal')).show();
+    }
+    document.getElementById('assignForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+        const checked = Array.from(this.querySelectorAll('input[name="user_ids[]"]:checked'));
+        const hasAdmin = checked.some(ch => (ch.dataset.role || '').toLowerCase() === 'admin');
+        if (!hasAdmin) {
+            appAlert('At least one admin must be assigned to the project.', "Assignment Error", "warning");
             return;
         }
 
-        const totalFiles = files.length;
-        appConfirm(`Import ${projectNames.length} project(s) with ${totalFiles} file(s)?<br><small class="text-gray">${projectNames.join(', ')}</small>`, 'Bulk Import', async () => {
-            const overlay = document.getElementById('bulk-import-overlay');
-            const statusTitle = document.getElementById('bulk-status-title');
-            const statusDetail = document.getElementById('bulk-status-detail');
-            const progressBar = document.getElementById('bulk-progress-bar');
-            const statusCount = document.getElementById('bulk-status-count');
-            overlay.style.display = 'flex';
-
-            const errors = [];
-            let doneFiles = 0;
-
-            for (const [projectName, projectFiles] of Object.entries(projectMap)) {
-                statusTitle.textContent = `Creating project: ${projectName}`;
-                statusDetail.textContent = 'Setting up project...';
-
-                const fdProj = new FormData();
-                fdProj.append('action', 'create_project_bulk');
-                fdProj.append('name', projectName);
-
-                let projectId = null;
-                try {
-                    const projRes = await fetch('../api/api.php', { method: 'POST', body: fdProj }).then(r => r.json());
-                    if (projRes.status !== 'success') {
-                        errors.push(`Project "${projectName}": ${projRes.msg || 'create failed'}`);
-                        continue;
-                    }
-                    projectId = projRes.project_id;
-                } catch (e) {
-                    errors.push(`Project "${projectName}": connection error`);
-                    continue;
-                }
-
-                const folderCache = {};
-                for (const { file, parts } of projectFiles) {
-                    const fileName = parts[parts.length - 1];
-                    const folderParts = parts.slice(1, -1);
-
-                    doneFiles++;
-                    const pct = Math.round((doneFiles / totalFiles) * 100);
-                    progressBar.style.width = pct + '%';
-                    statusCount.textContent = `${doneFiles} / ${totalFiles} files`;
-                    statusDetail.textContent = `${projectName} → ${folderParts.join('/')} / ${fileName}`;
-
-                    let parentId = null;
-                    let folderId = null;
-                    const pathSoFar = [];
-
-                    for (const folderName of folderParts.slice(0, 4)) {
-                        pathSoFar.push(folderName);
-                        const cacheKey = pathSoFar.join('/');
-                        if (!folderCache[cacheKey]) {
-                            const fdF = new FormData();
-                            fdF.append('action', 'create_folder');
-                            fdF.append('project_id', projectId);
-                            fdF.append('name', folderName);
-                            if (parentId) fdF.append('parent_id', parentId);
-                            try {
-                                const fRes = await fetch('../api/api.php', { method: 'POST', body: fdF }).then(r => r.json());
-                                folderCache[cacheKey] = fRes.folder_id || null;
-                            } catch (e) {
-                                folderCache[cacheKey] = null;
-                            }
-                        }
-                        parentId = folderCache[cacheKey];
-                        folderId = parentId;
-                    }
-
-                    const fdFile = new FormData();
-                    fdFile.append('action', 'upload_file');
-                    fdFile.append('project_id', projectId);
-                    if (folderId) fdFile.append('folder_id', folderId);
-                    fdFile.append('file', file, fileName);
-
-                    try {
-                        const upRes = await fetch('../api/api.php', { method: 'POST', body: fdFile }).then(r => r.json());
-                        if (upRes.status !== 'success') {
-                            errors.push(`File "${fileName}": ${upRes.msg || 'upload failed'}`);
-                        }
-                    } catch (e) {
-                        errors.push(`File "${fileName}": upload failed`);
-                    }
-                }
-            }
-
-            overlay.style.display = 'none';
-            if (errors.length) {
-                appAlert(`Import finished with ${errors.length} error(s):<br><small>${errors.slice(0,5).join('<br>')}</small>`, 'Import Complete (with errors)', 'warning');
-            } else {
-                appAlert(`${projectNames.length} project(s) imported successfully with ${totalFiles} file(s)!`, 'Import Complete', 'success');
-            }
-            setTimeout(() => location.reload(), 1500);
-        });
-    }
+        const fd = new FormData(this);
+        fetch('../api/api.php', { method:'POST', body:fd })
+        .then(r => r.json()).then(d => {
+            if(d.status === 'success') location.reload();
+            else appAlert('Error assigning user: ' + (d.msg || 'Unknown'), "Assignment Error", "error");
+        })
+        .catch(() => appAlert('Connection error', "Error", "error"));
+    });
 </script>
+<?php endif; ?>
 
 <?php include __DIR__ . '/../views/footer.php'; ?>

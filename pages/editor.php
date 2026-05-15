@@ -45,17 +45,11 @@ if ($fileExt === '' && !empty($file['file_type'])) {
 }
 $filePath = str_replace('\\', '/', (string)($file['filepath'] ?? ''));
 if ($filePath !== '') {
-    if (preg_match('~(api/)?uploads/[^\\s]+$~', $filePath, $m)) {
-        $filePath = $m[0];
-    }
+    // Limpiar cualquier prefijo api/ residual
+    $filePath = preg_replace('~^api/~', '', $filePath);
+
+    // Normalizar a ruta relativa para el JS
     if (strpos($filePath, 'uploads/') === 0) {
-        $expected = __DIR__ . '/../' . $filePath;
-        $legacy = __DIR__ . '/../api/' . $filePath;
-        if (!file_exists($expected) && file_exists($legacy)) {
-            $filePath = 'api/' . $filePath;
-        }
-    }
-    if (strpos($filePath, 'uploads/') === 0 || strpos($filePath, 'api/uploads/') === 0) {
         $filePath = '../' . $filePath;
     }
 }
@@ -621,7 +615,18 @@ if ($filePath !== '') {
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
 
     // SERVER VARIABLES
-    const fileUrl = "<?= $filePath ?>";
+    let fileUrl = "<?= $filePath ?>";
+    if (fileUrl.startsWith('../')) {
+        const relativePath = fileUrl.substring(3);
+        const serverBase = window.SERVER_BASE_URL || 'https://androidelectro.brightronix.net/electroplan';
+        fileUrl = serverBase + '/' + relativePath;
+    }
+    console.log('PDF URL (adjusted):', fileUrl);
+    // Guard for Capacitor triggerEvent in Editor
+    if (typeof window.Capacitor === 'undefined' || typeof window.Capacitor.triggerEvent !== 'function') {
+        window.Capacitor = window.Capacitor || {};
+        window.Capacitor.triggerEvent = function(n, d) { return true; };
+    }
     const fileExt = "<?= $fileExt ?>"; 
     const fileId = <?= $id ?>;
     let allAnnotations = <?= $annotations ?>;
