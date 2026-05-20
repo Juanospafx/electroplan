@@ -51,16 +51,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $u = trim($_POST['username']);
         $r = $_POST['role'];
         $newPass = trim($_POST['password'] ?? '');
+        $ws = $_POST['work_start_time'] ?? '07:00:00';
+        $we = $_POST['work_end_time'] ?? '19:00:00';
 
         if (!empty($newPass)) {
             // Si hay contraseña nueva, actualizamos todo incluido el hash
             $hash = password_hash($newPass, PASSWORD_DEFAULT);
-            $stmt = $pdo->prepare("UPDATE users SET username=?, role=?, password=? WHERE id=?");
-            $stmt->execute([$u, $r, $hash, $id]);
+            $stmt = $pdo->prepare("UPDATE users SET username=?, role=?, password=?, work_start_time=?, work_end_time=? WHERE id=?");
+            $stmt->execute([$u, $r, $hash, $ws, $we, $id]);
         } else {
             // Si no hay contraseña, solo actualizamos datos básicos
-            $stmt = $pdo->prepare("UPDATE users SET username=?, role=? WHERE id=?");
-            $stmt->execute([$u, $r, $id]);
+            $stmt = $pdo->prepare("UPDATE users SET username=?, role=?, work_start_time=?, work_end_time=? WHERE id=?");
+            $stmt->execute([$u, $r, $ws, $we, $id]);
         }
         
         header("Location: settings.php?tab=users&msg=updated");

@@ -346,17 +346,29 @@ try {
                 $currentDeadline = clone $now;
             }
 
-            $newDeadline = $timeEngine->calculateDeadline($currentDeadline, $extendMinutes);
+            $workStart = $task['work_start_time'] ?? '07:00:00';
+            $workEnd = $task['work_end_time'] ?? '19:00:00';
+
+            $newDeadline = $timeEngine->calculateDeadline($currentDeadline, $extendMinutes, $workStart, $workEnd);
             $newTotalMinutes = (int)$task['estimated_minutes'] + $extendMinutes;
             
             // Si estaba Overdue, la revivimos a Active para que el cronómetro vuelva a correr
             $newStatus = ($task['status'] === 'Overdue') ? 'Active' : $task['status'];
             
-            $pdo->prepare("UPDATE project_tasks SET status = ?, estimated_minutes = ?, expected_end_time = ? WHERE id = ?")->execute([$newStatus, $newTotalMinutes, $newDeadline->format('Y-m-d H:i:s'), $taskId]);
+            if ($newStatus === 'Active' && $task['status'] === 'Overdue') {
+                // Si se reactiva, seteamos actual_start_time = NOW() para reiniciar el cronómetro frontal
+                $pdo->prepare("UPDATE project_tasks SET status = ?, estimated_minutes = ?, expected_end_time = ?, actual_start_time = NOW() WHERE id = ?")->execute([$newStatus, $newTotalMinutes, $newDeadline->format('Y-m-d H:i:s'), $taskId]);
+            } else {
+                $expectedEndParam = ($newStatus === 'On_Hold' || $newStatus === 'System_Pause') ? null : $newDeadline->format('Y-m-d H:i:s');
+                $pdo->prepare("UPDATE project_tasks SET status = ?, estimated_minutes = ?, expected_end_time = ? WHERE id = ?")->execute([$newStatus, $newTotalMinutes, $expectedEndParam, $taskId]);
+            }
             
             // Log y justificación
             $extH = round($extendMinutes / 60, 2);
             $taskManager->logTaskAction($taskId, (int)$_SESSION['user_id'], 'Extended', "Extended by {$extH}h. Reason: {$justification}");
+            if ($newStatus === 'Active' && $task['status'] === 'Overdue') {
+                $taskManager->logTaskAction($taskId, (int)$_SESSION['user_id'], 'Resumed', "Task resumed automatically due to time extension.");
+            }
             $taskManager->addProjectActivityLog((int)$task['project_id'], $taskId, (int)$_SESSION['user_id'], 'Extend', "Extended by {$extH}h. Reason: {$justification}");
             
             echo json_encode(['status' => 'success', 'message' => 'Task time extended successfully.']);

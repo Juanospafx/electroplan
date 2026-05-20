@@ -208,11 +208,7 @@ class TaskManagerController {
                 throw new InvalidArgumentException("A justification note is strictly required to reset tasks.");
             }
 
-            // 1. Auditoría: Dejar rastro en las notas del proyecto
-            $date = date('Y-m-d H:i');
-            $auditMessage = "\n[{$date}] Tareas reseteadas por el usuario ID {$userId}. Razón: {$justificationNote}";
-            $this->taskManager->appendProjectNote($projectId, $auditMessage);
-            // FASE 66: Inyección en Activity Logs
+            // 1. Auditoría: Inyección en Activity Logs (Aislado de la descripción del proyecto)
             $this->taskManager->addProjectActivityLog($projectId, null, $userId, 'Reset', "Project tasks reset. Reason: {$justificationNote}");
             
             // 2. Acción destructiva controlada

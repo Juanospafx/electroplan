@@ -646,7 +646,7 @@ class TaskManager {
 
         // Lógica automática de fechas según el estado
         if ($status === 'Active') {
-            $query .= ", actual_start_time = COALESCE(actual_start_time, NOW())";
+            $query .= ", actual_start_time = NOW()";
             if ($expectedEndTime !== null) {
                 $query .= ", expected_end_time = ?";
                 $params[] = $expectedEndTime;
@@ -700,11 +700,6 @@ class TaskManager {
         $stmt->execute([$projectId]);
         $task = $stmt->fetch(PDO::FETCH_ASSOC);
         return $task ?: null;
-    }
-
-    public function appendProjectNote(int $projectId, string $note): void {
-        $stmt = $this->pdo->prepare("UPDATE projects SET notes = CONCAT(COALESCE(notes, ''), ?) WHERE id = ?");
-        $stmt->execute([$note, $projectId]);
     }
 
     public function resetProjectTasks(int $projectId): void {
@@ -843,16 +838,17 @@ class TaskManager {
 
         // FASE 36.5: Acumulación de tiempo trabajado en la BD
         if (in_array($actionType, ['Paused', 'Completed', 'Completed_Late', 'Bypassed'])) {
+            // Solo sumar tiempo si la ÚLTIMA acción registrada fue Started o Resumed (evita duplicar el tiempo por triggers paralelos)
             $stmtLast = $this->pdo->prepare("
-                SELECT logged_at FROM task_time_logs 
-                WHERE task_id = ? AND action_type IN ('Started', 'Resumed') 
-                ORDER BY logged_at DESC LIMIT 1
+                SELECT action_type, logged_at FROM task_time_logs 
+                WHERE task_id = ? 
+                ORDER BY id DESC LIMIT 1
             ");
             $stmtLast->execute([$taskId]);
-            $lastStart = $stmtLast->fetchColumn();
+            $lastLog = $stmtLast->fetch(PDO::FETCH_ASSOC);
 
-            if ($lastStart) {
-                $start = new DateTime($lastStart);
+            if ($lastLog && in_array($lastLog['action_type'], ['Started', 'Resumed'])) {
+                $start = new DateTime($lastLog['logged_at']);
                 $end = new DateTime();
                 
                 // FASE 92 (OVERTIME FIX): Se revierte al cálculo absoluto puro.
