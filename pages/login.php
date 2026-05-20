@@ -1,7 +1,27 @@
 <?php
 // login.php - Diseño Moderno V5.2 (Show Password Toggle)
-require_once __DIR__ . '/../core/db/connection.php';
-session_start();
+$__ep_debug_log = __DIR__ . '/../logs/login_debug.log';
+if (!is_dir(dirname($__ep_debug_log))) { @mkdir(dirname($__ep_debug_log), 0775, true); }
+function ep_login_log($msg) {
+    global $__ep_debug_log;
+    @file_put_contents($__ep_debug_log, '['.date('c').'] '.$msg.PHP_EOL, FILE_APPEND);
+}
+
+try {
+    require_once __DIR__ . '/../core/db/connection.php';
+} catch (Throwable $e) {
+    ep_login_log('DB bootstrap error: ' . $e->getMessage());
+    http_response_code(500);
+    exit('Internal Server Error');
+}
+
+try {
+    if (session_status() !== PHP_SESSION_ACTIVE) session_start();
+} catch (Throwable $e) {
+    ep_login_log('Session start error: ' . $e->getMessage());
+}
+
+ep_login_log('login.php loaded');
 
 $error = '';
 
@@ -39,6 +59,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <!DOCTYPE html>
 <html lang="es">
 <head>
+    <script>
+    if (typeof window.Capacitor === 'undefined') {
+        window.Capacitor = { triggerEvent: function() { return true; } };
+    }
+    window.BASE_PATH = '/electroplan';
+    </script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#0b1120">
@@ -47,7 +73,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="ElectroPlan">
     <title>Login | Brightronix</title>
-    <link rel="manifest" href="/manifest.webmanifest">
+    <link rel="manifest" href="../manifest.webmanifest">
     <link rel="icon" href="/assets/pwa-icon.svg" type="image/svg+xml">
     <link rel="apple-touch-icon" href="/assets/pwa-icon-192.png">
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -366,7 +392,7 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
         applyTheme(saved);
     })();
 </script>
-<script src="/assets/js/pwa-register.js"></script>
+<script src="../assets/js/pwa-register.js"></script>
 
 </body>
 </html>

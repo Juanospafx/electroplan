@@ -2,6 +2,7 @@
 // editor.php - Editor Profesional V9.6 (Fix: Removed Pan Tool & Added 2-Finger Nav)
 require_once __DIR__ . '/../core/auth/session.php';
 require_once __DIR__ . '/../core/db/connection.php';
+require_once __DIR__ . '/../core/file_paths.php';
 
 $userRole = $_SESSION['role'] ?? 'Viewer';
 
@@ -43,22 +44,8 @@ if ($fileExt === '' && !empty($file['file_type'])) {
         $fileExt = $ft;
     }
 }
-$filePath = str_replace('\\', '/', (string)($file['filepath'] ?? ''));
-if ($filePath !== '') {
-    if (preg_match('~(api/)?uploads/[^\\s]+$~', $filePath, $m)) {
-        $filePath = $m[0];
-    }
-    if (strpos($filePath, 'uploads/') === 0) {
-        $expected = __DIR__ . '/../' . $filePath;
-        $legacy = __DIR__ . '/../api/' . $filePath;
-        if (!file_exists($expected) && file_exists($legacy)) {
-            $filePath = 'api/' . $filePath;
-        }
-    }
-    if (strpos($filePath, 'uploads/') === 0 || strpos($filePath, 'api/uploads/') === 0) {
-        $filePath = '../' . $filePath;
-    }
-}
+$filePath = normalize_file_path((string)($file['filepath'] ?? ''));
+$fileProxyUrl = get_file_url((int)$id);
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -621,7 +608,13 @@ if ($filePath !== '') {
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
 
     // SERVER VARIABLES
-    const fileUrl = "<?= $filePath ?>";
+    const fileUrl = "<?= htmlspecialchars($fileProxyUrl, ENT_QUOTES) ?>";
+    console.log('File URL (proxy):', fileUrl);
+    // Guard for Capacitor triggerEvent in Editor
+    if (typeof window.Capacitor === 'undefined' || typeof window.Capacitor.triggerEvent !== 'function') {
+        window.Capacitor = window.Capacitor || {};
+        window.Capacitor.triggerEvent = function(n, d) { return true; };
+    }
     const fileExt = "<?= $fileExt ?>"; 
     const fileId = <?= $id ?>;
     let allAnnotations = <?= $annotations ?>;

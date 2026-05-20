@@ -1,6 +1,24 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
+    <script>
+    // Defensive guard for Capacitor bridge
+    if (typeof window.Capacitor === 'undefined') {
+        window.Capacitor = {
+            triggerEvent: function(name, data) {
+                console.log('Capacitor.triggerEvent called before bridge init:', name, data);
+                return true;
+            }
+        };
+    } else if (typeof window.Capacitor.triggerEvent !== 'function') {
+        window.Capacitor.triggerEvent = function(name, data) {
+            console.log('Capacitor.triggerEvent mock:', name, data);
+            return true;
+        };
+    }
+    window.BASE_PATH = '/electroplan';
+    window.SERVER_BASE_URL = window.location.origin + window.BASE_PATH;
+    </script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="theme-color" content="#0b1120">
@@ -9,9 +27,9 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="ElectroPlan">
     <title><?= isset($pageTitle) ? $pageTitle : 'Brightronix | Workspace' ?></title>
-    <link rel="manifest" href="/manifest.webmanifest">
-    <link rel="icon" href="/assets/pwa-icon.svg" type="image/svg+xml">
-    <link rel="apple-touch-icon" href="/assets/pwa-icon-192.png">
+    <link rel="manifest" href="../manifest.webmanifest">
+    <link rel="icon" href="../assets/pwa-icon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="../assets/pwa-icon-192.png">
     
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -244,8 +262,25 @@ body.theme-light .text-muted { color: var(--text-gray, #64748b) !important; }
 
 <script>
     function toggleSidebar() {
-        document.querySelector('.sidebar').classList.toggle('show');
-        document.getElementById('sidebarOverlay').classList.toggle('show');
+        const sidebar = document.getElementById('mainSidebar')
+            || document.getElementById('sidebar')
+            || document.querySelector('.sidebar')
+            || document.querySelector('.side-menu')
+            || document.querySelector('.mobile-sidebar');
+
+        if (!sidebar) {
+            console.error('Sidebar no encontrado: revisa el id/clase del contenedor lateral.');
+            return;
+        }
+
+        sidebar.classList.toggle('show');
+        sidebar.classList.toggle('active');
+        sidebar.classList.toggle('open');
+
+        const overlay = document.getElementById('sidebarOverlay');
+        if (overlay) {
+            overlay.classList.toggle('show');
+        }
     }
 
     function applyAppTheme(theme) {
