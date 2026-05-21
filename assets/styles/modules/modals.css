@@ -3,3 +3,10 @@
 .modal-footer { border-top: 1px solid var(--border-subtle); }
 .btn-close { filter: invert(1) grayscale(100%) brightness(200%); }
 body.theme-light .btn-close { filter: none; }
+
+.modal-surface { background: var(--bg-card); border: 1px solid var(--border-subtle); }
+.modal-scroll-y { max-height: 65vh; overflow-y: auto; }
+.panel-soft { background: var(--bg-input); border: 1px solid var(--border-subtle); }
+.letter-05 { letter-spacing: .5px; }
+.fs-072 { font-size: .72rem; }
+.lh-17 { line-height: 1.7; }
