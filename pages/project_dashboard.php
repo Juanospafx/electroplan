@@ -123,7 +123,7 @@ $recentFiles->execute([$userId, $projectId]);
 $recentFiles = $recentFiles->fetchAll(PDO::FETCH_ASSOC);
 
 $userName = $_SESSION['username'] ?? 'User';
-$isAdmin = ($userRole === 'admin');
+$isAdmin = ($userRole === 'admin' || $userRole === 'owner');
 $canUpload = canUploadToFolder($pdo, $userId, (int)$projectId, $currentFolderId ? (int)$currentFolderId : null);
 
 include __DIR__ . '/../views/header.php'; 
