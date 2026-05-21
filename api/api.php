@@ -296,7 +296,7 @@ switch($action) {
     case 'update_project_info':
         if($userRole !== 'admin') { echo json_encode(['status'=>'error', 'msg'=>'Access Denied']); exit; }
 
-        $id = (int)($_POST['id'] ?? 0);
+        $id = (int)($_POST['id'] ?? ($_POST['project_id'] ?? 0));
         if ($id <= 0) { echo json_encode(['status'=>'error', 'msg'=>'Invalid project']); exit; }
 
         try {
@@ -308,17 +308,28 @@ switch($action) {
                 'date_bid_sent','date_bid_awarded','date_started','date_finished','date_warranty_end'
             ];
 
+            $payload = is_array($input ?? null) ? $input : [];
+            $aliases = [
+                'name' => ['name', 'project_name'],
+                'date_bid_sent' => ['date_bid_sent', 'date_bid_send']
+            ];
             $set = [];
             $params = [];
             foreach ($allowed as $col) {
-                if (in_array($col, $cols, true) && array_key_exists($col, $_POST)) {
+                $keys = $aliases[$col] ?? [$col];
+                $found = false;
+                $val = null;
+                foreach ($keys as $k) {
+                    if (array_key_exists($k, $_POST)) { $val = $_POST[$k]; $found = true; break; }
+                    if (array_key_exists($k, $payload)) { $val = $payload[$k]; $found = true; break; }
+                }
+                if (in_array($col, $cols, true) && $found) {
                     $set[] = "$col = ?";
-                    $val = $_POST[$col];
                     if ($val === '') $val = null;
                     $params[] = $val;
                 }
             }
-            if (empty($set)) { echo json_encode(['status'=>'error', 'msg'=>'No valid fields']); exit; }
+            if (empty($set)) { echo json_encode(['status'=>'error', 'msg'=>'No valid fields','debug'=>['post_keys'=>array_keys($_POST),'json_keys'=>array_keys($payload)]]); exit; }
 
             $params[] = $id;
             $sql = "UPDATE projects SET " . implode(', ', $set) . " WHERE id = ?";
@@ -372,6 +383,80 @@ switch($action) {
             }
             echo json_encode(['status'=>'success']);
         } catch(Exception $e) { echo json_encode(['status'=>'error', 'msg'=>$e->getMessage()]); }
+        break;
+
+    // --- 1.1.3 SET/SYNC CARPETAS DE PROYECTO (ADMIN ONLY) ---
+    case 'set_project_folders':
+        if($userRole !== 'admin') { echo json_encode(['status'=>'error', 'msg'=>'Access Denied']); exit; }
+        $projectId = (int)($_POST['project_id'] ?? 0);
+        $folders = $_POST['folders'] ?? [];
+        if($projectId <= 0 || !is_array($folders)) { echo json_encode(['status'=>'error', 'msg'=>'Invalid data']); exit; }
+
+        $folderNames = [
+            'bom' => 'BoM','schedule_values' => 'Schedule of Values','rfi' => 'RFI','drawings' => 'Drawings','photos' => 'Photos',
+            'panel_schedule' => 'Panel Schedule','panel_tags' => 'Panel Tags','noc' => 'NOC','submittal' => 'Submittal','permit' => 'Permit',
+            'acknowledgement' => 'Acknowledgement','payapp' => 'Payapp','insurance' => 'Certificate of Insurance','fault_calc' => 'Fault Current Calc',
+            'labor_record' => 'Labor Record','expenses' => 'Expenses','warranty_sup' => 'Warranty Supplier','clock_in' => 'Clock In'
+        ];
+
+        $selectedNames = [];
+        foreach ($folders as $key) {
+            if (isset($folderNames[$key])) $selectedNames[] = $folderNames[$key];
+        }
+
+        try {
+            error_log('[set_project_folders] project_id=' . $projectId . ' selected=' . json_encode($selectedNames));
+
+            // 1) Crear faltantes
+            $stmtExisting = $pdo->prepare("SELECT id, name FROM folders WHERE project_id = ? AND parent_id IS NULL AND deleted_at IS NULL");
+            $stmtExisting->execute([$projectId]);
+            $existingRows = $stmtExisting->fetchAll(PDO::FETCH_ASSOC);
+            $existingByName = [];
+            foreach($existingRows as $r) $existingByName[strtolower($r['name'])] = (int)$r['id'];
+
+            $stmtIns = $pdo->prepare("INSERT INTO folders (project_id, name) VALUES (?, ?)");
+            foreach ($selectedNames as $name) {
+                if (!isset($existingByName[strtolower($name)])) {
+                    $stmtIns->execute([$projectId, $name]);
+                }
+            }
+
+            // 2) Remover no seleccionadas (seguro):
+            // - si carpeta vacía (sin archivos ni subcarpetas): soft delete
+            // - si tiene contenido: conservar (no borrar) y reportar
+            $stmtTop = $pdo->prepare("SELECT id, name FROM folders WHERE project_id = ? AND parent_id IS NULL AND deleted_at IS NULL");
+            $stmtTop->execute([$projectId]);
+            $topFolders = $stmtTop->fetchAll(PDO::FETCH_ASSOC);
+
+            $preserved = [];
+            $deleted = 0;
+            foreach ($topFolders as $f) {
+                $name = (string)$f['name'];
+                $fid = (int)$f['id'];
+                if (in_array($name, $selectedNames, true)) continue;
+
+                $cntFiles = $pdo->prepare("SELECT COUNT(*) FROM files WHERE folder_id = ? AND deleted_at IS NULL");
+                $cntFiles->execute([$fid]);
+                $hasFiles = (int)$cntFiles->fetchColumn() > 0;
+
+                $cntSubs = $pdo->prepare("SELECT COUNT(*) FROM folders WHERE parent_id = ? AND deleted_at IS NULL");
+                $cntSubs->execute([$fid]);
+                $hasSubs = (int)$cntSubs->fetchColumn() > 0;
+
+                if ($hasFiles || $hasSubs) {
+                    $preserved[] = $name;
+                    continue;
+                }
+
+                $pdo->prepare("UPDATE folders SET deleted_at = NOW() WHERE id = ?")->execute([$fid]);
+                $deleted++;
+            }
+
+            echo json_encode(['status'=>'success','deleted_folders'=>$deleted,'preserved_folders'=>$preserved]);
+        } catch(Exception $e) {
+            error_log('[set_project_folders] ERROR: ' . $e->getMessage());
+            echo json_encode(['status'=>'error', 'msg'=>$e->getMessage()]);
+        }
         break;
 
     // --- 12.1 MOVER CARPETA (ADMIN ONLY) ---

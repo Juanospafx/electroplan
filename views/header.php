@@ -31,9 +31,9 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="ElectroPlan">
     <title><?= isset($pageTitle) ? $pageTitle : 'Brightronix | Workspace' ?></title>
-    <link rel="manifest" href="/manifest.webmanifest">
-    <link rel="icon" href="/assets/pwa-icon.svg" type="image/svg+xml">
-    <link rel="apple-touch-icon" href="/assets/pwa-icon-192.png">
+    <link rel="manifest" href="../manifest.webmanifest">
+    <link rel="icon" href="../assets/pwa-icon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="../assets/pwa-icon-192.png">
     
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">

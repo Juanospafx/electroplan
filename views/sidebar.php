@@ -12,12 +12,14 @@ $isSettings  = ($currentScript === 'settings.php');
 $isProjects  = ($currentScript === 'projects.php' || ($currentScript === 'index.php' && $pId));
 $isDirectory = ($currentScript === 'directorio.php');
 $isFiles     = ($currentScript === 'archivos.php');
+$isTemplates = ($currentScript === 'task_manager_dashboard.php');
 // Dashboard solo se enciende si es index.php Y no hay proyecto Y no es papelera
 $isDashboard = ($currentScript === 'index.php' && !$pId && !$isTrash);
 
 // Definimos si el usuario es admin (asumiendo que $isAdmin viene del archivo padre, si no, lo recalculamos seguro)
 $userRoleRawSidebar = $_SESSION['role'] ?? 'viewer';
 $isAdminSidebar = (strtolower($userRoleRawSidebar) === 'admin');
+$isNotViewerSidebar = (strtolower($userRoleRawSidebar) !== 'viewer');
 ?>
 
 <style>
@@ -81,19 +83,35 @@ $isAdminSidebar = (strtolower($userRoleRawSidebar) === 'admin');
 
     @media (max-width: 991.98px) {
         .sidebar-close-mobile {
-            display: inline-flex;
-            width: 36px;
-            height: 36px;
-            border-radius: 10px;
-            border: 1px solid rgba(239,68,68,.45);
-            background: rgba(239,68,68,.16);
-            color: #f87171;
+            display: flex;
+            background: rgba(239, 68, 68, 0.1);
+            color: #ef4444;
+            border: none;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
             align-items: center;
             justify-content: center;
+            font-size: 1.2rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .sidebar-close-mobile:hover {
+            background: #ef4444;
+            color: white;
+            transform: rotate(90deg);
         }
     }
 
-    body.theme-light .logo-full { background-color: #0f172a !important; }
+    body.theme-light .logo-full { 
+        background-color: transparent !important;
+        background-image: url('../assets/logo-text.png');
+        background-repeat: no-repeat;
+        background-position: left center;
+        background-size: contain;
+        -webkit-mask: none !important;
+        mask: none !important;
+    }
     body.theme-light .theme-btn { background: #ffffff; border-color: #cbd5e1; color: #0f172a; }
 </style>
 
@@ -104,7 +122,7 @@ $isAdminSidebar = (strtolower($userRoleRawSidebar) === 'admin');
             <div class="app-subtitle" style="font-size: 0.85rem; color: var(--text-gray, #94a3b8); font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; margin-top: -0.8rem; margin-left: 0.6rem;">Electro Plan</div>
         </a>
         <div class="d-flex align-items-center gap-2">
-            <button type="button" class="sidebar-close-mobile" onclick="toggleSidebar()" aria-label="Close sidebar" title="Close sidebar">
+            <button type="button" class="sidebar-close-mobile flex-shrink-0" onclick="toggleSidebar()" aria-label="Close sidebar" title="Close sidebar">
                 <i class="fas fa-times"></i>
             </button>
             <button id="globalThemeToggle" class="theme-btn d-none d-md-flex" type="button" onclick="toggleAppTheme()" aria-label="Toggle day/night theme" title="Switch to Day Mode">
@@ -125,6 +143,12 @@ $isAdminSidebar = (strtolower($userRoleRawSidebar) === 'admin');
         <a href="../pages/archivos.php" class="menu-item <?= $isFiles ? 'active' : '' ?>">
             <i class="fas fa-file-alt"></i><span class="menu-label">Files</span>
         </a>
+
+        <?php if($isNotViewerSidebar): ?>
+            <a href="../pages/task_manager_dashboard.php" class="menu-item <?= $isTemplates ? 'active' : '' ?>">
+                <i class="fas fa-tasks"></i><span class="menu-label">Task Manager</span>
+            </a>
+        <?php endif; ?>
 
         <?php if($isAdminSidebar): ?>
             <a href="../pages/directorio.php" class="menu-item <?= $isDirectory ? 'active' : '' ?>">

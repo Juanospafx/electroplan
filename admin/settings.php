@@ -30,14 +30,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $u = trim($_POST['username']);
         $r = $_POST['role']; // Este viene del select (admin, technician, viewer)
         $p = $_POST['password'];
+        $ws = $_POST['work_start_time'] ?? '07:00:00';
+        $we = $_POST['work_end_time'] ?? '19:00:00';
         
         $check = $pdo->prepare("SELECT id FROM users WHERE username = ?");
         $check->execute([$u]);
         
         if($check->rowCount() == 0) {
             $hash = password_hash($p, PASSWORD_DEFAULT);
-            $stmt = $pdo->prepare("INSERT INTO users (username, password, role) VALUES (?, ?, ?)");
-            $stmt->execute([$u, $hash, $r]);
+            $stmt = $pdo->prepare("INSERT INTO users (username, password, role, work_start_time, work_end_time) VALUES (?, ?, ?, ?, ?)");
+            $stmt->execute([$u, $hash, $r, $ws, $we]);
             header("Location: settings.php?tab=users&msg=created");
             exit;
         }
@@ -49,16 +51,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
         $u = trim($_POST['username']);
         $r = $_POST['role'];
         $newPass = trim($_POST['password'] ?? '');
+        $ws = $_POST['work_start_time'] ?? '07:00:00';
+        $we = $_POST['work_end_time'] ?? '19:00:00';
 
         if (!empty($newPass)) {
             // Si hay contraseña nueva, actualizamos todo incluido el hash
             $hash = password_hash($newPass, PASSWORD_DEFAULT);
-            $stmt = $pdo->prepare("UPDATE users SET username=?, role=?, password=? WHERE id=?");
-            $stmt->execute([$u, $r, $hash, $id]);
+            $stmt = $pdo->prepare("UPDATE users SET username=?, role=?, password=?, work_start_time=?, work_end_time=? WHERE id=?");
+            $stmt->execute([$u, $r, $hash, $ws, $we, $id]);
         } else {
             // Si no hay contraseña, solo actualizamos datos básicos
-            $stmt = $pdo->prepare("UPDATE users SET username=?, role=? WHERE id=?");
-            $stmt->execute([$u, $r, $id]);
+            $stmt = $pdo->prepare("UPDATE users SET username=?, role=?, work_start_time=?, work_end_time=? WHERE id=?");
+            $stmt->execute([$u, $r, $ws, $we, $id]);
         }
         
         header("Location: settings.php?tab=users&msg=updated");
@@ -243,6 +247,7 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
                             <th>User Profile</th>
                             <th>Role</th>
                             <th>Registered</th>
+                            <th class="d-none d-md-table-cell">Working Hours</th>
                             <th class="text-end">Actions</th>
                         </tr>
                     </thead>
@@ -266,8 +271,11 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
                                 </span>
                             </td>
                             <td class="small text-gray"><?= date('M d, Y', strtotime($u['created_at'])) ?></td>
+                            <td class="d-none d-md-table-cell small text-gray">
+                                <?= date('H:i', strtotime($u['work_start_time'] ?? '07:00:00')) ?> - <?= date('H:i', strtotime($u['work_end_time'] ?? '19:00:00')) ?>
+                            </td>
                             <td class="text-end">
-                                <button class="btn-action me-1" onclick="openEditModal(<?= $u['id'] ?>, '<?= $u['username'] ?>', '<?= $u['role'] ?>')">
+                                <button class="btn-action me-1" onclick="openEditModal(<?= $u['id'] ?>, '<?= $u['username'] ?>', '<?= $u['role'] ?>', '<?= $u['work_start_time'] ?? '07:00' ?>', '<?= $u['work_end_time'] ?? '19:00' ?>')">
                                     <i class="fas fa-pen"></i>
                                 </button>
                                 <?php if($u['id'] != 1 && $u['id'] != $userId): ?>
@@ -345,6 +353,16 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
                         <option value="viewer">Viewer</option>
                     </select>
                 </div>
+                <div class="row g-2 mb-3">
+                    <div class="col-6">
+                        <label class="form-label">Work Start</label>
+                        <input type="time" name="work_start_time" class="form-control" value="07:00" required>
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label">Work End</label>
+                        <input type="time" name="work_end_time" class="form-control" value="19:00" required>
+                    </div>
+                </div>
             </div>
             <div class="modal-footer">
                 <button type="submit" class="btn-main w-100">Create User</button>
@@ -376,6 +394,16 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
                         <option value="viewer">Viewer</option>
                     </select>
                 </div>
+                <div class="row g-2 mb-3">
+                    <div class="col-6">
+                        <label class="form-label">Work Start</label>
+                        <input type="time" name="work_start_time" id="edit_work_start" class="form-control" required>
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label">Work End</label>
+                        <input type="time" name="work_end_time" id="edit_work_end" class="form-control" required>
+                    </div>
+                </div>
                 <div class="mb-3 border-top border-secondary pt-3 mt-3">
                     <label class="form-label text-warning">Reset Password <small>(Optional)</small></label>
                     <div class="input-group">
@@ -393,10 +421,12 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
 </div>
 
 <script>
-    function openEditModal(id, name, role) {
+    function openEditModal(id, name, role, start, end) {
         document.getElementById('edit_id').value = id;
         document.getElementById('edit_name').value = name;
         document.getElementById('edit_role').value = role;
+        document.getElementById('edit_work_start').value = (start || '07:00').substring(0, 5);
+        document.getElementById('edit_work_end').value = (end || '19:00').substring(0, 5);
         document.getElementById('edit_password').value = ''; 
         new bootstrap.Modal(document.getElementById('editUserModal')).show();
     }
