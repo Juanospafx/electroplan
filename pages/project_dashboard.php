@@ -188,7 +188,7 @@ include __DIR__ . '/../views/header.php';
                 <span><i class="fas fa-user-hard-hat me-1 text-primary"></i> <?= htmlspecialchars($projectContactName ?: 'No Contact') ?></span>
                 <span><i class="fas fa-calendar-alt me-1 text-success"></i> <?= $project['date_started'] ? date('M d, Y', strtotime($project['date_started'])) : 'TBD' ?></span>
             </div>
-            <p class="project-desc-expandable m-0" onclick="openProjectDetailsModal()" title="Click for project details" class="cursor-pointer">
+            <p class="project-desc-expandable m-0 cursor-pointer" onclick="openProjectDetailsModal()" title="Click for project details">
                 <?= htmlspecialchars($projectNotes ?: 'No description provided for this project.') ?>
             </p>
         </div>
@@ -1026,7 +1026,45 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
 </div>
 <!-- Modal Project Details -->
 <div class="modal fade" id="projectDetailsModal" tabindex="-1">
- <div class="modal-dialog modal-dialog-centered modal-lg"><div class="modal-content p-3"><div class="modal-header"><h5 class="modal-title fw-bold"><i class="fas fa-info-circle me-2 text-primary"></i> <?= htmlspecialchars($project['name']) ?></h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><div class="row g-4"><div class="col-md-6"><div class="p-3 rounded-3 h-100" class="panel-soft"><div class="small text-gray fw-bold text-uppercase mb-3" style="letter-spacing:.5px;"><i class="fas fa-building me-1 text-warning"></i> Company & Contact</div><?php $rows1 = [ ['fas fa-building','Company', $projectCompanyName], ['fas fa-phone','Office Phone', $projectCompanyPhone], ['fas fa-map-marker-alt','HQ Address', $projectCompanyAddress], ['fas fa-user','Site Contact', $projectContactName], ['fas fa-mobile-alt','Contact Phone', $projectContactPhone], ['fas fa-map-pin','Job Address', $projectAddress], ]; foreach($rows1 as [$icon,$label,$val]): if(!$val) continue; ?><div class="d-flex gap-2 mb-2"><i class="fas <?= $icon ?> text-gray mt-1 flex-shrink-0" style="width:16px;"></i><div><div class="text-gray" style="font-size:.72rem;"><?= $label ?></div><div class="text-white small fw-semibold"><?= htmlspecialchars($val) ?></div></div></div><?php endforeach; ?></div></div><div class="col-md-6"><div class="p-3 rounded-3 h-100" class="panel-soft"><div class="small text-gray fw-bold text-uppercase mb-3" style="letter-spacing:.5px;"><i class="fas fa-calendar me-1 text-success"></i> Timeline & Status</div><?php $rows2 = [ ['fas fa-paper-plane','Bid Sent', $project['date_bid_sent'] ?? ($project['date_bid_send'] ?? '')], ['fas fa-trophy','Bid Awarded', $project['date_bid_awarded'] ?? ''], ['fas fa-play-circle','Start Date', $project['date_started'] ?? ''], ['fas fa-flag-checkered','Target Finish', $project['date_finished'] ?? ''], ['fas fa-shield-alt','Warranty End', $project['date_warranty_end'] ?? ''], ]; foreach($rows2 as [$icon,$label,$val]): if(!$val) continue; ?><div class="d-flex gap-2 mb-2"><i class="fas <?= $icon ?> text-gray mt-1 flex-shrink-0" style="width:16px;"></i><div><div class="text-gray" style="font-size:.72rem;"><?= $label ?></div><div class="text-white small fw-semibold"><?= date('M d, Y', strtotime($val)) ?></div></div></div><?php endforeach; ?></div></div><?php if($projectNotes): ?><div class="col-12"><div class="p-3 rounded-3" class="panel-soft"><div class="small text-gray fw-bold text-uppercase mb-2" style="letter-spacing:.5px;"><i class="fas fa-align-left me-1"></i> Description </div><p class="text-white small mb-0" style="line-height:1.7;"><?= nl2br(htmlspecialchars($projectNotes)) ?></p></div></div><?php endif; ?></div></div><?php if($isAdmin): ?><div class="modal-footer"><a href="project_create.php?edit=<?= $projectId ?>" class="btn btn-outline-light rounded-pill px-4"><i class="fas fa-edit me-1"></i> Edit Project </a></div><?php endif; ?></div></div>
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content p-3 modal-surface">
+      <div class="modal-header">
+        <h5 class="modal-title fw-bold"><i class="fas fa-info-circle me-2 text-primary"></i> <?= htmlspecialchars($project['name']) ?></h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body modal-scroll-y">
+        <div class="row g-4">
+          <div class="col-md-6">
+            <div class="p-3 rounded-3 h-100 panel-soft">
+              <div class="small text-gray fw-bold text-uppercase mb-3 letter-05"><i class="fas fa-building me-1 text-warning"></i> Company & Contact</div>
+              <?php $rows1 = [ ['fas fa-building','Company', $projectCompanyName], ['fas fa-phone','Office Phone', $projectCompanyPhone], ['fas fa-map-marker-alt','HQ Address', $projectCompanyAddress], ['fas fa-user','Site Contact', $projectContactName], ['fas fa-mobile-alt','Contact Phone', $projectContactPhone], ['fas fa-map-pin','Job Address', $projectAddress], ]; foreach($rows1 as [$icon,$label,$val]): if(!$val) continue; ?>
+                <div class="d-flex gap-2 mb-2"><i class="fas <?= $icon ?> text-gray mt-1 flex-shrink-0" style="width:16px;"></i><div><div class="text-gray fs-072"><?= $label ?></div><div class="text-white small fw-semibold"><?= htmlspecialchars($val) ?></div></div></div>
+              <?php endforeach; ?>
+            </div>
+          </div>
+          <div class="col-md-6">
+            <div class="p-3 rounded-3 h-100 panel-soft">
+              <div class="small text-gray fw-bold text-uppercase mb-3 letter-05"><i class="fas fa-calendar me-1 text-success"></i> Timeline & Status</div>
+              <?php $rows2 = [ ['fas fa-paper-plane','Bid Sent', $project['date_bid_sent'] ?? ($project['date_bid_send'] ?? '')], ['fas fa-trophy','Bid Awarded', $project['date_bid_awarded'] ?? ''], ['fas fa-play-circle','Start Date', $project['date_started'] ?? ''], ['fas fa-flag-checkered','Target Finish', $project['date_finished'] ?? ''], ['fas fa-shield-alt','Warranty End', $project['date_warranty_end'] ?? ''], ]; foreach($rows2 as [$icon,$label,$val]): if(!$val) continue; ?>
+                <div class="d-flex gap-2 mb-2"><i class="fas <?= $icon ?> text-gray mt-1 flex-shrink-0" style="width:16px;"></i><div><div class="text-gray fs-072"><?= $label ?></div><div class="text-white small fw-semibold"><?= date('M d, Y', strtotime($val)) ?></div></div></div>
+              <?php endforeach; ?>
+            </div>
+          </div>
+          <?php if($projectNotes): ?>
+          <div class="col-12">
+            <div class="p-3 rounded-3 panel-soft">
+              <div class="small text-gray fw-bold text-uppercase mb-2 letter-05"><i class="fas fa-align-left me-1"></i> Description </div>
+              <p class="text-white small mb-0 lh-17"><?= nl2br(htmlspecialchars($projectNotes)) ?></p>
+            </div>
+          </div>
+          <?php endif; ?>
+        </div>
+      </div>
+      <?php if($isAdmin): ?>
+      <div class="modal-footer"><a href="project_create.php?edit=<?= $projectId ?>" class="btn btn-outline-light rounded-pill px-4"><i class="fas fa-edit me-1"></i> Edit Project </a></div>
+      <?php endif; ?>
+    </div>
+  </div>
 </div>
 
 <input type="file" id="projectUploadInput" class="d-none">
