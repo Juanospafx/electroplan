@@ -160,11 +160,6 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
             
             <?php if($isAdmin): ?>
             <div class="d-flex gap-2">
-                <?php if($canSeeBulkImport): ?>
-                <a href="index.php" class="btn btn-outline-light rounded-pill px-3" title="Bulk Import is available in root dashboard">
-                    <i class="fas fa-folder-tree me-2"></i> Bulk Import
-                </a>
-                <?php endif; ?>
                 <a href="project_create.php" class="btn-main text-decoration-none">
                     <i class="fas fa-plus me-2"></i> New Project
                 </a>
