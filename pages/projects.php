@@ -124,9 +124,13 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
         .table-rounded tr:last-child td { border-bottom: none; }
         .table-rounded tr:hover td { background: var(--bg-body); }
         .group-row td { background: var(--bg-input); color: var(--text-gray); font-weight: 700; text-transform: uppercase; letter-spacing: .6px; font-size: .72rem; padding: 10px 16px; }
+        .projects-filters.box-card { height: auto !important; min-height: 0 !important; }
         .projects-filters .form-select, .projects-filters .btn { min-height: 36px; }
         .projects-filters .btn { white-space: nowrap; }
         .projects-toolbar { flex-wrap: wrap; gap: 10px; }
+        .status-inline-select { min-width: 140px; max-width: 170px; font-weight: 600; }
+        @media (max-width: 1200px) { .status-inline-select { min-width: 120px; } }
+        @media (max-width: 992px) { .status-inline-select { min-width: 110px; } }
 
         .btn-action { border-radius: 8px; display: inline-flex; align-items: center; justify-content: flex-start; border: 1px solid var(--border-subtle); color: var(--text-gray); transition: 0.2s; background: var(--bg-card); gap: 8px; width: auto; min-height: 34px; padding: 6px 10px; white-space: nowrap; }
         .btn-action:hover { background: var(--primary); color: white; border-color: var(--primary); }
@@ -316,7 +320,7 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
                         </td>
                         <td>
                             <?php if($isAdmin): ?>
-                            <select class="form-select form-select-sm" onchange="updateProjectStatusInline(<?= (int)$p['id'] ?>, this.value)">
+                            <select class="form-select form-select-sm status-inline-select" onchange="updateProjectStatusInline(<?= (int)$p['id'] ?>, this.value)">
                                 <?php foreach(['Planning','Active','On Hold','Completed'] as $st): ?>
                                   <option value="<?= $st ?>" <?= (($p['status'] ?? 'Active') === $st) ? 'selected' : '' ?>><?= $st ?></option>
                                 <?php endforeach; ?>
