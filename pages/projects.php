@@ -177,7 +177,7 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
                         <th width="12%">Assigned</th>
                         <th width="10%">Status</th>
                         <th width="10%">Files</th>
-                        <th>Delete</th>
+                        <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -235,11 +235,14 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
                             </span>
                         </td>
                         <td>
-                            <?php if($isAdmin): ?>
-                            <button class="btn-action delete" onclick="deleteProject(<?= $p['id'] ?>)" title="Delete project">
-                                <i class="fas fa-trash"></i><span class="action-label">Delete</span>
-                            </button>
-                            <?php endif; ?>
+                            <div class="d-flex flex-column gap-2" style="min-width:120px;">
+                                <a href="project_dashboard.php?id=<?= $p['id'] ?>" class="btn-action" title="Open project"><i class="fas fa-external-link-alt"></i><span class="action-label">Open</span></a>
+                                <?php if($isAdmin): ?>
+                                <button class="btn-action delete" onclick="deleteProject(<?= $p['id'] ?>)" title="Delete project">
+                                    <i class="fas fa-trash"></i><span class="action-label">Delete</span>
+                                </button>
+                                <?php endif; ?>
+                            </div>
                         </td>
                     </tr>
                     <?php endforeach; ?>
@@ -278,6 +281,7 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
                     <div class="proj-meta mb-2">Assigned: <?= htmlspecialchars($p['assigned_name'] ?: 'Unassigned') ?></div>
                     <div class="proj-meta mb-3">Created: <?= date('M d, Y', strtotime($p['created_at'])) ?> ?? <?= $p['file_count'] ?> Files</div>
                     <div class="d-flex gap-2">
+                        <a href="project_dashboard.php?id=<?= $p['id'] ?>" class="btn-action" title="Open"><i class="fas fa-external-link-alt"></i></a>
                         <?php if($isAdmin): ?>
                             <button class="btn-action delete" onclick="deleteProject(<?= $p['id'] ?>)" title="Move to Trash"><i class="fas fa-trash"></i></button>
                         <?php endif; ?>
