@@ -125,6 +125,10 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
         .table-responsive { display: none; }
         .proj-cards { display: block; }
     }
+    .project-name-cell { cursor: pointer; }
+    .project-name-cell:hover { background: rgba(251, 90, 58, 0.06); }
+    .project-name-cell:focus { outline: 2px solid var(--primary); outline-offset: -2px; }
+
     @media (max-width: 768px) {
         .header { flex-direction: column; align-items: flex-start; gap: 12px; }
         .breadcrumbs { margin-top: 4px; }
@@ -189,7 +193,7 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
                         $stColor = getStatusColor($p['status'] ?? 'Active');
                     ?>
                     <tr>
-                        <td>
+                        <td class="project-name-cell" data-href="project_dashboard.php?id=<?= $p['id'] ?>" tabindex="0" role="link" aria-label="Open project <?= htmlspecialchars($p['name']) ?>">
                             <div class="d-flex align-items-start gap-3">
                                 <div class="bg-primary bg-opacity-10 p-2 rounded text-primary mt-1">
                                     <i class="fas fa-folder"></i>
@@ -419,6 +423,22 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
             .catch(() => appAlert('Connection error', "Error", "error"));
         });
     }
+
+    document.addEventListener('click', function(e){
+        const cell = e.target.closest('.project-name-cell');
+        if(!cell) return;
+        if(e.target.closest('a,button,select,input,label,.btn-action')) return;
+        const href = cell.getAttribute('data-href');
+        if(href) window.location.href = href;
+    });
+    document.addEventListener('keydown', function(e){
+        const cell = e.target.closest('.project-name-cell');
+        if(!cell) return;
+        if(e.key !== 'Enter' && e.key !== ' ') return;
+        e.preventDefault();
+        const href = cell.getAttribute('data-href');
+        if(href) window.location.href = href;
+    });
 
     const assignedUsersByProject = <?= json_encode($assignedUsersByProject, JSON_UNESCAPED_UNICODE) ?>;
 
