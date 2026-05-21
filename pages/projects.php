@@ -82,11 +82,12 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
         .table-responsive { border-radius: var(--radius-box); overflow: hidden; border: 1px solid var(--border-subtle); }
         .table-rounded { width: 100%; border-collapse: separate; border-spacing: 0; background: var(--bg-card); }
         .table-rounded th { background: var(--bg-input); color: var(--text-gray); font-weight: 600; text-transform: uppercase; font-size: 0.75rem; padding: 18px 25px; border-bottom: 1px solid var(--border-subtle); white-space: nowrap; }
+.table-rounded th:last-child, .table-rounded td:last-child { min-width: 170px; }
         .table-rounded td { padding: 20px 25px; color: var(--text-white); vertical-align: middle; border-bottom: 1px solid var(--border-subtle); }
         .table-rounded tr:last-child td { border-bottom: none; }
         .table-rounded tr:hover td { background: var(--bg-body); }
 
-        .btn-action { border-radius: 8px; display: inline-flex; align-items: center; justify-content: flex-start; border: 1px solid var(--border-subtle); color: var(--text-gray); transition: 0.2s; background: var(--bg-card); gap: 8px; width: 100%; min-height: 34px; padding: 6px 10px; white-space: nowrap; }
+        .btn-action { border-radius: 8px; display: inline-flex; align-items: center; justify-content: flex-start; border: 1px solid var(--border-subtle); color: var(--text-gray); transition: 0.2s; background: var(--bg-card); gap: 8px; width: auto; min-height: 34px; padding: 6px 10px; white-space: nowrap; }
         .btn-action:hover { background: var(--primary); color: white; border-color: var(--primary); }
         .btn-action.delete:hover { background: #ef4444; color: white; border-color: #ef4444; }
         .action-label { font-size: 0.78rem; font-weight: 600; }
@@ -235,7 +236,7 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
                             </span>
                         </td>
                         <td>
-                            <div class="d-flex flex-column gap-2" style="min-width:120px;">
+                            <div class="d-flex flex-column gap-2 align-items-start" style="min-width:150px;">
                                 <a href="project_dashboard.php?id=<?= $p['id'] ?>" class="btn-action" title="Open project"><i class="fas fa-external-link-alt"></i><span class="action-label">Open</span></a>
                                 <?php if($isAdmin): ?>
                                 <button class="btn-action delete" onclick="deleteProject(<?= $p['id'] ?>)" title="Delete project">
