@@ -123,6 +123,10 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
         .table-rounded td { padding: 20px 25px; color: var(--text-white); vertical-align: middle; border-bottom: 1px solid var(--border-subtle); }
         .table-rounded tr:last-child td { border-bottom: none; }
         .table-rounded tr:hover td { background: var(--bg-body); }
+        .group-row td { background: var(--bg-input); color: var(--text-gray); font-weight: 700; text-transform: uppercase; letter-spacing: .6px; font-size: .72rem; padding: 10px 16px; }
+        .projects-filters .form-select, .projects-filters .btn { min-height: 36px; }
+        .projects-filters .btn { white-space: nowrap; }
+        .projects-toolbar { flex-wrap: wrap; gap: 10px; }
 
         .btn-action { border-radius: 8px; display: inline-flex; align-items: center; justify-content: flex-start; border: 1px solid var(--border-subtle); color: var(--text-gray); transition: 0.2s; background: var(--bg-card); gap: 8px; width: auto; min-height: 34px; padding: 6px 10px; white-space: nowrap; }
         .btn-action:hover { background: var(--primary); color: white; border-color: var(--primary); }
@@ -194,7 +198,7 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
             </a>
         </header>
 
-        <div class="box-card p-3 mb-3">
+        <div class="box-card p-3 mb-3 projects-filters">
             <form method="get" class="row g-2 align-items-end">
                 <div class="col-md-3 col-12">
                     <label class="small text-gray mb-1">Status</label>
@@ -231,7 +235,7 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
             </form>
         </div>
 
-        <div class="d-flex justify-content-between align-items-end mb-4">
+        <div class="d-flex justify-content-between align-items-end mb-4 projects-toolbar">
             <div>
                 <h2 class="fw-bold mb-1">Project Management</h2>
                 <p class="text-gray mb-0">Manage, edit or archive your ongoing projects.</p>
@@ -260,8 +264,21 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
                     </tr>
                 </thead>
                 <tbody>
+                    <?php
+                        $printedActive = false;
+                        $printedCompleted = false;
+                    ?>
                     <?php foreach($projects as $p): 
                         $stColor = getStatusColor($p['status'] ?? 'Active');
+                        $isCompleted = in_array(strtolower((string)($p['status'] ?? '')), ['completed','closed','done'], true);
+                        if(!$isCompleted && !$printedActive){
+                            $printedActive = true;
+                            echo "<tr class='group-row'><td colspan='7'>Active Projects</td></tr>";
+                        }
+                        if($isCompleted && !$printedCompleted){
+                            $printedCompleted = true;
+                            echo "<tr class='group-row'><td colspan='7'>Completed Projects</td></tr>";
+                        }
                     ?>
                     <tr>
                         <td class="project-name-cell" data-href="project_dashboard.php?id=<?= $p['id'] ?>" tabindex="0" role="link" aria-label="Open project <?= htmlspecialchars($p['name']) ?>">
