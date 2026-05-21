@@ -17,6 +17,10 @@ $folderIdFromGet = isset($_GET['folder_id']) ? (int)$_GET['folder_id'] : 0;
 $isRootProjectsView = ($projectIdFromGet <= 0 && $folderIdFromGet <= 0);
 $canSeeBulkImport = ($isAdmin && $isRootProjectsView);
 
+$filterStatus = trim((string)($_GET['status'] ?? 'all'));
+$filterCompany = trim((string)($_GET['company'] ?? 'all'));
+$filterTimeline = trim((string)($_GET['timeline'] ?? 'all'));
+
 // Obtener todos los proyectos (FILTRADO POR NO BORRADOS)
 $stmt = $pdo->query("
     SELECT p.*, u.username as creator_name, au.username as assigned_name,
