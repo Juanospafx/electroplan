@@ -1,0 +1,11 @@
+.form-control, .form-select {
+  background: var(--bg-input);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-white);
+  border-radius: 10px;
+}
+.form-control::placeholder { color: var(--text-gray); opacity: 1; }
+.form-control:focus, .form-select:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(251, 90, 58, 0.2);
+}
