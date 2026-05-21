@@ -137,9 +137,9 @@ include __DIR__ . '/../views/header.php';
             </button>
             <div class="breadcrumbs">
                 <a href="index.php">Home</a>
-                <i class="fas fa-chevron-right mx-2" style="font-size:0.7rem"></i>
+                <i class="fas fa-chevron-right mx-2" class="breadcrumb-chevron"></i>
                 <a href="projects.php">Projects</a>
-                <i class="fas fa-chevron-right mx-2" style="font-size:0.7rem"></i>
+                <i class="fas fa-chevron-right mx-2" class="breadcrumb-chevron"></i>
                 <?php if($currentView === 'files'): ?>
                     <a href="?id=<?= $projectId ?>&view=summary"><?= htmlspecialchars($project['name']) ?></a>
                 <?php else: ?>
@@ -188,7 +188,7 @@ include __DIR__ . '/../views/header.php';
                 <span><i class="fas fa-user-hard-hat me-1 text-primary"></i> <?= htmlspecialchars($projectContactName ?: 'No Contact') ?></span>
                 <span><i class="fas fa-calendar-alt me-1 text-success"></i> <?= $project['date_started'] ? date('M d, Y', strtotime($project['date_started'])) : 'TBD' ?></span>
             </div>
-            <p class="project-desc-expandable m-0" onclick="openProjectDetailsModal()" title="Click for project details" style="cursor:pointer;">
+            <p class="project-desc-expandable m-0" onclick="openProjectDetailsModal()" title="Click for project details" class="cursor-pointer">
                 <?= htmlspecialchars($projectNotes ?: 'No description provided for this project.') ?>
             </p>
         </div>
@@ -205,16 +205,16 @@ include __DIR__ . '/../views/header.php';
             <?php endif; ?>
             
             <?php if($isAdmin): ?>
-            <div id="bulk-import-overlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.82); z-index:10000; align-items:center; justify-content:center;">
-                <div style="background:var(--bg-card); border:1px solid var(--border-subtle); border-radius:20px; padding:36px 32px; width:420px; max-width:92vw; text-align:center;">
-                    <i class="fas fa-folder-open text-warning mb-3" style="font-size:2.5rem;"></i>
+            <div id="bulk-import-overlay" class="bulk-import-overlay">
+                <div class="bulk-import-panel">
+                    <i class="fas fa-folder-open text-warning mb-3" class="bulk-import-icon"></i>
                     <div class="fw-bold text-white mb-1 fs-5" id="bulk-status-title">Uploading folder...</div>
-                    <div class="text-gray small mb-3" id="bulk-status-detail" style="min-height:20px; word-break:break-all;"></div>
-                    <div class="progress mb-3" style="height:8px; border-radius:4px; background:var(--bg-input);">
-                        <div id="bulk-progress-bar" style="width:0%; height:100%; background:var(--primary); border-radius:4px; transition:width 0.2s;"></div>
+                    <div class="text-gray small mb-3" id="bulk-status-detail" class="text-gray small mb-3 bulk-status-detail"></div>
+                    <div class="progress mb-3" class="progress mb-3 bulk-progress-wrap">
+                        <div id="bulk-progress-bar" class="bulk-progress-bar"></div>
                     </div>
                     <div class="text-gray small" id="bulk-status-count">0 / 0 files</div>
-                    <div class="text-gray small mt-2" id="bulk-status-log" style="max-height:140px; overflow:auto; text-align:left; border-top:1px solid rgba(255,255,255,0.08); padding-top:8px;"></div>
+                    <div class="text-gray small mt-2" id="bulk-status-log" class="text-gray small mt-2 bulk-status-log"></div>
                 </div>
             </div>
 
@@ -261,7 +261,7 @@ include __DIR__ . '/../views/header.php';
                 </div>
             </div>
             <div class="dropdown">
-                <button class="btn btn-outline-light d-flex align-items-center justify-content-center" data-bs-toggle="dropdown" aria-expanded="false" style="width: 42px; height: 42px; border-radius: 50%; padding: 0;"><i class="fas fa-ellipsis-v"></i></button>
+                <button class="btn btn-outline-light d-flex align-items-center justify-content-center" data-bs-toggle="dropdown" aria-expanded="false" class="round-icon-btn-42"><i class="fas fa-ellipsis-v"></i></button>
                 <ul class="dropdown-menu dropdown-menu-end bg-card border-secondary shadow-lg rounded-3 py-2">
                     <li><button class="dropdown-item text-white hover-bg-body py-2" onclick="openNewFolderModal()"><i class="fas fa-folder-plus me-3 text-warning"></i> Add Folder</button></li>
                     <li><button class="dropdown-item text-white hover-bg-body py-2" onclick="openAssignUsersModal()"><i class="fas fa-users me-3 text-info"></i> Manage Team</button></li>
@@ -284,7 +284,7 @@ include __DIR__ . '/../views/header.php';
                 <i class="fas fa-times"></i>
             </button>
         </div>
-        <div id="globalSearchResults" style="display:none; position:absolute; top:100%; left:0; right:0; z-index:500; background:var(--bg-card); border:1px solid var(--border-subtle); border-radius:14px; max-height:380px; overflow-y:auto; box-shadow:0 16px 40px rgba(0,0,0,0.4); margin-top:4px;">
+        <div id="globalSearchResults" class="global-search-results">
         </div>
     </div>
 
@@ -313,7 +313,7 @@ include __DIR__ . '/../views/header.php';
                         <!-- INTERACTIVE OVERLAY -->
                         <div class="file-overlay" tabindex="0">
                             <?php if($_SESSION['role'] === 'admin'): ?>
-                            <div class="position-absolute top-0 end-0 p-2 d-flex gap-2" style="z-index: 20;">
+                            <div class="position-absolute top-0 end-0 p-2 d-flex gap-2" class="position-absolute top-0 end-0 p-2 d-flex gap-2 file-overlay-actions-top">
                                 <button class="overlay-mini-btn move" onclick="event.stopPropagation(); event.preventDefault(); openMoveModal(<?= $rf['id'] ?>)" title="Move File"><i class="fas fa-exchange-alt"></i></button>
                                 <button class="overlay-mini-btn delete" onclick="event.stopPropagation(); event.preventDefault(); deleteFile(<?= $rf['id'] ?>)" title="Delete File"><i class="fas fa-trash"></i></button>
                             </div>
@@ -458,7 +458,7 @@ include __DIR__ . '/../views/header.php';
                         <!-- INTERACTIVE OVERLAY -->
                         <div class="file-overlay" tabindex="0">
                             <?php if($_SESSION['role'] === 'admin'): ?>
-                            <div class="position-absolute top-0 end-0 p-2 d-flex gap-2" style="z-index: 20;">
+                            <div class="position-absolute top-0 end-0 p-2 d-flex gap-2" class="position-absolute top-0 end-0 p-2 d-flex gap-2 file-overlay-actions-top">
                                 <button class="overlay-mini-btn move" onclick="event.stopPropagation(); event.preventDefault(); openMoveModal(<?= $f['id'] ?>)" title="Move File"><i class="fas fa-exchange-alt"></i></button>
                                 <button class="overlay-mini-btn" onclick="event.stopPropagation(); event.preventDefault(); openRenameModal('file', <?= (int)$f['id'] ?>, '<?= addslashes(htmlspecialchars($f['filename'])) ?>')" title="Rename"><i class="fas fa-pen"></i></button>
                                 <button class="overlay-mini-btn delete" onclick="event.stopPropagation(); event.preventDefault(); deleteFile(<?= $f['id'] ?>)" title="Delete File"><i class="fas fa-trash"></i></button>
@@ -860,7 +860,7 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
                     <div id="upload-drop-zone" style="border:2px dashed var(--border-subtle); border-radius:16px; padding:40px 24px; text-align:center; cursor:pointer; transition:0.2s; background:var(--bg-input); margin-bottom:16px;" onclick="document.getElementById('upload_file_input').click()" ondragover="uploadDropZoneOver(event)" ondragleave="uploadDropZoneLeave(event)" ondrop="uploadDropZoneDrop(event)">
                         <i class="fas fa-file-upload text-primary mb-2" style="font-size:2rem;"></i>
                         <div class="text-white fw-semibold mb-1">Drag & drop files here</div>
-                        <div class="text-gray small">or <span class="text-primary" style="cursor:pointer;">browse files</span></div>
+                        <div class="text-gray small">or <span class="text-primary" class="cursor-pointer">browse files</span></div>
                         <div class="text-gray small mt-1">PDF, Images, Excel, Word, DWG, ZIP and more · max 1GB each</div>
                     </div>
                     <input type="file" id="upload_file_input" class="d-none" multiple onchange="uploadFilesSelected(this.files)">
