@@ -412,6 +412,7 @@ include __DIR__ . '/../views/header.php';
                 <h4 class="fw-bold mb-0 text-white"><i class="fas fa-folder-open text-warning me-2"></i> <?= htmlspecialchars($folderName) ?></h4>
             </div>
             <div class="d-flex align-items-center gap-2">
+                <?php if($isAdmin): ?><button class="btn btn-sm btn-outline-warning rounded-pill px-3" onclick="openBulkZipModal()"><i class="fas fa-file-archive me-1"></i> Bulk Import</button><?php endif; ?>
                 <?php if($canAddSubfolder): ?>
                     <button class="btn btn-sm btn-outline-light rounded-pill px-3" onclick="openAddSubfolderModal(<?= $currentFolderId ?>, '<?= addslashes(htmlspecialchars($folderName)) ?>')"><i class="fas fa-folder-plus me-1 text-success"></i> Add Subfolder</button>
                 <?php endif; ?>
