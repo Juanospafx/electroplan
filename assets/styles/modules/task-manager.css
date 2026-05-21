@@ -1,0 +1,17 @@
+/* Task Manager module (incremental safe extraction) */
+.tm-modal-content { background: var(--bg-card); border: 1px solid var(--border-subtle); }
+.tm-modal-z1060 { z-index: 1060; }
+.tm-modal-z1070 { z-index: 1070; }
+.tm-modal-z1200 { z-index: 1200; }
+.tm-table-compact { font-size: .75rem; border-color: var(--border-subtle); }
+.tm-surface-soft { background: rgba(255,255,255,0.02); border: 1px solid var(--border-subtle); }
+.tm-divider-soft { opacity: .5; }
+.tm-badge-mini { font-size: .7rem; }
+.tm-scroll-y-60 { max-height: 60vh; overflow-y: auto; }
+.tm-scroll-y-65 { max-height: 65vh; overflow-y: auto; }
+
+body.theme-light .tm-surface-soft { background: #ffffff; border-color: #cbd5e1; }
+body.theme-light .tm-modal-content { background: #ffffff; border-color: #cbd5e1; color: #0f172a; }
+body.theme-light .tm-table-compact { border-color: #cbd5e1; }
+body.theme-light .tm-table-compact th { background: #e2e8f0; color: #0f172a; }
+body.theme-light .tm-table-compact td { color: #0f172a; }

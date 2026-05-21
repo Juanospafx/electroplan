@@ -393,7 +393,7 @@ include __DIR__ . '/../views/header.php';
                 <div class="text-gray small py-3"><i class="fas fa-spinner fa-spin me-2"></i> Searching for live operations...</div>
             </div>
         </section>
-        <hr class="border-secondary my-5" style="opacity: 0.5;">
+        <hr class="border-secondary my-5" class="tm-divider-soft">
 
         <!-- SECCIÓN SUPERIOR: Panel de Proyectos Activos -->
         <section id="projects-master-view" class="mb-5">
@@ -407,7 +407,7 @@ include __DIR__ . '/../views/header.php';
                 </div>
             </div>
         </section>
-        <hr class="border-secondary my-5" style="opacity: 0.5;">
+        <hr class="border-secondary my-5" class="tm-divider-soft">
 
         <?php if($isAdmin): ?>
         <!-- INITIAL STATE (Template Manager) -->
@@ -500,9 +500,9 @@ include __DIR__ . '/../views/header.php';
 </main>
 
 <!-- Modal Importar CSV -->
-<div class="modal fade" id="importCsvModal" tabindex="-1" aria-hidden="true" style="z-index: 1060;">
+<div class="modal fade" id="importCsvModal" tabindex="-1" aria-hidden="true" class="tm-modal-z1060">
     <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content p-3" style="background: var(--bg-card); border: 1px solid var(--border-subtle);">
+        <div class="modal-content p-3" class="tm-modal-content">
             <div class="modal-header border-secondary">
                 <h5 class="modal-title fw-bold text-white"><i class="fas fa-file-csv text-success me-2"></i>Import Template</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
@@ -523,7 +523,7 @@ include __DIR__ . '/../views/header.php';
                     </div>
                     <div class="bg-dark border border-secondary rounded p-3 mt-3">
                         <p class="text-gray small fw-bold mb-2">Required CSV Format:</p>
-                        <table class="table table-sm table-bordered table-dark mb-2" style="font-size:0.75rem; border-color: var(--border-subtle);">
+                        <table class="table table-sm table-bordered table-dark mb-2" class="table table-sm table-bordered table-dark mb-2 tm-table-compact">
                             <thead><tr><th class="text-gray">Stage Name</th><th class="text-gray">Task Name</th><th class="text-gray">Estimated Hours</th></tr></thead>
                             <tbody>
                                 <tr><td>Pre-Construction</td><td>Permitting</td><td>8.5</td></tr>
@@ -543,9 +543,9 @@ include __DIR__ . '/../views/header.php';
 </div>
 
 <!-- Modal Setup Template (FASE 60) -->
-<div class="modal fade" id="templateSetupModal" tabindex="-1" aria-hidden="true" style="z-index: 1060;">
+<div class="modal fade" id="templateSetupModal" tabindex="-1" aria-hidden="true" class="tm-modal-z1060">
     <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content p-3" style="background: var(--bg-card); border: 1px solid var(--border-subtle);">
+        <div class="modal-content p-3" class="tm-modal-content">
             <div class="modal-header border-secondary">
                 <h5 class="modal-title fw-bold text-white"><i class="fas fa-cog text-primary me-2"></i>Template Configuration</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
@@ -575,14 +575,14 @@ include __DIR__ . '/../views/header.php';
     </div>
 </div>
 <!-- Modal Template Library -->
-<div class="modal fade" id="templateLibraryModal" tabindex="-1" aria-hidden="true" style="z-index: 1060;">
+<div class="modal fade" id="templateLibraryModal" tabindex="-1" aria-hidden="true" class="tm-modal-z1060">
     <div class="modal-dialog modal-dialog-centered modal-lg">
-        <div class="modal-content p-3" style="background: var(--bg-card); border: 1px solid var(--border-subtle);">
+        <div class="modal-content p-3" class="tm-modal-content">
             <div class="modal-header border-secondary">
                 <h5 class="modal-title fw-bold text-white"><i class="fas fa-book text-info me-2"></i>Template Library</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <div class="modal-body py-3" style="max-height: 65vh; overflow-y: auto;">
+            <div class="modal-body py-3" class="modal-body py-3 modal-scroll-y tm-scroll-y-65">
                 <div id="templateLibraryList" class="d-flex flex-column gap-2">
                     <div class="text-center text-gray py-4"><i class="fas fa-spinner fa-spin fa-2x"></i></div>
                 </div>
@@ -592,14 +592,14 @@ include __DIR__ . '/../views/header.php';
 </div>
 
 <!-- Modal Template Preview (Read Only) -->
-<div class="modal fade" id="templatePreviewModal" tabindex="-1" aria-hidden="true" style="z-index: 1070;">
+<div class="modal fade" id="templatePreviewModal" tabindex="-1" aria-hidden="true" class="tm-modal-z1070">
     <div class="modal-dialog modal-dialog-centered modal-lg">
-        <div class="modal-content p-3" style="background: var(--bg-card); border: 1px solid var(--border-subtle);">
+        <div class="modal-content p-3" class="tm-modal-content">
             <div class="modal-header border-secondary">
                 <h5 class="modal-title fw-bold text-white" id="previewModalTitle"><i class="fas fa-eye text-primary me-2"></i>Template Preview</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <div class="modal-body py-3" style="max-height: 60vh; overflow-y: auto;">
+            <div class="modal-body py-3" class="modal-body tm-scroll-y-60">
                 <p class="text-gray small mb-3" id="previewModalDesc"></p>
                 <div id="templatePreviewContent"></div>
             </div>
@@ -612,16 +612,16 @@ include __DIR__ . '/../views/header.php';
 </div>
 
 <!-- Modal Project Alerts (FASE 65) -->
-<div class="modal fade" id="projectAlertsModal" tabindex="-1" aria-hidden="true" style="z-index: 1060;">
+<div class="modal fade" id="projectAlertsModal" tabindex="-1" aria-hidden="true" class="tm-modal-z1060">
     <div class="modal-dialog modal-dialog-centered modal-lg">
-        <div class="modal-content p-3" style="background: var(--bg-card); border: 1px solid var(--border-subtle);">
+        <div class="modal-content p-3" class="tm-modal-content">
             <div class="modal-header border-secondary">
                 <h5 class="modal-title fw-bold text-white"><i class="fas fa-chart-bar text-info me-2"></i>Audit & Notes - <span id="alertsModalProjectName" class="text-primary"></span></h5>
                 <div class="d-flex align-items-center">
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
             </div>
-            <div class="modal-body" style="max-height: 60vh; overflow-y: auto;">
+            <div class="modal-body" class="modal-body tm-scroll-y-60">
                 <!-- FASE 74: Filtros de Categoría para Auditoría -->
                 <!-- FASE 74 & 102: Filtros de Categoría Estilo Task Manager -->
                 <div class="mb-3 flex-shrink-0 d-flex justify-content-center align-items-center gap-2 px-1 py-2 border-bottom border-secondary" style="overflow-x: auto; scrollbar-width: none;">
@@ -648,9 +648,9 @@ include __DIR__ . '/../views/header.php';
 </div>
 
 <!-- Modal para Reporte de Rendimiento Global -->
-<div class="modal fade" id="globalPerformanceReportModal" tabindex="-1" style="z-index: 1060;">
+<div class="modal fade" id="globalPerformanceReportModal" tabindex="-1" class="tm-modal-z1060">
     <div class="modal-dialog modal-dialog-centered modal-xl">
-        <div class="modal-content p-3" style="background: var(--bg-card); border: 1px solid var(--border-subtle);">
+        <div class="modal-content p-3" class="tm-modal-content">
             <div class="modal-header border-secondary">
                 <h5 class="modal-title fw-bold text-white"><i class="fas fa-chart-pie text-success me-2"></i>User Performance Report - <span id="perfModalProjectName" class="text-primary"></span></h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
@@ -721,9 +721,9 @@ include __DIR__ . '/../views/header.php';
 </div>
 
 <!-- Modal para Mover Tarea Personal al Proyecto -->
-<div class="modal fade" id="movePersonalTaskModal" tabindex="-1" style="z-index: 1200;">
+<div class="modal fade" id="movePersonalTaskModal" tabindex="-1" class="tm-modal-z1200">
     <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content p-3" style="background: var(--bg-card); border: 1px solid var(--border-subtle);">
+        <div class="modal-content p-3" class="tm-modal-content">
             <div class="modal-header border-secondary pb-2">
                 <h6 class="modal-title fw-bold text-white"><i class="fas fa-share text-info me-2"></i> Deploy / Complete Task</h6>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
@@ -779,9 +779,9 @@ include __DIR__ . '/../views/header.php';
 </div>
 
 <!-- Modal para Editar Tarea Personal -->
-<div class="modal fade" id="editPersonalTaskModal" tabindex="-1" style="z-index: 1200;">
+<div class="modal fade" id="editPersonalTaskModal" tabindex="-1" class="tm-modal-z1200">
     <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content p-3" style="background: var(--bg-card); border: 1px solid var(--border-subtle);">
+        <div class="modal-content p-3" class="tm-modal-content">
             <div class="modal-header border-secondary pb-2">
                 <h6 class="modal-title fw-bold text-white"><i class="fas fa-edit text-primary me-2"></i> Edit Task</h6>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
@@ -1055,7 +1055,7 @@ include __DIR__ . '/../views/header.php';
                     let html = '';
                     d.data.forEach(t => {
                         html += `
-                            <div class="d-flex align-items-center justify-content-between p-3 rounded" style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-subtle);">
+                            <div class="d-flex align-items-center justify-content-between p-3 rounded" class="tm-surface-soft">
                                 <div>
                                     <h6 class="fw-bold text-white mb-1">${t.name}</h6>
                                     <div class="text-gray small text-truncate" style="max-width:300px;">${t.description || 'No description'}</div>
@@ -1189,7 +1189,7 @@ include __DIR__ . '/../views/header.php';
                     let html = '';
                     d.data.forEach(t => {
                         html += `
-                            <div class="d-flex align-items-center justify-content-between p-3 rounded" style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-subtle);">
+                            <div class="d-flex align-items-center justify-content-between p-3 rounded" class="tm-surface-soft">
                                 <div>
                                     <h6 class="fw-bold text-white mb-1">${t.name}</h6>
                                     <div class="text-gray small text-truncate" style="max-width:300px;">${t.description || 'No description'}</div>
@@ -1998,7 +1998,7 @@ include __DIR__ . '/../views/header.php';
             const taskRef = log.task_name ? `<span class="ms-2 text-warning fw-bold"><i class="fas fa-hashtag"></i> ${log.task_name}</span>` : '';
             
             html += `
-                <div class="mb-3 p-3 rounded" style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-subtle);">
+                <div class="mb-3 p-3 rounded" class="tm-surface-soft">
                     <div class="d-flex justify-content-between align-items-center mb-2">
                         <div class="small fw-bold text-white"><i class="fas fa-user-circle text-primary me-1"></i> ${log.username || 'System'}</div>
                         <div class="small text-gray">${log.created_at}</div>
@@ -2213,7 +2213,7 @@ include __DIR__ . '/../views/header.php';
                         let statusBadge = `<span class="badge ${statusBadgeColor} px-2 py-1" style="font-size:0.7rem;">${t.status}</span>`;
                         
                         cardsHtml += `
-                            <div class="p-3 rounded pdf-avoid-break" style="background: rgba(255,255,255,0.02); border: 1px solid var(--border-subtle);">
+                            <div class="p-3 rounded pdf-avoid-break" class="tm-surface-soft">
                                 <div class="d-flex justify-content-between align-items-center mb-2">
                                     <div class="fw-bold text-white"><i class="fas fa-tasks text-primary me-2"></i> ${t.task_order} - ${t.name}</div>
                                     <div>${statusBadge}</div>
