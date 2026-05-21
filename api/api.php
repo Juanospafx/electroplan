@@ -18,6 +18,40 @@ function cleanName($name) {
     return clean_filename($name);
 }
 
+function splitVersionedName(string $filename): array {
+    $ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+    $base = pathinfo($filename, PATHINFO_FILENAME);
+    if (preg_match('/^(.*)_v(\d+)$/i', $base, $m)) {
+        return ['root' => $m[1], 'version' => (int)$m[2], 'ext' => $ext];
+    }
+    return ['root' => $base, 'version' => 1, 'ext' => $ext];
+}
+
+function generateNextVersionedFilename(PDO $pdo, int $projectId, ?int $folderId, ?int $subFolderId, string $originalName): array {
+    $parts = splitVersionedName($originalName);
+    $root = $parts['root'];
+    $ext = $parts['ext'];
+
+    $sql = "SELECT filename, version_number FROM files WHERE project_id=? AND deleted_at IS NULL";
+    $params = [$projectId];
+    if ($folderId !== null) { $sql .= " AND folder_id=?"; $params[] = $folderId; } else { $sql .= " AND folder_id IS NULL"; }
+    if ($subFolderId !== null) { $sql .= " AND sub_folder_id=?"; $params[] = $subFolderId; } else { $sql .= " AND sub_folder_id IS NULL"; }
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+    $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $max = 0;
+    foreach ($rows as $r) {
+        $p = splitVersionedName((string)$r['filename']);
+        if (strtolower($p['root']) === strtolower($root) && strtolower($p['ext']) === strtolower($ext)) {
+            $max = max($max, (int)($r['version_number'] ?: $p['version']));
+        }
+    }
+    $next = max(1, $max + 1);
+    $final = $next <= 1 ? ($root . '.' . $ext) : ($root . '_v' . $next . '.' . $ext);
+    return ['filename' => $final, 'version' => $next];
+}
+
 $defaultViewerFolders = ['drawings', 'photos', 'rfi'];
 function getVisibleFolders(PDO $pdo, int $projectId, string $role, int $userId): array {
     global $defaultViewerFolders;
@@ -257,7 +291,7 @@ switch($action) {
 
     // --- 1.1 ACTUALIZAR PROYECTO (ADMIN ONLY) ---
     case 'update_project':
-        if($userRole !== 'admin') { echo json_encode(['status'=>'error', 'msg'=>'Access Denied']); exit; }
+        if($userRole !== 'admin' && $userRole !== 'owner') { echo json_encode(['status'=>'error', 'msg'=>'Access Denied']); exit; }
         
         $id = $_POST['id'];
         $name = $_POST['name'];
@@ -270,6 +304,20 @@ switch($action) {
             sync_project_to_inventory_from_api($pdo, (int)$id);
             echo json_encode(['status'=>'success']);
         } catch(Exception $e) { echo json_encode(['status'=>'error', 'msg'=>$e->getMessage()]); }
+        break;
+
+    case 'update_project_status':
+        if($userRole !== 'admin' && $userRole !== 'owner') { echo json_encode(['status'=>'error', 'msg'=>'Access Denied']); exit; }
+        $id = (int)($_POST['project_id'] ?? 0);
+        $status = trim((string)($_POST['status'] ?? ''));
+        $allowed = ['Planning','Active','On Hold','Completed'];
+        if($id <= 0 || !in_array($status, $allowed, true)) { echo json_encode(['status'=>'error','msg'=>'Invalid data']); exit; }
+        try {
+            $stmt = $pdo->prepare("UPDATE projects SET status=? WHERE id=?");
+            $stmt->execute([$status, $id]);
+            sync_project_to_inventory_from_api($pdo, $id);
+            echo json_encode(['status'=>'success']);
+        } catch(Exception $e) { echo json_encode(['status'=>'error','msg'=>$e->getMessage()]); }
         break;
 
     // --- 1.2 ASIGNAR USUARIO A PROYECTO (ADMIN ONLY) ---
@@ -657,32 +705,10 @@ switch($action) {
             }
         }
         
-        $sqlCheck = "SELECT id, version_group_id, version_number FROM files 
-                     WHERE project_id = ? AND filename = ? AND deleted_at IS NULL ";
-        $params = [$projectId, $origName];
-        
-        if($folderId) { $sqlCheck .= " AND folder_id = ?"; $params[] = $folderId; } 
-        else { $sqlCheck .= " AND folder_id IS NULL"; }
-
-        if($subFolderId) { $sqlCheck .= " AND sub_folder_id = ?"; $params[] = $subFolderId; }
-        else { $sqlCheck .= " AND sub_folder_id IS NULL"; }
-        
-        $sqlCheck .= " ORDER BY version_number DESC LIMIT 1";
-
-        $stmtCheck = $pdo->prepare($sqlCheck);
-        $stmtCheck->execute($params);
-        $existing = $stmtCheck->fetch(PDO::FETCH_ASSOC);
-
-        $versionGroup = uniqid('vgroup_'); 
-        $versionNum = 1;
-
-        if ($existing) {
-            $versionGroup = $existing['version_group_id'] ?: uniqid('vgroup_');
-            $versionNum = $existing['version_number'] + 1;
-            if(!$existing['version_group_id']) {
-                $pdo->prepare("UPDATE files SET version_group_id = ? WHERE id = ?")->execute([$versionGroup, $existing['id']]);
-            }
-        }
+        $next = generateNextVersionedFilename($pdo, (int)$projectId, $folderId ? (int)$folderId : null, $subFolderId ? (int)$subFolderId : null, (string)$origName);
+        $finalName = $next['filename'];
+        $versionNum = (int)$next['version'];
+        $versionGroup = uniqid('vgroup_');
 
         $fileName = time() . '_' . cleanName($origName);
         $targetDir = __DIR__ . "/../uploads/";
@@ -693,7 +719,7 @@ switch($action) {
         if(move_uploaded_file($_FILES["file"]["tmp_name"], $targetPath)){
             $publicPath = "uploads/" . $fileName;
             $stmt = $pdo->prepare("INSERT INTO files (project_id, folder_id, sub_folder_id, filename, filepath, file_type, uploaded_by, version_group_id, version_number) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
-            $stmt->execute([$projectId, $folderId, $subFolderId, $origName, $publicPath, $type, $userId, $versionGroup, $versionNum]);
+            $stmt->execute([$projectId, $folderId, $subFolderId, $finalName, $publicPath, $type, $userId, $versionGroup, $versionNum]);
             echo json_encode(['status'=>'success']);
         } else echo json_encode(['status'=>'error', 'msg'=>'Upload failed']);
         break;
@@ -1101,22 +1127,10 @@ switch($action) {
 
             $publicPath = 'uploads/tool/' . $toolSlug . '/' . $projectId . '/' . $diskName;
 
-            $sqlCheck = "SELECT id, version_group_id, version_number FROM files
-                         WHERE project_id = ? AND filename = ? AND deleted_at IS NULL AND folder_id = ? AND sub_folder_id = ?
-                         ORDER BY version_number DESC LIMIT 1";
-            $stmtCheck = $pdo->prepare($sqlCheck);
-            $stmtCheck->execute([$projectId, $baseFile, $toolsFolderId, $toolSubFolderId]);
-            $existing = $stmtCheck->fetch(PDO::FETCH_ASSOC);
-
+            $next = generateNextVersionedFilename($pdo, (int)$projectId, (int)$toolsFolderId, (int)$toolSubFolderId, (string)$baseFile);
+            $baseFile = $next['filename'];
+            $versionNum = (int)$next['version'];
             $versionGroup = uniqid('vgroup_');
-            $versionNum = 1;
-            if ($existing) {
-                $versionGroup = $existing['version_group_id'] ?: uniqid('vgroup_');
-                $versionNum = (int)$existing['version_number'] + 1;
-                if (!$existing['version_group_id']) {
-                    $pdo->prepare("UPDATE files SET version_group_id = ? WHERE id = ?")->execute([$versionGroup, $existing['id']]);
-                }
-            }
 
             $stmt = $pdo->prepare("INSERT INTO files (project_id, folder_id, sub_folder_id, filename, filepath, file_type, uploaded_by, version_group_id, version_number)
                                    VALUES (?, ?, ?, ?, ?, 'pdf', ?, ?, ?)");

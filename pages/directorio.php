@@ -5,6 +5,8 @@ require_once __DIR__ . '/../core/db/connection.php';
 require_once __DIR__ . '/../core/time.php';
 
 $userName = $_SESSION['username'];
+$userRole = strtolower((string)($_SESSION['role'] ?? 'viewer'));
+$isAdmin = in_array($userRole, ['admin','owner'], true);
 
 $stmt = $pdo->query("
     SELECT 
@@ -25,6 +27,10 @@ $stmt = $pdo->query("
 $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
 $directory = [];
+$allUsers = [];
+if ($isAdmin) {
+    $allUsers = $pdo->query("SELECT id, username, role FROM users ORDER BY username ASC")->fetchAll(PDO::FETCH_ASSOC);
+}
 foreach ($rows as $row) {
     $pid = (int)$row['project_id'];
     if (!isset($directory[$pid])) {
@@ -184,6 +190,9 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
                         <?php else: ?>
                             <span class="text-gray">Unassigned</span>
                         <?php endif; ?>
+                        <?php if($isAdmin): ?>
+                            <div class="mt-2"><button class="btn btn-sm btn-outline-light rounded-pill" onclick="openDirAssignModal(<?= (int)$p['project_id'] ?>, '<?= addslashes($p['project_name']) ?>')"><i class="fas fa-user-plus me-1"></i> Manage</button></div>
+                        <?php endif; ?>
                     </td>
                 </tr>
                 <?php endforeach; ?>
@@ -201,3 +210,45 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
 </main>
 
 <?php include __DIR__ . '/../views/footer.php'; ?>
+<?php if($isAdmin): ?>
+<div class="modal fade" id="dirAssignModal" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content p-3">
+      <div class="modal-header"><h5 class="modal-title fw-bold">Assign users</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div>
+      <form id="dirAssignForm">
+        <input type="hidden" name="action" value="assign_project_users">
+        <input type="hidden" name="project_id" id="dir_project_id">
+        <div class="modal-body">
+          <div class="small text-gray mb-2" id="dir_project_name"></div>
+          <div class="border rounded p-2" style="max-height:220px;overflow:auto;">
+            <?php foreach($allUsers as $u): ?>
+              <label class="d-flex align-items-center gap-2 small text-gray mb-2"><input type="checkbox" name="user_ids[]" value="<?= (int)$u['id'] ?>" data-role="<?= htmlspecialchars($u['role']) ?>"> <span><?= htmlspecialchars($u['username']) ?> (<?= htmlspecialchars($u['role']) ?>)</span></label>
+            <?php endforeach; ?>
+          </div>
+        </div>
+        <div class="modal-footer"><button type="submit" class="btn-main w-100">Save</button></div>
+      </form>
+    </div>
+  </div>
+</div>
+<script>
+const directoryData = <?= json_encode(array_values($directory), JSON_UNESCAPED_UNICODE) ?>;
+function openDirAssignModal(projectId, projectName){
+  document.getElementById('dir_project_id').value = String(projectId);
+  document.getElementById('dir_project_name').textContent = projectName;
+  const rec = directoryData.find(p => Number(p.project_id)===Number(projectId));
+  const assigned = new Set((rec?.users||[]).map(u => String(u.id)));
+  document.querySelectorAll('#dirAssignForm input[name="user_ids[]"]').forEach(ch => ch.checked = assigned.has(String(ch.value)));
+  new bootstrap.Modal(document.getElementById('dirAssignModal')).show();
+}
+document.getElementById('dirAssignForm').addEventListener('submit', async function(e){
+ e.preventDefault();
+ const checked = Array.from(this.querySelectorAll('input[name="user_ids[]"]:checked'));
+ const hasAdmin = checked.some(ch => (ch.dataset.role||'').toLowerCase()==='admin' || (ch.dataset.role||'').toLowerCase()==='owner');
+ if(!hasAdmin){ appAlert('At least one admin/owner must be assigned.', 'Validation', 'warning'); return; }
+ const fd = new FormData(this);
+ const d = await fetch('../api/api.php', { method:'POST', body:fd }).then(r=>r.json());
+ if(d.status==='success') location.reload(); else appAlert(d.msg||'Error saving assignment','Error','error');
+});
+</script>
+<?php endif; ?>
