@@ -308,6 +308,14 @@ include __DIR__ . '/../views/header.php';
                         
                         <div class="file-title mb-1" title="<?= htmlspecialchars($rf['filename']) ?>"><?= htmlspecialchars($rf['filename']) ?></div>
                         <div class="small text-gray fw-medium"><?= date('M d, Y', strtotime($rf['uploaded_at'])) ?></div>
+                        <?php
+                          $stmtLatestRf = $pdo->prepare("SELECT id FROM files WHERE project_id=? AND folder_id <=> ? AND filename LIKE ? AND deleted_at IS NULL ORDER BY version_number DESC, id DESC LIMIT 1");
+                          $baseRf = preg_replace('/_v\d+(\.[^.]+)$/i', '$1', $rf['filename']);
+                          $likeRf = preg_replace('/(\.[^.]+)$/', '%$1', $baseRf);
+                          $stmtLatestRf->execute([(int)$projectId, $rf['folder_id'] ?? null, $likeRf]);
+                          $latestRfId = (int)$stmtLatestRf->fetchColumn();
+                        ?>
+                        <?php if($latestRfId === (int)$rf['id']): ?><span class="badge bg-success-subtle text-success border border-success-subtle mt-1">Latest Version</span><?php endif; ?>
                         <?php $rfExt = strtolower(pathinfo($rf['filename'], PATHINFO_EXTENSION)); $rfIsExcel = in_array($rfExt, ['xlsx','xls','xlsm','csv']); ?>
                         
                         <!-- INTERACTIVE OVERLAY -->
@@ -454,6 +462,14 @@ include __DIR__ . '/../views/header.php';
                         
                         <div class="file-title mb-1 file-name-label" title="<?= htmlspecialchars($f['filename']) ?>"><?= htmlspecialchars($f['filename']) ?></div>
                         <div class="small text-gray fw-medium"><?= date('M d, Y', strtotime($f['uploaded_at'])) ?></div>
+                        <?php
+                          $stmtLatestF = $pdo->prepare("SELECT id FROM files WHERE project_id=? AND folder_id <=> ? AND filename LIKE ? AND deleted_at IS NULL ORDER BY version_number DESC, id DESC LIMIT 1");
+                          $baseF = preg_replace('/_v\d+(\.[^.]+)$/i', '$1', $f['filename']);
+                          $likeF = preg_replace('/(\.[^.]+)$/', '%$1', $baseF);
+                          $stmtLatestF->execute([(int)$projectId, $f['folder_id'] ?? null, $likeF]);
+                          $latestFId = (int)$stmtLatestF->fetchColumn();
+                        ?>
+                        <?php if($latestFId === (int)$f['id']): ?><span class="badge bg-success-subtle text-success border border-success-subtle mt-1">Latest Version</span><?php endif; ?>
                         
                         <!-- INTERACTIVE OVERLAY -->
                         <div class="file-overlay" tabindex="0">
