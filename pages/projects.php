@@ -21,17 +21,47 @@ $filterStatus = trim((string)($_GET['status'] ?? 'all'));
 $filterCompany = trim((string)($_GET['company'] ?? 'all'));
 $filterTimeline = trim((string)($_GET['timeline'] ?? 'all'));
 
-// Obtener todos los proyectos (FILTRADO POR NO BORRADOS)
-$stmt = $pdo->query("
+// Obtener proyectos con filtros (seguro) y orden default (activos arriba)
+$sql = "
     SELECT p.*, u.username as creator_name, au.username as assigned_name,
     (SELECT COUNT(*) FROM files f WHERE f.project_id = p.id AND f.deleted_at IS NULL) as file_count
-    FROM projects p 
-    LEFT JOIN users u ON p.created_by = u.id 
+    FROM projects p
+    LEFT JOIN users u ON p.created_by = u.id
     LEFT JOIN users au ON p.assigned_user_id = au.id
     WHERE p.deleted_at IS NULL
-    ORDER BY p.created_at DESC
-");
+";
+$params = [];
+
+if ($filterStatus !== 'all') {
+    $sql .= " AND p.status = ?";
+    $params[] = $filterStatus;
+}
+if ($filterCompany !== 'all') {
+    $sql .= " AND COALESCE(NULLIF(TRIM(p.company_name),''), 'Not specified') = ?";
+    $params[] = $filterCompany;
+}
+if ($filterTimeline !== 'all') {
+    if ($filterTimeline === 'completed') {
+        $sql .= " AND p.date_finished IS NOT NULL AND p.date_finished <> ''";
+    } elseif ($filterTimeline === 'in_progress') {
+        $sql .= " AND p.date_started IS NOT NULL AND p.date_started <> '' AND (p.date_finished IS NULL OR p.date_finished = '')";
+    } elseif ($filterTimeline === 'upcoming') {
+        $sql .= " AND p.date_started IS NOT NULL AND p.date_started > CURDATE()";
+    } elseif ($filterTimeline === 'no_date') {
+        $sql .= " AND (p.date_started IS NULL OR p.date_started='') AND (p.date_finished IS NULL OR p.date_finished='')";
+    }
+}
+
+$sql .= " ORDER BY
+    CASE WHEN LOWER(COALESCE(p.status,'')) IN ('completed','closed','done') THEN 1 ELSE 0 END ASC,
+    p.created_at DESC";
+
+$stmt = $pdo->prepare($sql);
+$stmt->execute($params);
 $projects = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+$statusOptions = $pdo->query("SELECT DISTINCT status FROM projects WHERE deleted_at IS NULL AND status IS NOT NULL AND status <> '' ORDER BY status ASC")->fetchAll(PDO::FETCH_COLUMN);
+$companyOptions = $pdo->query("SELECT DISTINCT COALESCE(NULLIF(TRIM(company_name),''), 'Not specified') AS company FROM projects WHERE deleted_at IS NULL ORDER BY company ASC")->fetchAll(PDO::FETCH_COLUMN);
 
 $users = [];
 $assignedUsersByProject = [];
@@ -163,6 +193,43 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
                 </div>
             </a>
         </header>
+
+        <div class="box-card p-3 mb-3">
+            <form method="get" class="row g-2 align-items-end">
+                <div class="col-md-3 col-12">
+                    <label class="small text-gray mb-1">Status</label>
+                    <select name="status" class="form-select form-select-sm">
+                        <option value="all">All</option>
+                        <?php foreach($statusOptions as $st): ?>
+                            <option value="<?= htmlspecialchars($st) ?>" <?= $filterStatus === $st ? 'selected' : '' ?>><?= htmlspecialchars($st) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="col-md-3 col-12">
+                    <label class="small text-gray mb-1">Timeline</label>
+                    <select name="timeline" class="form-select form-select-sm">
+                        <option value="all" <?= $filterTimeline==='all' ? 'selected' : '' ?>>All</option>
+                        <option value="in_progress" <?= $filterTimeline==='in_progress' ? 'selected' : '' ?>>In Progress</option>
+                        <option value="upcoming" <?= $filterTimeline==='upcoming' ? 'selected' : '' ?>>Upcoming</option>
+                        <option value="completed" <?= $filterTimeline==='completed' ? 'selected' : '' ?>>Completed</option>
+                        <option value="no_date" <?= $filterTimeline==='no_date' ? 'selected' : '' ?>>No Date</option>
+                    </select>
+                </div>
+                <div class="col-md-3 col-12">
+                    <label class="small text-gray mb-1">Company</label>
+                    <select name="company" class="form-select form-select-sm">
+                        <option value="all">All</option>
+                        <?php foreach($companyOptions as $cp): ?>
+                            <option value="<?= htmlspecialchars($cp) ?>" <?= $filterCompany === $cp ? 'selected' : '' ?>><?= htmlspecialchars($cp) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="col-md-3 col-12 d-flex gap-2">
+                    <button class="btn btn-sm btn-main w-100" type="submit">Apply</button>
+                    <a href="projects.php" class="btn btn-sm btn-outline-light w-100">Reset</a>
+                </div>
+            </form>
+        </div>
 
         <div class="d-flex justify-content-between align-items-end mb-4">
             <div>
