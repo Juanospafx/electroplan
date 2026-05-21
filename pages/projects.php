@@ -10,8 +10,12 @@ $userName = $_SESSION['username'];
 $userRoleRaw = $_SESSION['role'] ?? 'viewer';
 $userRole = strtolower($userRoleRaw);
 
-// Permiso Admin
-$isAdmin = ($userRole === 'admin');
+// Permiso Admin/Owner (RBAC defensivo para raíz de Projects)
+$isAdmin = ($userRole === 'admin' || $userRole === 'owner');
+$projectIdFromGet = isset($_GET['id']) ? (int)$_GET['id'] : 0;
+$folderIdFromGet = isset($_GET['folder_id']) ? (int)$_GET['folder_id'] : 0;
+$isRootProjectsView = ($projectIdFromGet <= 0 && $folderIdFromGet <= 0);
+$canSeeBulkImport = ($isAdmin && $isRootProjectsView);
 
 // Obtener todos los proyectos (FILTRADO POR NO BORRADOS)
 $stmt = $pdo->query("
@@ -155,9 +159,16 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
             </div>
             
             <?php if($isAdmin): ?>
-            <a href="project_create.php" class="btn-main text-decoration-none">
-                <i class="fas fa-plus me-2"></i> New Project
-            </a>
+            <div class="d-flex gap-2">
+                <?php if($canSeeBulkImport): ?>
+                <a href="index.php" class="btn btn-outline-light rounded-pill px-3" title="Bulk Import is available in root dashboard">
+                    <i class="fas fa-folder-tree me-2"></i> Bulk Import
+                </a>
+                <?php endif; ?>
+                <a href="project_create.php" class="btn-main text-decoration-none">
+                    <i class="fas fa-plus me-2"></i> New Project
+                </a>
+            </div>
             <?php endif; ?>
         </div>
 
