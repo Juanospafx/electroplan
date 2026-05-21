@@ -1317,21 +1317,51 @@ switch($action) {
         break;
 
     case 'rename_file':
-        if($userRole !== 'admin') { echo json_encode(['status'=>'error','msg'=>'Access Denied']); exit; }
         $id = (int)($_POST['id'] ?? 0); $newName = trim($_POST['name'] ?? '');
         if(!$id || $newName === '') { echo json_encode(['status'=>'error','msg'=>'Invalid data']); exit; }
+        $q = $pdo->prepare("SELECT project_id FROM files WHERE id=? AND deleted_at IS NULL LIMIT 1"); $q->execute([$id]); $pid=(int)$q->fetchColumn();
+        if(!$pid || !canEditFile($pdo,(int)$userId,$pid,$id)) { echo json_encode(['status'=>'error','msg'=>'Access Denied']); exit; }
         if(mb_strlen($newName) > 255) { echo json_encode(['status'=>'error','msg'=>'Name too long']); exit; }
         $stmt = $pdo->prepare("UPDATE files SET filename = ? WHERE id = ? AND deleted_at IS NULL LIMIT 1"); $stmt->execute([$newName, $id]);
         echo json_encode(['status'=> $stmt->rowCount() ? 'success' : 'error', 'msg'=> $stmt->rowCount() ? '' : 'File not found']);
         break;
 
     case 'rename_folder':
-        if($userRole !== 'admin') { echo json_encode(['status'=>'error','msg'=>'Access Denied']); exit; }
         $id = (int)($_POST['id'] ?? 0); $newName = trim($_POST['name'] ?? '');
         if(!$id || $newName === '') { echo json_encode(['status'=>'error','msg'=>'Invalid data']); exit; }
+        $q = $pdo->prepare("SELECT project_id FROM folders WHERE id=? AND deleted_at IS NULL LIMIT 1"); $q->execute([$id]); $pid=(int)$q->fetchColumn();
+        if(!$pid || !canAccessProject($pdo,(int)$userId,$pid)) { echo json_encode(['status'=>'error','msg'=>'Access Denied']); exit; }
         if(mb_strlen($newName) > 255) { echo json_encode(['status'=>'error','msg'=>'Name too long']); exit; }
         $stmt = $pdo->prepare("UPDATE folders SET name = ? WHERE id = ? AND deleted_at IS NULL LIMIT 1"); $stmt->execute([$newName, $id]);
         echo json_encode(['status'=> $stmt->rowCount() ? 'success' : 'error', 'msg'=> $stmt->rowCount() ? '' : 'Folder not found']);
+        break;
+
+    case 'set_visibility_rules':
+        if($userRole === 'viewer') { echo json_encode(['status'=>'error','msg'=>'Access Denied']); exit; }
+        $entityType = trim((string)($_POST['entity_type'] ?? ''));
+        $entityId = (int)($_POST['entity_id'] ?? 0);
+        $rolesCsv = trim((string)($_POST['roles'] ?? ''));
+        $usersCsv = trim((string)($_POST['users'] ?? ''));
+        if(!$entityId || !in_array($entityType, ['file','folder'], true)) { echo json_encode(['status'=>'error','msg'=>'Invalid data']); exit; }
+
+        $projectId = 0;
+        if($entityType === 'file') { $s=$pdo->prepare("SELECT project_id FROM files WHERE id=? LIMIT 1"); $s->execute([$entityId]); $projectId=(int)$s->fetchColumn(); }
+        else { $s=$pdo->prepare("SELECT project_id FROM folders WHERE id=? LIMIT 1"); $s->execute([$entityId]); $projectId=(int)$s->fetchColumn(); }
+        if(!$projectId || !canAccessProject($pdo,(int)$userId,$projectId)) { echo json_encode(['status'=>'error','msg'=>'Access Denied']); exit; }
+
+        $roles = array_values(array_filter(array_map('trim', explode(',', $rolesCsv))));
+        $users = array_values(array_filter(array_map('intval', explode(',', $usersCsv))));
+
+        $table = $entityType === 'file' ? 'file_visibility_rules' : 'folder_visibility_rules';
+        $fk = $entityType === 'file' ? 'file_id' : 'folder_id';
+        $pdo->prepare("DELETE FROM {$table} WHERE {$fk}=?")->execute([$entityId]);
+
+        $ins = $pdo->prepare("INSERT INTO {$table} ({$fk}, subject_type, subject_value, subject_id, allow_view, deny_view, created_by) VALUES (?, 'role', ?, NULL, 1, 0, ?)");
+        foreach($roles as $r){ $ins->execute([$entityId, strtolower($r), (int)$userId]); }
+        $insU = $pdo->prepare("INSERT INTO {$table} ({$fk}, subject_type, subject_value, subject_id, allow_view, deny_view, created_by) VALUES (?, 'user', NULL, ?, 1, 0, ?)");
+        foreach($users as $u){ if($u>0) $insU->execute([$entityId, $u, (int)$userId]); }
+
+        echo json_encode(['status'=>'success']);
         break;
 
     case 'load_annotations':
