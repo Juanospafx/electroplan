@@ -182,7 +182,7 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
                         <th width="12%">Assigned</th>
                         <th width="10%">Status</th>
                         <th width="10%">Files</th>
-                        <th>Actions</th>
+                        <th>Delete</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -196,7 +196,7 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
                                     <i class="fas fa-folder"></i>
                                 </div>
                                 <div>
-                                    <div class="fw-bold mb-1"><?= htmlspecialchars($p['name']) ?></div>
+                                    <a class="fw-bold mb-1 d-inline-block text-decoration-none" href="project_dashboard.php?id=<?= $p['id'] ?>"><?= htmlspecialchars($p['name']) ?></a>
                                     <?php if(!empty($p['address'])): ?>
                                         <div class="small text-gray mb-1"><i class="fas fa-map-marker-alt me-1 text-accent"></i> <?= htmlspecialchars($p['address']) ?></div>
                                     <?php endif; ?>
@@ -224,9 +224,15 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
                             <?= htmlspecialchars($p['assigned_name'] ?: 'Unassigned') ?>
                         </td>
                         <td>
-                            <span class="status-badge bg-<?= $stColor ?> bg-opacity-25 text-<?= $stColor ?>">
-                                <?= $p['status'] ?? 'Active' ?>
-                            </span>
+                            <?php if($isAdmin): ?>
+                            <select class="form-select form-select-sm" onchange="updateProjectStatusInline(<?= (int)$p['id'] ?>, this.value)">
+                                <?php foreach(['Planning','Active','On Hold','Completed'] as $st): ?>
+                                  <option value="<?= $st ?>" <?= (($p['status'] ?? 'Active') === $st) ? 'selected' : '' ?>><?= $st ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                            <?php else: ?>
+                            <span class="status-badge bg-<?= $stColor ?> bg-opacity-25 text-<?= $stColor ?>"><?= $p['status'] ?? 'Active' ?></span>
+                            <?php endif; ?>
                         </td>
                         <td>
                             <span class="badge bg-dark border border-secondary fw-normal">
@@ -234,22 +240,11 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
                             </span>
                         </td>
                         <td>
-                            <div class="action-buttons" style="display:flex;flex-direction:column;align-items:flex-start;gap:8px;min-width:140px;">
-                                <a href="project_dashboard.php?id=<?= $p['id'] ?>" class="btn-action" title="View project">
-                                    <i class="fas fa-columns"></i><span class="action-label">View</span>
-                                </a>
-                                <?php if($isAdmin): ?>
-                                    <a class="btn-action" href="project_create.php?id=<?= (int)$p['id'] ?>" title="Edit project">
-                                        <i class="fas fa-pen"></i><span class="action-label">Edit</span>
-                                    </a>
-                                    <button class="btn-action" onclick="openAssignModal(<?= (int)$p['id'] ?>, '<?= addslashes($p['name']) ?>', <?= isset($p['assigned_user_id']) && $p['assigned_user_id'] !== null ? (int)$p['assigned_user_id'] : 'null' ?>)" title="Manage users">
-                                        <i class="fas fa-user-plus"></i><span class="action-label">Users</span>
-                                    </button>
-                                    <button class="btn-action delete" onclick="deleteProject(<?= $p['id'] ?>)" title="Delete project">
-                                        <i class="fas fa-trash"></i><span class="action-label">Delete</span>
-                                    </button>
-                                <?php endif; ?>
-                            </div>
+                            <?php if($isAdmin): ?>
+                            <button class="btn-action delete" onclick="deleteProject(<?= $p['id'] ?>)" title="Delete project">
+                                <i class="fas fa-trash"></i><span class="action-label">Delete</span>
+                            </button>
+                            <?php endif; ?>
                         </td>
                     </tr>
                     <?php endforeach; ?>
@@ -288,10 +283,7 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
                     <div class="proj-meta mb-2">Assigned: <?= htmlspecialchars($p['assigned_name'] ?: 'Unassigned') ?></div>
                     <div class="proj-meta mb-3">Created: <?= date('M d, Y', strtotime($p['created_at'])) ?> ?? <?= $p['file_count'] ?> Files</div>
                     <div class="d-flex gap-2">
-                        <a href="project_dashboard.php?id=<?= $p['id'] ?>" class="btn-action" title="Open"><i class="fas fa-external-link-alt"></i></a>
                         <?php if($isAdmin): ?>
-                            <a class="btn-action" href="project_create.php?id=<?= (int)$p['id'] ?>" title="Edit"><i class="fas fa-pen"></i></a>
-                            <button class="btn-action" onclick="openAssignModal(<?= (int)$p['id'] ?>, '<?= addslashes($p['name']) ?>', <?= isset($p['assigned_user_id']) && $p['assigned_user_id'] !== null ? (int)$p['assigned_user_id'] : 'null' ?>)" title="Assign User"><i class="fas fa-user-plus"></i></button>
                             <button class="btn-action delete" onclick="deleteProject(<?= $p['id'] ?>)" title="Move to Trash"><i class="fas fa-trash"></i></button>
                         <?php endif; ?>
                     </div>
@@ -397,6 +389,19 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
         })
         .catch(() => appAlert('Connection error', "Error", "error"));
     });
+
+    
+    async function updateProjectStatusInline(projectId, status) {
+        const fd = new FormData();
+        fd.append('action','update_project_status');
+        fd.append('project_id', String(projectId));
+        fd.append('status', status);
+        try {
+            const d = await fetch('../api/api.php', { method:'POST', body:fd }).then(r=>r.json());
+            if (d.status !== 'success') appAlert('Status update failed: ' + (d.msg || 'Unknown'), 'Error', 'error');
+            else location.reload();
+        } catch(e) { appAlert('Connection error', 'Error', 'error'); }
+    }
 
     // 2. Eliminar (SOFT DELETE)
     function deleteProject(id) {

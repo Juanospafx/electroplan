@@ -291,7 +291,7 @@ switch($action) {
 
     // --- 1.1 ACTUALIZAR PROYECTO (ADMIN ONLY) ---
     case 'update_project':
-        if($userRole !== 'admin') { echo json_encode(['status'=>'error', 'msg'=>'Access Denied']); exit; }
+        if($userRole !== 'admin' && $userRole !== 'owner') { echo json_encode(['status'=>'error', 'msg'=>'Access Denied']); exit; }
         
         $id = $_POST['id'];
         $name = $_POST['name'];
@@ -304,6 +304,20 @@ switch($action) {
             sync_project_to_inventory_from_api($pdo, (int)$id);
             echo json_encode(['status'=>'success']);
         } catch(Exception $e) { echo json_encode(['status'=>'error', 'msg'=>$e->getMessage()]); }
+        break;
+
+    case 'update_project_status':
+        if($userRole !== 'admin' && $userRole !== 'owner') { echo json_encode(['status'=>'error', 'msg'=>'Access Denied']); exit; }
+        $id = (int)($_POST['project_id'] ?? 0);
+        $status = trim((string)($_POST['status'] ?? ''));
+        $allowed = ['Planning','Active','On Hold','Completed'];
+        if($id <= 0 || !in_array($status, $allowed, true)) { echo json_encode(['status'=>'error','msg'=>'Invalid data']); exit; }
+        try {
+            $stmt = $pdo->prepare("UPDATE projects SET status=? WHERE id=?");
+            $stmt->execute([$status, $id]);
+            sync_project_to_inventory_from_api($pdo, $id);
+            echo json_encode(['status'=>'success']);
+        } catch(Exception $e) { echo json_encode(['status'=>'error','msg'=>$e->getMessage()]); }
         break;
 
     // --- 1.2 ASIGNAR USUARIO A PROYECTO (ADMIN ONLY) ---
