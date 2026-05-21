@@ -82,7 +82,10 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
         .table-responsive { border-radius: var(--radius-box); overflow: hidden; border: 1px solid var(--border-subtle); }
         .table-rounded { width: 100%; border-collapse: separate; border-spacing: 0; background: var(--bg-card); }
         .table-rounded th { background: var(--bg-input); color: var(--text-gray); font-weight: 600; text-transform: uppercase; font-size: 0.75rem; padding: 18px 25px; border-bottom: 1px solid var(--border-subtle); white-space: nowrap; }
-.table-rounded th:last-child, .table-rounded td:last-child { min-width: 170px; }
+.table-rounded th:last-child, .table-rounded td:last-child { min-width: 110px; width: 110px; }
+.table-rounded td:last-child .action-label { display: none; }
+.table-rounded td:last-child .btn-action { width: 42px; justify-content: center; padding: 6px; }
+.table-rounded td:last-child .btn-action i { margin: 0 !important; }
         .table-rounded td { padding: 20px 25px; color: var(--text-white); vertical-align: middle; border-bottom: 1px solid var(--border-subtle); }
         .table-rounded tr:last-child td { border-bottom: none; }
         .table-rounded tr:hover td { background: var(--bg-body); }
@@ -236,7 +239,7 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
                             </span>
                         </td>
                         <td>
-                            <div class="d-flex flex-column gap-2 align-items-start" style="min-width:150px;">
+                            <div class="d-flex flex-column gap-2 align-items-start" style="min-width:48px;">
                                 <a href="project_dashboard.php?id=<?= $p['id'] ?>" class="btn-action" title="Open project"><i class="fas fa-external-link-alt"></i><span class="action-label">Open</span></a>
                                 <?php if($isAdmin): ?>
                                 <button class="btn-action delete" onclick="deleteProject(<?= $p['id'] ?>)" title="Delete project">
