@@ -2,6 +2,7 @@
 require_once __DIR__ . '/../core/auth/session.php';
 require_once __DIR__ . '/../core/db/connection.php';
 require_once __DIR__ . '/../core/file_paths.php';
+require_once __DIR__ . '/../api/rbac.php';
 
 function normalize_proxy_path(?string $filepath): string {
     $p = normalize_file_path($filepath);
@@ -26,13 +27,21 @@ if ($id <= 0) {
     exit("Invalid id\n");
 }
 
-$stmt = $pdo->prepare('SELECT id, filename, filepath, file_type FROM files WHERE id = ? AND deleted_at IS NULL LIMIT 1');
+$stmt = $pdo->prepare('SELECT id, project_id, filename, filepath, file_type FROM files WHERE id = ? AND deleted_at IS NULL LIMIT 1');
 $stmt->execute([$id]);
 $file = $stmt->fetch(PDO::FETCH_ASSOC);
 if (!$file) {
     http_response_code(404);
     header('Content-Type: text/plain; charset=utf-8');
     exit("File not found for id={$id}\n");
+}
+
+$uid = (int)($_SESSION['user_id'] ?? 0);
+$pid = (int)($file['project_id'] ?? 0);
+if ($uid <= 0 || $pid <= 0 || !canDownloadFile($pdo, $uid, $pid, (int)$file['id'])) {
+    http_response_code(403);
+    header('Content-Type: text/plain; charset=utf-8');
+    exit("Access denied\n");
 }
 
 $dbFilepath = (string)($file['filepath'] ?? '');

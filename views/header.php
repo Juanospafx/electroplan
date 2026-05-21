@@ -18,6 +18,10 @@
     }
     window.BASE_PATH = '/electroplan';
     window.SERVER_BASE_URL = window.location.origin + window.BASE_PATH;
+    window.EPProjectContext = {
+      setActiveProjectId: function(pid){ try { if(pid && Number(pid)>0){ sessionStorage.setItem('ep_active_project_id', String(pid)); localStorage.setItem('ep_active_project_id', String(pid)); } } catch(e){} },
+      getActiveProjectId: function(){ try { return Number(sessionStorage.getItem('ep_active_project_id') || localStorage.getItem('ep_active_project_id') || 0); } catch(e){ return 0; } }
+    };
     </script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
@@ -301,6 +305,11 @@ body.theme-light .text-muted { color: var(--text-gray, #64748b) !important; }
         let savedTheme = 'dark';
         try { savedTheme = localStorage.getItem('app_theme') || localStorage.getItem('editor_theme') || 'dark'; } catch (e) {}
         applyAppTheme(savedTheme);
+        try {
+          const p = new URLSearchParams(window.location.search);
+          const pid = Number(p.get('project_id') || p.get('id') || 0);
+          if (pid > 0) window.EPProjectContext.setActiveProjectId(pid);
+        } catch(e) {}
     });
 </script>
 

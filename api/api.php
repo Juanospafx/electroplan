@@ -3,6 +3,7 @@
 require_once __DIR__ . '/../core/auth/session.php';
 require_once __DIR__ . '/../core/db/connection.php';
 require_once __DIR__ . '/../funciones/file_names.php';
+require_once __DIR__ . '/rbac.php';
 header('Content-Type: application/json');
 
 $userId = $_SESSION['user_id'] ?? 1;
@@ -604,7 +605,9 @@ switch($action) {
 
     // --- 3. SUBIR ARCHIVO CON VERSIONADO (ADMIN ONLY + VALIDACIONES) ---
     case 'upload_file':
-        if($userRole !== 'admin') { echo json_encode(['status'=>'error', 'msg'=>'Access Denied']); exit; }
+        $projectIdCheck = (int)($_POST['project_id'] ?? 0);
+        $folderIdCheck = !empty($_POST['folder_id']) ? (int)$_POST['folder_id'] : null;
+        if (!canUploadToFolder($pdo, (int)$userId, $projectIdCheck, $folderIdCheck)) { echo json_encode(['status'=>'error', 'msg'=>'Access Denied']); exit; }
 
         if (!isset($_FILES['file'])) { echo json_encode(['status'=>'error', 'msg'=>'No file']); exit; }
         
@@ -1031,9 +1034,8 @@ switch($action) {
 
     // --- 12.2 GUARDAR EXPORT DE TOOL COMO ARCHIVO DE PROYECTO ---
     case 'save_tool_export':
-        if($userRole === 'viewer') { echo json_encode(['status'=>'error', 'msg'=>'Access Denied']); exit; }
-
         $projectId = (int)($_POST['project_id'] ?? 0);
+        if (!canUploadToFolder($pdo, (int)$userId, $projectId, null)) { echo json_encode(['status'=>'error', 'msg'=>'Access Denied']); exit; }
         $toolNameRaw = trim((string)($_POST['tool_name'] ?? ''));
         $filenameRaw = trim((string)($_POST['filename'] ?? ''));
 
@@ -1062,12 +1064,12 @@ switch($action) {
         }
 
         try {
-            $stmtFolder = $pdo->prepare("SELECT id FROM folders WHERE project_id = ? AND name = 'Tools' AND deleted_at IS NULL LIMIT 1");
+            $stmtFolder = $pdo->prepare("SELECT id FROM folders WHERE project_id = ? AND name = 'Exports' AND deleted_at IS NULL LIMIT 1");
             $stmtFolder->execute([$projectId]);
             $toolsFolderId = (int)$stmtFolder->fetchColumn();
 
             if ($toolsFolderId <= 0) {
-                $pdo->prepare("INSERT INTO folders (project_id, name) VALUES (?, 'Tools')")->execute([$projectId]);
+                $pdo->prepare("INSERT INTO folders (project_id, name) VALUES (?, 'Exports')")->execute([$projectId]);
                 $toolsFolderId = (int)$pdo->lastInsertId();
             }
 
@@ -1301,6 +1303,7 @@ switch($action) {
 
     case 'search_project_files':
         $projectId = (int)($_POST['project_id'] ?? 0);
+        if (!canAccessProject($pdo, (int)$userId, $projectId)) { echo json_encode(['status'=>'error','msg'=>'Access Denied']); exit; }
         $query = trim($_POST['query'] ?? '');
         if (!$projectId || strlen($query) < 2) { echo json_encode(['status'=>'success','results'=>[]]); exit; }
         $stmtAccess = $pdo->prepare("SELECT id FROM projects WHERE id = ? AND deleted_at IS NULL LIMIT 1");

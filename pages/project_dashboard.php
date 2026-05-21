@@ -3,9 +3,14 @@
 // CORRECCIÓN: Agregado "/.." en las rutas para salir de 'pages' y encontrar 'core'
 require_once __DIR__ . '/../core/auth/session.php';
 require_once __DIR__ . '/../core/db/connection.php';
+require_once __DIR__ . '/../api/rbac.php';
 
-$projectId = $_GET['id'] ?? 0;
-$userId = $_SESSION['user_id'] ?? 0;
+$projectId = (int)($_GET['id'] ?? 0);
+$userId = (int)($_SESSION['user_id'] ?? 0);
+if ($projectId <= 0 || $userId <= 0 || !canAccessProject($pdo, $userId, $projectId)) {
+    header("Location: index.php");
+    exit;
+}
 
 // 1. Obtener Datos del Proyecto
 $stmt = $pdo->prepare("SELECT * FROM projects WHERE id = ? AND deleted_at IS NULL");
@@ -119,7 +124,7 @@ $recentFiles = $recentFiles->fetchAll(PDO::FETCH_ASSOC);
 
 $userName = $_SESSION['username'] ?? 'User';
 $isAdmin = ($userRole === 'admin');
-$canUpload = $isAdmin;
+$canUpload = canUploadToFolder($pdo, $userId, (int)$projectId, $currentFolderId ? (int)$currentFolderId : null);
 
 include __DIR__ . '/../views/header.php'; 
 ?>
@@ -314,7 +319,7 @@ include __DIR__ . '/../views/header.php';
                             </div>
                             <?php endif; ?>
                             
-                            <a href="<?= $rfIsExcel ? 'preview.php?id='.$rf['id'].'&mode=spreadsheet' : 'preview.php?id='.$rf['id'] ?>" onclick="trackFileView(<?= (int)$rf['id'] ?>)" class="overlay-action overlay-view <?= ($_SESSION['role'] === 'viewer' || $rfIsExcel) ? 'w-100' : 'w-50' ?>" <?= $rfIsExcel ? 'target="_blank"' : '' ?>>
+                            <a href="<?= $rfIsExcel ? 'preview.php?id='.$rf['id'].'&mode=spreadsheet' : 'preview.php?id='.$rf['id'] ?>" onclick="trackFileView(<?= (int)$rf['id'] ?>)" class="overlay-action overlay-view <?= ($_SESSION['role'] === 'viewer' || $rfIsExcel) ? 'w-100' : 'w-50' ?>">
                                 <i class="fas fa-eye fa-2x mb-2"></i><span class="fw-bold">View</span>
                             </a>
                             <?php if($_SESSION['role'] !== 'viewer' && !$rfIsExcel): ?>
@@ -461,7 +466,7 @@ include __DIR__ . '/../views/header.php';
                             <?php endif; ?>
                             
                             <?php $fExt = strtolower(pathinfo($f['filename'], PATHINFO_EXTENSION)); $isExcel = in_array($fExt, ['xlsx','xls','xlsm','csv']); ?>
-                            <a href="<?= $isExcel ? 'preview.php?id='.$f['id'].'&mode=spreadsheet' : 'preview.php?id='.$f['id'] ?>" onclick="trackFileView(<?= (int)$f['id'] ?>)" class="overlay-action overlay-view <?= ($_SESSION['role'] === 'viewer') ? 'w-100' : 'w-50' ?>" <?= $isExcel ? 'target="_blank"' : '' ?>>
+                            <a href="<?= $isExcel ? 'preview.php?id='.$f['id'].'&mode=spreadsheet' : 'preview.php?id='.$f['id'] ?>" onclick="trackFileView(<?= (int)$f['id'] ?>)" class="overlay-action overlay-view <?= ($_SESSION['role'] === 'viewer') ? 'w-100' : 'w-50' ?>">
                                 <i class="fas fa-eye fa-lg mb-1"></i><span class="small fw-bold">View</span>
                             </a>
                             <?php if($_SESSION['role'] !== 'viewer' && !$isExcel): ?>
