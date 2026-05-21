@@ -168,7 +168,7 @@ include __DIR__ . '/../views/header.php';
                 ?>
                 <?php if($isAdmin): ?>
                 <div class="dropdown">
-                    <span class="badge bg-<?= $badgeColor ?> bg-opacity-25 text-<?= $badgeColor ?> px-3 py-1 rounded-pill border border-<?= $badgeColor ?> border-opacity-25 dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false" style="cursor: pointer;">
+                    <span class="badge bg-<?= $badgeColor ?> bg-opacity-25 text-<?= $badgeColor ?> px-3 py-1 rounded-pill border border-<?= $badgeColor ?> border-opacity-25 dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false" class="cursor-pointer">
                         <?= htmlspecialchars($projStatus) ?>
                     </span>
                     <ul class="dropdown-menu dropdown-menu-dark bg-card border-secondary shadow-lg">
@@ -227,15 +227,15 @@ include __DIR__ . '/../views/header.php';
                             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                         </div>
                         <div class="modal-body">
-                            <div class="p-3 rounded-3 mb-3" style="background:var(--bg-input); border:1px solid var(--border-subtle);">
+                            <div class="p-3 rounded-3 mb-3" class="panel-soft">
                                 <div class="small text-white fw-semibold mb-2"><i class="fas fa-info-circle text-primary me-1"></i> How it works</div>
-                                <ol class="small text-gray mb-0 ps-3" style="line-height:1.8;">
+                                <ol class="small text-gray mb-0 ps-3" class="lh-17">
                                     <li>Compress your folder into a <strong class="text-white">.zip</strong> file on your computer</li>
                                     <li>Select the ZIP file below</li>
                                     <li>The server will recreate the folder structure automatically</li>
                                 </ol>
                             </div>
-                            <div id="zip-drop-zone" style="border:2px dashed var(--border-subtle); border-radius:16px; padding:36px 24px; text-align:center; cursor:pointer; transition:0.2s; background:var(--bg-input);" onclick="document.getElementById('zip-file-input').click()" ondragover="zipDropOver(event)" ondragleave="zipDropLeave(event)" ondrop="zipDropDrop(event)">
+                            <div id="zip-drop-zone" class="drop-zone" onclick="document.getElementById('zip-file-input').click()" ondragover="zipDropOver(event)" ondragleave="zipDropLeave(event)" ondrop="zipDropDrop(event)">
                                 <i class="fas fa-file-zipper text-warning mb-2" style="font-size:2.2rem;"></i>
                                 <div class="text-white fw-semibold mb-1">Drag & drop your ZIP here</div>
                                 <div class="text-gray small">or <span class="text-primary">browse</span> · max 10GB</div>
@@ -248,7 +248,7 @@ include __DIR__ . '/../views/header.php';
                                         <div class="text-white small fw-semibold text-truncate" id="zip-selected-name"></div>
                                         <div class="text-gray small" id="zip-selected-size"></div>
                                     </div>
-                                    <button type="button" onclick="zipClearSelection()" style="background:none;border:none;color:var(--text-muted);cursor:pointer;"><i class="fas fa-times"></i></button>
+                                    <button type="button" onclick="zipClearSelection()" class="btn btn-sm p-0 text-muted cursor-pointer"><i class="fas fa-times"></i></button>
                                 </div>
                             </div>
                             <div id="zip-error-msg" class="alert alert-danger small mt-3 d-none py-2"></div>
@@ -276,11 +276,11 @@ include __DIR__ . '/../views/header.php';
     <!-- GLOBAL SEARCH -->
     <div class="position-relative mb-4" id="global-search-wrap">
         <div class="input-group">
-            <span class="input-group-text" style="background:var(--bg-input); border-color:var(--border-subtle); color:var(--text-gray);">
+            <span class="input-group-text" class="input-group-text search-input-addon">
                 <i class="fas fa-search"></i>
             </span>
-            <input type="text" id="globalSearchInput" class="form-control" style="background:var(--bg-input); border-color:var(--border-subtle); color:var(--text-white);" placeholder="Search files in this project..." autocomplete="off" oninput="globalSearchFiles(this.value)">
-            <button class="btn" style="background:var(--bg-input); border-color:var(--border-subtle); color:var(--text-gray); display:none;" onclick="clearGlobalSearch()" id="globalSearchClearBtn">
+            <input type="text" id="globalSearchInput" class="form-control form-input-surface" placeholder="Search files in this project..." autocomplete="off" oninput="globalSearchFiles(this.value)">
+            <button class="btn search-clear-btn" onclick="clearGlobalSearch()" id="globalSearchClearBtn">
                 <i class="fas fa-times"></i>
             </button>
         </div>
@@ -408,11 +408,11 @@ include __DIR__ . '/../views/header.php';
         </div>
         <?php if(!empty($subsByParent[$currentFolderId])): ?>
             <div class="mb-4">
-                <div class="small text-gray fw-bold mb-2 text-uppercase" style="letter-spacing:0.5px;"><i class="fas fa-folder-tree me-1"></i> Subfolders</div>
+                <div class="small text-gray fw-bold mb-2 text-uppercase" class="letter-05"><i class="fas fa-folder-tree me-1"></i> Subfolders</div>
                 <div class="row g-2">
                     <?php foreach($subsByParent[$currentFolderId] as $sub): ?>
                         <div class="col-md-4 col-xl-3">
-                            <div class="d-flex align-items-center justify-content-between px-3 py-2 rounded-3 h-100" style="background:var(--bg-card); border:1px solid var(--border-subtle);">
+                            <div class="d-flex align-items-center justify-content-between px-3 py-2 rounded-3 h-100" class="panel-soft">
                                 <a href="?id=<?= $projectId ?>&view=files&folder_id=<?= $sub['id'] ?>" class="d-flex align-items-center gap-2 text-decoration-none text-white small fw-semibold flex-grow-1"><i class="fas fa-folder text-warning"></i> <?= htmlspecialchars($sub['name']) ?></a>
                                 <?php if($_SESSION['role'] === 'admin'): ?>
                                     <div class="dropdown ms-2">
@@ -816,7 +816,7 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
     <div class="modal-dialog modal-lg modal-dialog-centered">
         <div class="modal-content p-3 tools-modal-content">
             <div class="modal-header border-secondary">
-                <h5 class="modal-title fw-bold" style="color: var(--text-white);"><i class="fas fa-toolbox me-2 text-accent"></i>Project Tools</h5>
+                <h5 class="modal-title fw-bold" ><i class="fas fa-toolbox me-2 text-accent"></i>Project Tools</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
@@ -833,11 +833,11 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
                                     <div class="tool-icon"><i class="fas <?= htmlspecialchars($tool['icon']) ?>"></i></div>
                                     <div class="text-start">
                                         <div class="fw-bold" style="color: var(--text-white); font-size: 0.95rem;"><?= htmlspecialchars($tool['name']) ?></div>
-                                        <div class="small" style="color: var(--text-gray); font-size: 0.8rem; margin-top: 2px; line-height: 1.3;"><?= htmlspecialchars($tool['desc']) ?></div>
+                                        <div class="small" class="small text-gray mt-1"><?= htmlspecialchars($tool['desc']) ?></div>
                                     </div>
                                 </div>
                                 <?php if(!$isActiveTool): ?>
-                                    <span class="badge" style="background: rgba(148, 163, 184, 0.15); color: var(--text-gray); border: 1px solid rgba(148, 163, 184, 0.3); font-size: 0.65rem;">Coming Soon</span>
+                                    <span class="badge" class="badge border border-secondary text-gray">Coming Soon</span>
                                 <?php endif; ?>
                             </div>
                         </button>
@@ -857,7 +857,7 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
             </div>
             <form id="uploadFileForm">
                 <div class="modal-body">
-                    <div id="upload-drop-zone" style="border:2px dashed var(--border-subtle); border-radius:16px; padding:40px 24px; text-align:center; cursor:pointer; transition:0.2s; background:var(--bg-input); margin-bottom:16px;" onclick="document.getElementById('upload_file_input').click()" ondragover="uploadDropZoneOver(event)" ondragleave="uploadDropZoneLeave(event)" ondrop="uploadDropZoneDrop(event)">
+                    <div id="upload-drop-zone" class="drop-zone drop-zone-lg" onclick="document.getElementById('upload_file_input').click()" ondragover="uploadDropZoneOver(event)" ondragleave="uploadDropZoneLeave(event)" ondrop="uploadDropZoneDrop(event)">
                         <i class="fas fa-file-upload text-primary mb-2" style="font-size:2rem;"></i>
                         <div class="text-white fw-semibold mb-1">Drag & drop files here</div>
                         <div class="text-gray small">or <span class="text-primary" class="cursor-pointer">browse files</span></div>
@@ -865,7 +865,7 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
                     </div>
                     <input type="file" id="upload_file_input" class="d-none" multiple onchange="uploadFilesSelected(this.files)">
 
-                    <div id="upload-file-list" class="d-flex flex-column gap-2 mb-3" style="max-height:200px; overflow-y:auto;"></div>
+                    <div id="upload-file-list" class="d-flex flex-column gap-2 mb-3 file-list-scroll"></div>
 
                     <?php if(!$currentFolderId): ?>
                     <div id="upload-folder-selector">
@@ -998,7 +998,7 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
                 <input type="hidden" name="project_id" value="<?= (int)$projectId ?>">
                 <div class="modal-body">
                     <label class="text-gray small mb-2">Assign Users</label>
-                    <div class="border rounded p-2" style="max-height:200px; overflow:auto;">
+                    <div class="border rounded p-2 file-list-scroll">
                         <?php foreach($assignUsers as $u): ?>
                             <label class="d-flex align-items-center gap-2 small text-gray mb-2">
                                 <input type="checkbox" name="user_ids[]" value="<?= (int)$u['id'] ?>" data-role="<?= htmlspecialchars($u['role']) ?>" <?= in_array((int)$u['id'], $assignedUserIds, true) ? 'checked' : '' ?>>
@@ -1026,7 +1026,7 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
 </div>
 <!-- Modal Project Details -->
 <div class="modal fade" id="projectDetailsModal" tabindex="-1">
- <div class="modal-dialog modal-dialog-centered modal-lg"><div class="modal-content p-3"><div class="modal-header"><h5 class="modal-title fw-bold"><i class="fas fa-info-circle me-2 text-primary"></i> <?= htmlspecialchars($project['name']) ?></h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><div class="row g-4"><div class="col-md-6"><div class="p-3 rounded-3 h-100" style="background:var(--bg-input); border:1px solid var(--border-subtle);"><div class="small text-gray fw-bold text-uppercase mb-3" style="letter-spacing:.5px;"><i class="fas fa-building me-1 text-warning"></i> Company & Contact</div><?php $rows1 = [ ['fas fa-building','Company', $projectCompanyName], ['fas fa-phone','Office Phone', $projectCompanyPhone], ['fas fa-map-marker-alt','HQ Address', $projectCompanyAddress], ['fas fa-user','Site Contact', $projectContactName], ['fas fa-mobile-alt','Contact Phone', $projectContactPhone], ['fas fa-map-pin','Job Address', $projectAddress], ]; foreach($rows1 as [$icon,$label,$val]): if(!$val) continue; ?><div class="d-flex gap-2 mb-2"><i class="fas <?= $icon ?> text-gray mt-1 flex-shrink-0" style="width:16px;"></i><div><div class="text-gray" style="font-size:.72rem;"><?= $label ?></div><div class="text-white small fw-semibold"><?= htmlspecialchars($val) ?></div></div></div><?php endforeach; ?></div></div><div class="col-md-6"><div class="p-3 rounded-3 h-100" style="background:var(--bg-input); border:1px solid var(--border-subtle);"><div class="small text-gray fw-bold text-uppercase mb-3" style="letter-spacing:.5px;"><i class="fas fa-calendar me-1 text-success"></i> Timeline & Status</div><?php $rows2 = [ ['fas fa-paper-plane','Bid Sent', $project['date_bid_sent'] ?? ($project['date_bid_send'] ?? '')], ['fas fa-trophy','Bid Awarded', $project['date_bid_awarded'] ?? ''], ['fas fa-play-circle','Start Date', $project['date_started'] ?? ''], ['fas fa-flag-checkered','Target Finish', $project['date_finished'] ?? ''], ['fas fa-shield-alt','Warranty End', $project['date_warranty_end'] ?? ''], ]; foreach($rows2 as [$icon,$label,$val]): if(!$val) continue; ?><div class="d-flex gap-2 mb-2"><i class="fas <?= $icon ?> text-gray mt-1 flex-shrink-0" style="width:16px;"></i><div><div class="text-gray" style="font-size:.72rem;"><?= $label ?></div><div class="text-white small fw-semibold"><?= date('M d, Y', strtotime($val)) ?></div></div></div><?php endforeach; ?></div></div><?php if($projectNotes): ?><div class="col-12"><div class="p-3 rounded-3" style="background:var(--bg-input); border:1px solid var(--border-subtle);"><div class="small text-gray fw-bold text-uppercase mb-2" style="letter-spacing:.5px;"><i class="fas fa-align-left me-1"></i> Description </div><p class="text-white small mb-0" style="line-height:1.7;"><?= nl2br(htmlspecialchars($projectNotes)) ?></p></div></div><?php endif; ?></div></div><?php if($isAdmin): ?><div class="modal-footer"><a href="project_create.php?edit=<?= $projectId ?>" class="btn btn-outline-light rounded-pill px-4"><i class="fas fa-edit me-1"></i> Edit Project </a></div><?php endif; ?></div></div>
+ <div class="modal-dialog modal-dialog-centered modal-lg"><div class="modal-content p-3"><div class="modal-header"><h5 class="modal-title fw-bold"><i class="fas fa-info-circle me-2 text-primary"></i> <?= htmlspecialchars($project['name']) ?></h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body"><div class="row g-4"><div class="col-md-6"><div class="p-3 rounded-3 h-100" class="panel-soft"><div class="small text-gray fw-bold text-uppercase mb-3" style="letter-spacing:.5px;"><i class="fas fa-building me-1 text-warning"></i> Company & Contact</div><?php $rows1 = [ ['fas fa-building','Company', $projectCompanyName], ['fas fa-phone','Office Phone', $projectCompanyPhone], ['fas fa-map-marker-alt','HQ Address', $projectCompanyAddress], ['fas fa-user','Site Contact', $projectContactName], ['fas fa-mobile-alt','Contact Phone', $projectContactPhone], ['fas fa-map-pin','Job Address', $projectAddress], ]; foreach($rows1 as [$icon,$label,$val]): if(!$val) continue; ?><div class="d-flex gap-2 mb-2"><i class="fas <?= $icon ?> text-gray mt-1 flex-shrink-0" style="width:16px;"></i><div><div class="text-gray" style="font-size:.72rem;"><?= $label ?></div><div class="text-white small fw-semibold"><?= htmlspecialchars($val) ?></div></div></div><?php endforeach; ?></div></div><div class="col-md-6"><div class="p-3 rounded-3 h-100" class="panel-soft"><div class="small text-gray fw-bold text-uppercase mb-3" style="letter-spacing:.5px;"><i class="fas fa-calendar me-1 text-success"></i> Timeline & Status</div><?php $rows2 = [ ['fas fa-paper-plane','Bid Sent', $project['date_bid_sent'] ?? ($project['date_bid_send'] ?? '')], ['fas fa-trophy','Bid Awarded', $project['date_bid_awarded'] ?? ''], ['fas fa-play-circle','Start Date', $project['date_started'] ?? ''], ['fas fa-flag-checkered','Target Finish', $project['date_finished'] ?? ''], ['fas fa-shield-alt','Warranty End', $project['date_warranty_end'] ?? ''], ]; foreach($rows2 as [$icon,$label,$val]): if(!$val) continue; ?><div class="d-flex gap-2 mb-2"><i class="fas <?= $icon ?> text-gray mt-1 flex-shrink-0" style="width:16px;"></i><div><div class="text-gray" style="font-size:.72rem;"><?= $label ?></div><div class="text-white small fw-semibold"><?= date('M d, Y', strtotime($val)) ?></div></div></div><?php endforeach; ?></div></div><?php if($projectNotes): ?><div class="col-12"><div class="p-3 rounded-3" class="panel-soft"><div class="small text-gray fw-bold text-uppercase mb-2" style="letter-spacing:.5px;"><i class="fas fa-align-left me-1"></i> Description </div><p class="text-white small mb-0" style="line-height:1.7;"><?= nl2br(htmlspecialchars($projectNotes)) ?></p></div></div><?php endif; ?></div></div><?php if($isAdmin): ?><div class="modal-footer"><a href="project_create.php?edit=<?= $projectId ?>" class="btn btn-outline-light rounded-pill px-4"><i class="fas fa-edit me-1"></i> Edit Project </a></div><?php endif; ?></div></div>
 </div>
 
 <input type="file" id="projectUploadInput" class="d-none">
