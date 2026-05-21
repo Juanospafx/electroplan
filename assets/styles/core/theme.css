@@ -1,0 +1,19 @@
+.text-muted { color: var(--text-gray) !important; }
+body.theme-light .text-muted { color: var(--text-gray) !important; }
+body.theme-light .bg-dark {
+  background-color: var(--bg-input) !important;
+  color: var(--text-white) !important;
+  border-color: var(--border-subtle) !important;
+}
+body.theme-light .text-white { color: var(--text-white) !important; }
+body.theme-light .modal-content {
+  background-color: var(--bg-card);
+  color: var(--text-white);
+  border-color: var(--border-subtle);
+}
+body.theme-light .form-control,
+body.theme-light .form-select {
+  background: #fff !important;
+  color: #0f172a !important;
+  border-color: rgba(15,23,42,0.2) !important;
+}

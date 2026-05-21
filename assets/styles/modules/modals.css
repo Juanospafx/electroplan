@@ -1,0 +1,5 @@
+.modal-content { border-radius: var(--radius-box); border: 1px solid var(--border-subtle); }
+.modal-header { border-bottom: 1px solid var(--border-subtle); }
+.modal-footer { border-top: 1px solid var(--border-subtle); }
+.btn-close { filter: invert(1) grayscale(100%) brightness(200%); }
+body.theme-light .btn-close { filter: none; }
