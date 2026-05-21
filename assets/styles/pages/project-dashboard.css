@@ -17,3 +17,19 @@
 .file-overlay-actions-top { z-index:20; }
 
 body.theme-light .bulk-status-log { border-top-color: rgba(15,23,42,0.12); }
+
+/* file view modes */
+#filesContainer.list-view > [class*='col-'] { flex: 0 0 100%; max-width: 100%; }
+#filesContainer.list-view .file-card-modern { display:flex; align-items:center; text-align:left !important; gap:12px; padding:12px !important; }
+#filesContainer.list-view .file-icon-large { width:44px; height:44px; margin:0 !important; font-size:1.25rem; }
+#filesContainer.list-view .file-overlay { position: static; opacity:1; margin-left:auto; background:transparent; }
+#filesContainer.list-view .overlay-action { transform:none !important; width:auto !important; padding:6px 10px; border-radius:8px; }
+
+@media (max-width: 1400px) {
+  .main-content .d-flex.justify-content-between.align-items-end,
+  .main-content .d-flex.align-items-center.justify-content-between { flex-wrap: wrap; gap: 10px; }
+}
+@media (max-width: 1366px) {
+  .file-card-modern .file-title { white-space: normal; overflow: visible; }
+  .project-title-large { font-size: 1.8rem; }
+}

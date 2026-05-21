@@ -403,6 +403,10 @@ include __DIR__ . '/../views/header.php';
             $canAddSubfolder = $_SESSION['role'] === 'admin' && $currentFolderDepth < 3;
         ?>
         <div class="d-flex align-items-center justify-content-between mb-4 pb-2 border-bottom border-secondary">
+            <div class="btn-group me-2" role="group" aria-label="View toggle">
+                <button type="button" id="btnGridView" class="btn btn-sm btn-outline-light" onclick="setFileViewMode('grid')"><i class="fas fa-th"></i> Grid</button>
+                <button type="button" id="btnListView" class="btn btn-sm btn-outline-light" onclick="setFileViewMode('list')"><i class="fas fa-list"></i> List</button>
+            </div>
             <div class="d-flex align-items-center gap-3">
                 <a href="?id=<?= $projectId ?>&view=summary" class="btn btn-icon rounded-circle"><i class="fas fa-arrow-left"></i></a>
                 <h4 class="fw-bold mb-0 text-white"><i class="fas fa-folder-open text-warning me-2"></i> <?= htmlspecialchars($folderName) ?></h4>
@@ -447,7 +451,7 @@ include __DIR__ . '/../views/header.php';
                 <?php endif; ?>
             </div>
         <?php else: ?>
-            <div class="row g-3">
+            <div class="row g-3" id="filesContainer">
                 <?php foreach($files as $f): 
                      $ft = strtolower(pathinfo($f['filename'], PATHINFO_EXTENSION));
                      $iconClass = 'fa-file-alt'; $colorClass = 'primary';
@@ -1702,6 +1706,18 @@ let globalSearchTimer = null;
 function globalSearchFiles(q) { const resultsBox = document.getElementById('globalSearchResults'); const clearBtn = document.getElementById('globalSearchClearBtn'); if (clearBtn) clearBtn.style.display = q ? 'inline-block' : 'none'; clearTimeout(globalSearchTimer); if (!q || q.trim().length < 2) { if (resultsBox) resultsBox.style.display = 'none'; return; } globalSearchTimer = setTimeout(async () => { const fd = new FormData(); fd.append('action', 'search_project_files'); fd.append('project_id', pId); fd.append('query', q.trim()); try { const d = await fetch('../api/api.php', { method:'POST', body:fd }).then(r => r.json()); if (!resultsBox) return; if (!d.results || !d.results.length) { resultsBox.innerHTML = '<div class="p-3 text-gray small text-center">No files found for "' + q + '"</div>'; resultsBox.style.display = 'block'; return; } const iconMap = { pdf:'fa-file-pdf text-danger', jpg:'fa-file-image text-info', jpeg:'fa-file-image text-info', png:'fa-file-image text-info', xlsx:'fa-file-excel text-success', xls:'fa-file-excel text-success', doc:'fa-file-word text-primary', docx:'fa-file-word text-primary', dwg:'fa-drafting-compass text-warning' }; resultsBox.innerHTML = d.results.map(r => { const ext = (r.file_type || r.filename.split('.').pop()).toLowerCase(); const icon = iconMap[ext] || 'fa-file text-gray'; const bc = r.breadcrumb.slice(0,-1).map(p => `<span class="text-gray">${p}</span>`).join(' <span class="text-muted mx-1">›</span> '); const fname = r.breadcrumb[r.breadcrumb.length - 1]; const url = `?id=${pId}&view=files&folder_id=${r.folder_id || ''}`; return `<a href="${url}" class="d-flex align-items-center gap-3 px-4 py-3 text-decoration-none search-result-item"> <i class="fas ${icon} flex-shrink-0" style="font-size:1.2rem; width:22px;"></i> <div class="overflow-hidden"> <div class="text-white small fw-semibold text-truncate">${fname}</div> <div class="small" style="font-size:0.72rem;">${bc}</div> </div> </a>`; }).join(''); resultsBox.style.display = 'block'; } catch(e) { console.error('Search error:', e); } }, 320); }
 function clearGlobalSearch() { const input = document.getElementById('globalSearchInput'); const box = document.getElementById('globalSearchResults'); const btn = document.getElementById('globalSearchClearBtn'); if (input) input.value = ''; if (box) box.style.display = 'none'; if (btn) btn.style.display = 'none'; }
 document.addEventListener('click', (e) => { const wrap = document.getElementById('global-search-wrap'); if (wrap && !wrap.contains(e.target)) { const box = document.getElementById('globalSearchResults'); if (box) box.style.display = 'none'; } });
+
+function setFileViewMode(mode){
+  const c = document.getElementById('filesContainer');
+  if(!c) return;
+  c.classList.toggle('list-view', mode === 'list');
+  c.classList.toggle('grid-view', mode !== 'list');
+  const g = document.getElementById('btnGridView'); const l = document.getElementById('btnListView');
+  if(g) g.classList.toggle('active', mode !== 'list');
+  if(l) l.classList.toggle('active', mode === 'list');
+  try { localStorage.setItem('ep_file_view_mode', mode); } catch(e){}
+}
+document.addEventListener('DOMContentLoaded', ()=>{ const m = localStorage.getItem('ep_file_view_mode') || 'grid'; setFileViewMode(m); });
 // ── Rename ───────────────────────────────────────────────────────
 function openRenameModal(type, id, currentName) { document.getElementById('renameItemId').value = id; document.getElementById('renameItemType').value = type; document.getElementById('renameInput').value = currentName; document.getElementById('renameModalTitle').innerHTML = `<i class="fas fa-pen me-2 text-primary"></i>Rename ${type === 'file' ? 'File' : 'Folder'}`; const errEl = document.getElementById('renameError'); if (errEl) { errEl.textContent = ''; errEl.classList.add('d-none'); } new bootstrap.Modal(document.getElementById('renameModal')).show(); }
 async function submitRename() { const id = document.getElementById('renameItemId').value; const type = document.getElementById('renameItemType').value; const newName = document.getElementById('renameInput').value.trim(); const roles = (document.getElementById('visibilityRoles')?.value || '').trim(); const users = (document.getElementById('visibilityUsers')?.value || '').trim(); const errEl = document.getElementById('renameError'); if (!newName) { errEl.textContent = 'Name cannot be empty.'; errEl.classList.remove('d-none'); return; } const fd = new FormData(); fd.append('action', type === 'file' ? 'rename_file' : 'rename_folder'); fd.append('id', id); fd.append('name', newName); try { const d = await fetch('../api/api.php', { method:'POST', body:fd }).then(r => r.json()); if (d.status === 'success') { const vr = new FormData(); vr.append('action','set_visibility_rules'); vr.append('entity_type', type); vr.append('entity_id', id); vr.append('roles', roles); vr.append('users', users); await fetch('../api/api.php', { method:'POST', body:vr }).then(r => r.json()).catch(()=>({})); bootstrap.Modal.getInstance(document.getElementById('renameModal')).hide(); location.reload(); } else { errEl.textContent = d.msg || 'Error renaming.'; errEl.classList.remove('d-none'); } } catch(e) { errEl.textContent = 'Connection error.'; errEl.classList.remove('d-none'); } }
