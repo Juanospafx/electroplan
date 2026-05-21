@@ -17,17 +17,51 @@ $folderIdFromGet = isset($_GET['folder_id']) ? (int)$_GET['folder_id'] : 0;
 $isRootProjectsView = ($projectIdFromGet <= 0 && $folderIdFromGet <= 0);
 $canSeeBulkImport = ($isAdmin && $isRootProjectsView);
 
-// Obtener todos los proyectos (FILTRADO POR NO BORRADOS)
-$stmt = $pdo->query("
+$filterStatus = trim((string)($_GET['status'] ?? 'all'));
+$filterCompany = trim((string)($_GET['company'] ?? 'all'));
+$filterTimeline = trim((string)($_GET['timeline'] ?? 'all'));
+
+// Obtener proyectos con filtros (seguro) y orden default (activos arriba)
+$sql = "
     SELECT p.*, u.username as creator_name, au.username as assigned_name,
     (SELECT COUNT(*) FROM files f WHERE f.project_id = p.id AND f.deleted_at IS NULL) as file_count
-    FROM projects p 
-    LEFT JOIN users u ON p.created_by = u.id 
+    FROM projects p
+    LEFT JOIN users u ON p.created_by = u.id
     LEFT JOIN users au ON p.assigned_user_id = au.id
     WHERE p.deleted_at IS NULL
-    ORDER BY p.created_at DESC
-");
+";
+$params = [];
+
+if ($filterStatus !== 'all') {
+    $sql .= " AND p.status = ?";
+    $params[] = $filterStatus;
+}
+if ($filterCompany !== 'all') {
+    $sql .= " AND COALESCE(NULLIF(TRIM(p.company_name),''), 'Not specified') = ?";
+    $params[] = $filterCompany;
+}
+if ($filterTimeline !== 'all') {
+    if ($filterTimeline === 'completed') {
+        $sql .= " AND p.date_finished IS NOT NULL AND p.date_finished <> ''";
+    } elseif ($filterTimeline === 'in_progress') {
+        $sql .= " AND p.date_started IS NOT NULL AND p.date_started <> '' AND (p.date_finished IS NULL OR p.date_finished = '')";
+    } elseif ($filterTimeline === 'upcoming') {
+        $sql .= " AND p.date_started IS NOT NULL AND p.date_started > CURDATE()";
+    } elseif ($filterTimeline === 'no_date') {
+        $sql .= " AND (p.date_started IS NULL OR p.date_started='') AND (p.date_finished IS NULL OR p.date_finished='')";
+    }
+}
+
+$sql .= " ORDER BY
+    CASE WHEN LOWER(COALESCE(p.status,'')) IN ('completed','closed','done') THEN 1 ELSE 0 END ASC,
+    p.created_at DESC";
+
+$stmt = $pdo->prepare($sql);
+$stmt->execute($params);
 $projects = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+$statusOptions = $pdo->query("SELECT DISTINCT status FROM projects WHERE deleted_at IS NULL AND status IS NOT NULL AND status <> '' ORDER BY status ASC")->fetchAll(PDO::FETCH_COLUMN);
+$companyOptions = $pdo->query("SELECT DISTINCT COALESCE(NULLIF(TRIM(company_name),''), 'Not specified') AS company FROM projects WHERE deleted_at IS NULL ORDER BY company ASC")->fetchAll(PDO::FETCH_COLUMN);
 
 $users = [];
 $assignedUsersByProject = [];
@@ -89,6 +123,10 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
         .table-rounded td { padding: 20px 25px; color: var(--text-white); vertical-align: middle; border-bottom: 1px solid var(--border-subtle); }
         .table-rounded tr:last-child td { border-bottom: none; }
         .table-rounded tr:hover td { background: var(--bg-body); }
+        .group-row td { background: var(--bg-input); color: var(--text-gray); font-weight: 700; text-transform: uppercase; letter-spacing: .6px; font-size: .72rem; padding: 10px 16px; }
+        .projects-filters .form-select, .projects-filters .btn { min-height: 36px; }
+        .projects-filters .btn { white-space: nowrap; }
+        .projects-toolbar { flex-wrap: wrap; gap: 10px; }
 
         .btn-action { border-radius: 8px; display: inline-flex; align-items: center; justify-content: flex-start; border: 1px solid var(--border-subtle); color: var(--text-gray); transition: 0.2s; background: var(--bg-card); gap: 8px; width: auto; min-height: 34px; padding: 6px 10px; white-space: nowrap; }
         .btn-action:hover { background: var(--primary); color: white; border-color: var(--primary); }
@@ -125,6 +163,10 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
         .table-responsive { display: none; }
         .proj-cards { display: block; }
     }
+    .project-name-cell { cursor: pointer; }
+    .project-name-cell:hover { background: rgba(251, 90, 58, 0.06); }
+    .project-name-cell:focus { outline: 2px solid var(--primary); outline-offset: -2px; }
+
     @media (max-width: 768px) {
         .header { flex-direction: column; align-items: flex-start; gap: 12px; }
         .breadcrumbs { margin-top: 4px; }
@@ -156,7 +198,44 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
             </a>
         </header>
 
-        <div class="d-flex justify-content-between align-items-end mb-4">
+        <div class="box-card p-3 mb-3 projects-filters">
+            <form method="get" class="row g-2 align-items-end">
+                <div class="col-md-3 col-12">
+                    <label class="small text-gray mb-1">Status</label>
+                    <select name="status" class="form-select form-select-sm">
+                        <option value="all">All</option>
+                        <?php foreach($statusOptions as $st): ?>
+                            <option value="<?= htmlspecialchars($st) ?>" <?= $filterStatus === $st ? 'selected' : '' ?>><?= htmlspecialchars($st) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="col-md-3 col-12">
+                    <label class="small text-gray mb-1">Timeline</label>
+                    <select name="timeline" class="form-select form-select-sm">
+                        <option value="all" <?= $filterTimeline==='all' ? 'selected' : '' ?>>All</option>
+                        <option value="in_progress" <?= $filterTimeline==='in_progress' ? 'selected' : '' ?>>In Progress</option>
+                        <option value="upcoming" <?= $filterTimeline==='upcoming' ? 'selected' : '' ?>>Upcoming</option>
+                        <option value="completed" <?= $filterTimeline==='completed' ? 'selected' : '' ?>>Completed</option>
+                        <option value="no_date" <?= $filterTimeline==='no_date' ? 'selected' : '' ?>>No Date</option>
+                    </select>
+                </div>
+                <div class="col-md-3 col-12">
+                    <label class="small text-gray mb-1">Company</label>
+                    <select name="company" class="form-select form-select-sm">
+                        <option value="all">All</option>
+                        <?php foreach($companyOptions as $cp): ?>
+                            <option value="<?= htmlspecialchars($cp) ?>" <?= $filterCompany === $cp ? 'selected' : '' ?>><?= htmlspecialchars($cp) ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+                <div class="col-md-3 col-12 d-flex gap-2">
+                    <button class="btn btn-sm btn-main w-100" type="submit">Apply</button>
+                    <a href="projects.php" class="btn btn-sm btn-outline-light w-100">Reset</a>
+                </div>
+            </form>
+        </div>
+
+        <div class="d-flex justify-content-between align-items-end mb-4 projects-toolbar">
             <div>
                 <h2 class="fw-bold mb-1">Project Management</h2>
                 <p class="text-gray mb-0">Manage, edit or archive your ongoing projects.</p>
@@ -185,11 +264,24 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
                     </tr>
                 </thead>
                 <tbody>
+                    <?php
+                        $printedActive = false;
+                        $printedCompleted = false;
+                    ?>
                     <?php foreach($projects as $p): 
                         $stColor = getStatusColor($p['status'] ?? 'Active');
+                        $isCompleted = in_array(strtolower((string)($p['status'] ?? '')), ['completed','closed','done'], true);
+                        if(!$isCompleted && !$printedActive){
+                            $printedActive = true;
+                            echo "<tr class='group-row'><td colspan='7'>Active Projects</td></tr>";
+                        }
+                        if($isCompleted && !$printedCompleted){
+                            $printedCompleted = true;
+                            echo "<tr class='group-row'><td colspan='7'>Completed Projects</td></tr>";
+                        }
                     ?>
                     <tr>
-                        <td>
+                        <td class="project-name-cell" data-href="project_dashboard.php?id=<?= $p['id'] ?>" tabindex="0" role="link" aria-label="Open project <?= htmlspecialchars($p['name']) ?>">
                             <div class="d-flex align-items-start gap-3">
                                 <div class="bg-primary bg-opacity-10 p-2 rounded text-primary mt-1">
                                     <i class="fas fa-folder"></i>
@@ -419,6 +511,22 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
             .catch(() => appAlert('Connection error', "Error", "error"));
         });
     }
+
+    document.addEventListener('click', function(e){
+        const cell = e.target.closest('.project-name-cell');
+        if(!cell) return;
+        if(e.target.closest('a,button,select,input,label,.btn-action')) return;
+        const href = cell.getAttribute('data-href');
+        if(href) window.location.href = href;
+    });
+    document.addEventListener('keydown', function(e){
+        const cell = e.target.closest('.project-name-cell');
+        if(!cell) return;
+        if(e.key !== 'Enter' && e.key !== ' ') return;
+        e.preventDefault();
+        const href = cell.getAttribute('data-href');
+        if(href) window.location.href = href;
+    });
 
     const assignedUsersByProject = <?= json_encode($assignedUsersByProject, JSON_UNESCAPED_UNICODE) ?>;
 
