@@ -7,8 +7,15 @@ require_once __DIR__ . '/../core/time.php';
 $userName = $_SESSION['username'];
 
 $q = trim($_GET['q'] ?? '');
+$filterProject = trim((string)($_GET['project'] ?? 'all'));
 $where = "f.deleted_at IS NULL";
 $params = [];
+
+if ($filterProject !== 'all') {
+    $where .= " AND f.project_id = ?";
+    $params[] = (int)$filterProject;
+}
+
 if ($q !== '') {
     $where .= " AND (f.filename LIKE ? OR p.name LIKE ?)";
     $like = '%' . $q . '%';
@@ -16,15 +23,26 @@ if ($q !== '') {
     $params[] = $like;
 }
 
+// Get available projects for filter
+$projectOptions = $pdo->query("SELECT DISTINCT id, name FROM projects WHERE deleted_at IS NULL ORDER BY name ASC")->fetchAll(PDO::FETCH_ASSOC);
+
 $stmt = $pdo->prepare("
-    SELECT f.*, p.name AS project_name
+    SELECT f.*, p.name AS project_name,
+    (SELECT COUNT(*) FROM files f2 WHERE f2.project_id = f.project_id AND f2.filename = f.filename AND f2.deleted_at IS NULL AND f2.id != f.id) as version_count,
+    (SELECT MAX(id) FROM files f3 WHERE f3.project_id = f.project_id AND f3.filename = f.filename AND f3.deleted_at IS NULL) as is_latest_id
     FROM files f
     LEFT JOIN projects p ON f.project_id = p.id
     WHERE $where
     ORDER BY f.uploaded_at DESC
 ");
 $stmt->execute($params);
-$files = $stmt->fetchAll(PDO::FETCH_ASSOC);
+$filesRaw = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+// Add is_latest_version flag to each file
+$files = array_map(function($f) {
+    $f['is_latest_version'] = ((int)$f['id'] === (int)$f['is_latest_id']) && ((int)$f['version_count'] > 0);
+    return $f;
+}, $filesRaw);
 
 $pageTitle = "Files | Brightronix";
 include __DIR__ . '/../views/header.php';
@@ -111,8 +129,9 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
         .breadcrumbs { margin-top: 4px; }
         .main-content { padding: 20px; }
         .d-flex.justify-content-between.align-items-end { flex-direction: column; align-items: flex-start; gap: 12px; }
-        form.d-flex { width: 100%; }
-        form.d-flex .form-control { flex: 1; }
+        form.d-flex { width: 100%; gap: 8px; }
+        form.d-flex .form-control { flex: 1; min-width: 100px; }
+        form.d-flex select { width: 100%; }
     }
 </style>
 
@@ -143,7 +162,13 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
             <h2 class="fw-bold mb-1">Uploaded Files</h2>
             <p class="text-gray mb-0">All files currently stored in the system.</p>
         </div>
-        <form class="d-flex gap-2" method="get" action="archivos.php">
+        <form class="d-flex gap-2" method="get" action="archivos.php" style="flex-wrap: wrap;">
+            <select name="project" class="form-control form-control-sm" style="max-width: 200px;">
+                <option value="all">All Projects</option>
+                <?php foreach($projectOptions as $proj): ?>
+                    <option value="<?= (int)$proj['id'] ?>" <?= $filterProject === (string)$proj['id'] ? 'selected' : '' ?>><?= htmlspecialchars($proj['name']) ?></option>
+                <?php endforeach; ?>
+            </select>
             <input type="text" name="q" class="form-control form-control-sm" style="max-width:240px" placeholder="Search file or project..." value="<?= htmlspecialchars($q) ?>">
             <button class="btn btn-outline-light btn-sm rounded-pill px-3" type="submit"><i class="fas fa-search"></i></button>
         </form>
@@ -176,7 +201,12 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
                 ?>
                 <tr>
                     <td>
-                        <div class="fw-bold"><?= htmlspecialchars($f['filename']) ?></div>
+                        <div class="fw-bold">
+                            <?= htmlspecialchars($f['filename']) ?>
+                            <?php if($f['is_latest_version']): ?>
+                                <span class="badge bg-success bg-opacity-75 ms-2 small">Latest Version</span>
+                            <?php endif; ?>
+                        </div>
                         <div class="small text-gray">ID: #<?= (int)$f['id'] ?></div>
                     </td>
                     <td class="small text-gray"><?= htmlspecialchars($projectLabel) ?></td>
@@ -231,7 +261,12 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
             }
         ?>
             <div class="file-card">
-                <div class="fw-bold"><?= htmlspecialchars($f['filename']) ?></div>
+                <div class="fw-bold">
+                    <?= htmlspecialchars($f['filename']) ?>
+                    <?php if($f['is_latest_version']): ?>
+                        <span class="badge bg-success bg-opacity-75 ms-2 small">Latest Version</span>
+                    <?php endif; ?>
+                </div>
                 <div class="file-meta">Project: <?= htmlspecialchars($projectLabel) ?></div>
                 <div class="file-meta">Uploaded: <?= !empty($f['uploaded_at']) ? date('M d, Y', strtotime($f['uploaded_at'])) : '-' ?></div>
                 

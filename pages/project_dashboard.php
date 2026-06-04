@@ -386,9 +386,23 @@ include __DIR__ . '/../views/header.php';
         $files = [];
         $folderName = "Select a Folder";
         if($currentFolderId) {
-            $fStmt = $pdo->prepare("SELECT * FROM files WHERE folder_id = ? AND deleted_at IS NULL ORDER BY uploaded_at DESC");
+            $fStmt = $pdo->prepare("
+                SELECT f.*,
+                (SELECT COUNT(*) FROM files f2 WHERE f2.project_id = f.project_id AND f2.folder_id = f.folder_id AND f2.filename = f.filename AND f2.deleted_at IS NULL AND f2.id != f.id) as version_count,
+                (SELECT MAX(id) FROM files f3 WHERE f3.project_id = f.project_id AND f3.folder_id = f.folder_id AND f3.filename = f.filename AND f3.deleted_at IS NULL) as is_latest_id
+                FROM files f 
+                WHERE f.folder_id = ? AND f.deleted_at IS NULL 
+                ORDER BY f.uploaded_at DESC
+            ");
             $fStmt->execute([$currentFolderId]);
-            $files = $fStmt->fetchAll(PDO::FETCH_ASSOC);
+            $filesRaw = $fStmt->fetchAll(PDO::FETCH_ASSOC);
+            
+            // Add is_latest_version flag
+            $files = array_map(function($f) {
+                $f['is_latest_version'] = ((int)$f['id'] === (int)$f['is_latest_id']) && ((int)$f['version_count'] > 0);
+                return $f;
+            }, $filesRaw);
+            
             $allFolderLookup = array_merge($allFolders, $allSubs ?? []);
             $currFolder = array_values(array_filter($allFolderLookup, fn($f) => (int)$f['id'] === (int)$currentFolderId));
             $folderName = !empty($currFolder) ? ($currFolder[0]['name'] ?? 'Unknown Folder') : "Unknown Folder";
@@ -402,21 +416,29 @@ include __DIR__ . '/../views/header.php';
             $currentFolderDepth = isset($currentFolderData[0]['depth']) ? (int)$currentFolderData[0]['depth'] : 0;
             $canAddSubfolder = $_SESSION['role'] === 'admin' && $currentFolderDepth < 3;
         ?>
-        <div class="d-flex align-items-center justify-content-between mb-4 pb-2 border-bottom border-secondary">
-            <div class="btn-group me-2" role="group" aria-label="View toggle">
-                <button type="button" id="btnGridView" class="btn btn-sm btn-outline-light" onclick="setFileViewMode('grid')"><i class="fas fa-th"></i> Grid</button>
-                <button type="button" id="btnListView" class="btn btn-sm btn-outline-light" onclick="setFileViewMode('list')"><i class="fas fa-list"></i> List</button>
-            </div>
-            <div class="d-flex align-items-center gap-3">
-                <a href="?id=<?= $projectId ?>&view=summary" class="btn btn-icon rounded-circle"><i class="fas fa-arrow-left"></i></a>
+        <div class="d-flex align-items-center justify-content-between gap-3 mb-4 pb-2 border-bottom border-secondary" style="flex-wrap: wrap;">
+            <!-- LEFT: Folder Name and Actions -->
+            <div class="d-flex align-items-center gap-3" style="flex: 1 1 auto; min-width: 300px;">
+                <a href="?id=<?= $projectId ?>&view=summary" class="btn btn-sm btn-icon rounded-circle" title="Back to folders"><i class="fas fa-arrow-left"></i></a>
                 <h4 class="fw-bold mb-0 text-white"><i class="fas fa-folder-open text-warning me-2"></i> <?= htmlspecialchars($folderName) ?></h4>
+                <div class="vr" style="height: 24px; margin: 0 12px; opacity: 0.3;"></div>
+                <div class="d-flex gap-2" style="flex-wrap: wrap;">
+                    <?php if($isAdmin): ?>
+                        <button class="btn btn-sm btn-outline-warning rounded-pill px-3" onclick="openBulkZipModal()" title="Upload and extract ZIP file"><i class="fas fa-file-archive me-1"></i> <span class="d-none d-sm-inline">Bulk Import</span></button>
+                    <?php endif; ?>
+                    <?php if($canAddSubfolder): ?>
+                        <button class="btn btn-sm btn-outline-light rounded-pill px-3" onclick="openAddSubfolderModal(<?= $currentFolderId ?>, '<?= addslashes(htmlspecialchars($folderName)) ?>')" title="Create a new subfolder"><i class="fas fa-folder-plus me-1 text-success"></i> <span class="d-none d-sm-inline">Add Subfolder</span></button>
+                    <?php endif; ?>
+                </div>
             </div>
-            <div class="d-flex align-items-center gap-2">
-                <?php if($isAdmin): ?><button class="btn btn-sm btn-outline-warning rounded-pill px-3" onclick="openBulkZipModal()"><i class="fas fa-file-archive me-1"></i> Bulk Import</button><?php endif; ?>
-                <?php if($canAddSubfolder): ?>
-                    <button class="btn btn-sm btn-outline-light rounded-pill px-3" onclick="openAddSubfolderModal(<?= $currentFolderId ?>, '<?= addslashes(htmlspecialchars($folderName)) ?>')"><i class="fas fa-folder-plus me-1 text-success"></i> Add Subfolder</button>
-                <?php endif; ?>
-                <span class="badge bg-secondary rounded-pill px-3"><?= count($files) ?> files</span>
+            
+            <!-- RIGHT: File Count and View Toggle -->
+            <div class="d-flex align-items-center gap-3" style="flex: 0 0 auto;">
+                <span class="badge bg-secondary rounded-pill px-3"><?= count($files) ?> <span class="d-none d-sm-inline">files</span></span>
+                <div class="btn-group" role="group" aria-label="View toggle">
+                    <button type="button" id="btnGridView" class="btn btn-sm btn-outline-light" onclick="setFileViewMode('grid')" title="Grid view"><i class="fas fa-th"></i> <span class="d-none d-sm-inline">Grid</span></button>
+                    <button type="button" id="btnListView" class="btn btn-sm btn-outline-light" onclick="setFileViewMode('list')" title="List view"><i class="fas fa-list"></i> <span class="d-none d-sm-inline">List</span></button>
+                </div>
             </div>
         </div>
         <?php if(!empty($subsByParent[$currentFolderId])): ?>
@@ -461,25 +483,23 @@ include __DIR__ . '/../views/header.php';
                 <div class="col-md-3 col-xl-2">
                     <div class="file-card-modern p-4 text-center h-100" data-file-id="<?= (int)$f['id'] ?>">
                         
-                        <div class="file-icon-large text-<?= $colorClass ?> bg-<?= $colorClass ?> bg-opacity-10">
-                            <i class="fas <?= $iconClass ?>"></i>
+                        <!-- GRID VIEW CONTENT -->
+                        <div style="display: flex; flex-direction: column; align-items: center;">
+                            <div class="file-icon-large text-<?= $colorClass ?> bg-<?= $colorClass ?> bg-opacity-10">
+                                <i class="fas <?= $iconClass ?>"></i>
+                            </div>
+                            
+                            <div class="file-title mb-1 file-name-label" title="<?= htmlspecialchars($f['filename']) ?>"><?= htmlspecialchars($f['filename']) ?></div>
+                            <div class="small text-gray fw-medium"><?= date('M d, Y', strtotime($f['uploaded_at'])) ?></div>
+                            <?php if($f['is_latest_version']): ?>
+                                <span class="badge bg-success-subtle text-success border border-success-subtle mt-1">Latest Version</span>
+                            <?php endif; ?>
                         </div>
-                        
-                        <div class="file-title mb-1 file-name-label" title="<?= htmlspecialchars($f['filename']) ?>"><?= htmlspecialchars($f['filename']) ?></div>
-                        <div class="small text-gray fw-medium"><?= date('M d, Y', strtotime($f['uploaded_at'])) ?></div>
-                        <?php
-                          $stmtLatestF = $pdo->prepare("SELECT id FROM files WHERE project_id=? AND folder_id <=> ? AND filename LIKE ? AND deleted_at IS NULL ORDER BY version_number DESC, id DESC LIMIT 1");
-                          $baseF = preg_replace('/_v\d+(\.[^.]+)$/i', '$1', $f['filename']);
-                          $likeF = preg_replace('/(\.[^.]+)$/', '%$1', $baseF);
-                          $stmtLatestF->execute([(int)$projectId, $f['folder_id'] ?? null, $likeF]);
-                          $latestFId = (int)$stmtLatestF->fetchColumn();
-                        ?>
-                        <?php if($latestFId === (int)$f['id']): ?><span class="badge bg-success-subtle text-success border border-success-subtle mt-1">Latest Version</span><?php endif; ?>
                         
                         <!-- INTERACTIVE OVERLAY -->
                         <div class="file-overlay" tabindex="0">
                             <?php if($_SESSION['role'] === 'admin'): ?>
-                            <div class="position-absolute top-0 end-0 p-2 d-flex gap-2" class="position-absolute top-0 end-0 p-2 d-flex gap-2 file-overlay-actions-top">
+                            <div class="position-absolute top-0 end-0 p-2 d-flex gap-2 file-overlay-actions-top">
                                 <button class="overlay-mini-btn move" onclick="event.stopPropagation(); event.preventDefault(); openMoveModal(<?= $f['id'] ?>)" title="Move File"><i class="fas fa-exchange-alt"></i></button>
                                 <button class="overlay-mini-btn" onclick="event.stopPropagation(); event.preventDefault(); openRenameModal('file', <?= (int)$f['id'] ?>, '<?= addslashes(htmlspecialchars($f['filename'])) ?>')" title="Rename"><i class="fas fa-pen"></i></button>
                                 <button class="overlay-mini-btn delete" onclick="event.stopPropagation(); event.preventDefault(); deleteFile(<?= $f['id'] ?>)" title="Delete File"><i class="fas fa-trash"></i></button>
@@ -743,6 +763,149 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
     .overlay-mini-btn.move:hover { background: var(--color-amber); transform: scale(1.1); }
     .overlay-mini-btn.delete:hover { background: #ef4444; transform: scale(1.1); }
     
+    /* LIST VIEW STYLES */
+    .row.g-3#filesContainer.list-view {
+        display: flex;
+        flex-direction: column;
+        gap: 0 !important;
+    }
+    
+    .row.g-3#filesContainer.list-view .col-md-3 {
+        margin: 0;
+        width: 100%;
+    }
+    
+    .row.g-3#filesContainer.list-view .file-card-modern {
+        border-radius: 0;
+        border-bottom: 1px solid var(--border-subtle);
+        border-left: none;
+        border-right: none;
+        border-top: none;
+        padding: 16px 20px !important;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        text-align: left;
+        margin-bottom: 0;
+        transform: none !important;
+        transition: background-color 0.2s;
+    }
+    
+    .row.g-3#filesContainer.list-view .file-card-modern:first-child {
+        border-top: 1px solid var(--border-subtle);
+        border-radius: 16px 16px 0 0;
+    }
+    
+    .row.g-3#filesContainer.list-view .file-card-modern:last-child {
+        border-bottom: none;
+        border-radius: 0 0 16px 16px;
+        border-top: 1px solid var(--border-subtle);
+    }
+    
+    .row.g-3#filesContainer.list-view .file-card-modern:hover {
+        background: rgba(251, 90, 58, 0.05);
+        box-shadow: none;
+        border-color: var(--border-subtle);
+    }
+    
+    .row.g-3#filesContainer.list-view .file-icon-large {
+        width: 40px;
+        height: 40px;
+        font-size: 1.3rem;
+        margin: 0;
+        flex-shrink: 0;
+    }
+    
+    .row.g-3#filesContainer.list-view .file-title {
+        white-space: normal;
+        max-width: none;
+        font-size: 0.9rem;
+        flex: 1;
+        margin: 0 12px;
+    }
+    
+    .row.g-3#filesContainer.list-view .file-card-modern > div:first-child {
+        display: flex;
+        align-items: center;
+        flex: 1;
+    }
+    
+    .row.g-3#filesContainer.list-view .file-card-modern .small.text-gray {
+        display: none;
+    }
+    
+    .row.g-3#filesContainer.list-view .file-card-modern .badge {
+        margin: 0 12px 0 0 !important;
+    }
+    
+    .file-list-actions {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-shrink: 0;
+    }
+    
+    .row.g-3#filesContainer.list-view .file-overlay {
+        position: static;
+        opacity: 1;
+        z-index: auto;
+        display: none;
+        flex-direction: row;
+        gap: 8px;
+        background: transparent;
+        padding: 0;
+    }
+    
+    .row.g-3#filesContainer.list-view .file-overlay.show,
+    .row.g-3#filesContainer.list-view .file-card-modern:hover .file-overlay {
+        display: flex;
+        opacity: 1;
+    }
+    
+    .row.g-3#filesContainer.list-view .overlay-action {
+        transform: none !important;
+        width: auto;
+        padding: 6px 12px;
+        font-size: 0.75rem;
+        background: var(--bg-input);
+        border: 1px solid var(--border-subtle);
+        border-radius: 8px;
+        transition: all 0.2s;
+    }
+    
+    .row.g-3#filesContainer.list-view .overlay-view {
+        background: rgba(59, 130, 246, 0.1);
+        border-color: rgba(59, 130, 246, 0.3);
+        color: #3b82f6 !important;
+    }
+    
+    .row.g-3#filesContainer.list-view .overlay-edit {
+        background: rgba(16, 185, 129, 0.1);
+        border-color: rgba(16, 185, 129, 0.3);
+        color: #10b981 !important;
+    }
+    
+    .row.g-3#filesContainer.list-view .overlay-action:hover {
+        filter: none;
+        background: var(--border-subtle);
+        border-color: var(--primary);
+    }
+    
+    .row.g-3#filesContainer.list-view .overlay-mini-btn {
+        width: 28px;
+        height: 28px;
+        background: var(--bg-input);
+        border: 1px solid var(--border-subtle);
+        border-radius: 6px;
+        font-size: 0.75rem;
+    }
+    
+    .row.g-3#filesContainer.list-view .overlay-mini-btn:hover {
+        background: var(--border-subtle);
+        border-color: var(--primary);
+    }
+    
+    
     .search-result-item { border-bottom: 1px solid var(--border-subtle); transition: 0.15s; }
     .search-result-item:hover { background: var(--bg-input); }
 
@@ -812,6 +975,14 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
 
     @media (max-width: 768px) {
         .d-flex.flex-wrap.gap-4 { gap: 10px !important; }
+        
+        /* Folder header responsive adjustments */
+        .d-flex.justify-content-between.gap-3.mb-4 { flex-direction: column; gap: 16px !important; }
+        .d-flex.justify-content-between.gap-3.mb-4 > div:first-child { min-width: auto; }
+        .d-flex.justify-content-between.gap-3.mb-4 .btn { font-size: 0.85rem; padding: 0.35rem 0.65rem; }
+        .d-flex.justify-content-between.gap-3.mb-4 .d-none.d-sm-inline { display: none !important; }
+        .btn-group > .btn { padding: 0.35rem 0.5rem; }
+        .vr { display: none !important; }
     }
 
     body.theme-light .file-hover:hover { background: rgba(15,23,42,0.06); }
