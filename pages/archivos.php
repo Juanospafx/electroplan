@@ -217,7 +217,7 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
                             <ul class="dropdown-menu dropdown-menu-end bg-card border-secondary shadow-lg rounded-3 py-1">
                                 <?php $ext = strtolower(pathinfo($f['filename'], PATHINFO_EXTENSION)); $isExcel = in_array($ext, ['xlsx','xls','xlsm','csv']); ?>
                                 <?php if($isExcel): ?>
-                                    <li><a class="dropdown-item text-white hover-bg-body small" href="preview.php?id=<?= (int)$f['id'] ?>&mode=spreadsheet" target="_blank"><i class="fas fa-table me-2 text-success"></i> Preview</a></li>
+                                    <li><a class="dropdown-item text-white hover-bg-body small" href="preview.php?id=<?= (int)$f['id'] ?>&mode=spreadsheet"><i class="fas fa-table me-2 text-success"></i> Preview</a></li>
                                 <?php else: ?>
                                     <li><a class="dropdown-item text-white hover-bg-body small" href="preview.php?id=<?= (int)$f['id'] ?>"><i class="fas fa-eye me-2 text-info"></i> Preview</a></li>
                                 <?php endif; ?>
@@ -273,7 +273,7 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
                 <div class="d-flex justify-content-end gap-2 mt-3 pt-3" style="border-top: 1px solid var(--border-subtle);">
                     <?php $ext = strtolower(pathinfo($f['filename'], PATHINFO_EXTENSION)); $isExcel = in_array($ext, ['xlsx','xls','xlsm','csv']); ?>
                     <?php if($isExcel): ?>
-                        <a href="preview.php?id=<?= (int)$f['id'] ?>&mode=spreadsheet" class="btn-action" title="Preview Spreadsheet" target="_blank"><i class="fas fa-table"></i></a>
+                        <a href="preview.php?id=<?= (int)$f['id'] ?>&mode=spreadsheet" class="btn-action" title="Preview Spreadsheet"><i class="fas fa-table"></i></a>
                     <?php else: ?>
                         <a href="preview.php?id=<?= (int)$f['id'] ?>" class="btn-action" title="Preview"><i class="fas fa-eye"></i></a>
                     <?php endif; ?>

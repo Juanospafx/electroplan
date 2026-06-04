@@ -92,7 +92,7 @@ class ExcelService
             $sheet->getColumnDimension($col)->setAutoSize(true);
         }
 
-        $this->output($spreadsheet, 'project_' . ($project['project_number'] ?? $projectId) . '.xlsx');
+        $this->output($spreadsheet, $this->exportFilename((string)($project['project_name'] ?? ''), 'xlsx'));
     }
 
     public function exportPanelSchedule(int $panelId): void
@@ -168,7 +168,7 @@ class ExcelService
             $sheet->getColumnDimension($col)->setAutoSize(true);
         }
 
-        $this->output($spreadsheet, 'panel_' . ($panel['panel_name'] ?? $panelId) . '.xlsx');
+        $this->output($spreadsheet, $this->exportFilename((string)($project['project_name'] ?? ''), 'xlsx'));
     }
 
     private function writeHeaderLabelValue(Worksheet $sheet, int $row, string $label, string $value): int
@@ -238,5 +238,14 @@ class ExcelService
         $writer = new Xlsx($spreadsheet);
         $writer->save('php://output');
         exit;
+    }
+
+    private function exportFilename(string $projectName, string $extension): string
+    {
+        $userName = (string)($_SESSION['username'] ?? 'User');
+        $clean = static fn(string $value, string $fallback): string =>
+            preg_replace('/[^A-Za-z0-9]+/', '', $value) ?: $fallback;
+
+        return $clean($userName, 'User') . '_' . $clean($projectName, 'Project') . '_' . date('dm') . '.' . $extension;
     }
 }

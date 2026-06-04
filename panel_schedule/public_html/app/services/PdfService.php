@@ -141,8 +141,7 @@ class PdfService
 
 
         // Output + save copy into Electroplan project Tools folder
-        $timestamp = gmdate('Y-m-d_H-i-s');
-        $filename = 'Panel_' . preg_replace('/[^a-zA-Z0-9]/', '_', $panel['panel_name'] ?? 'Schedule') . '_' . $timestamp . '.pdf';
+        $filename = $this->exportFilename((string)($project['project_name'] ?? ''), 'pdf');
         $pdfBinary = $pdf->Output($filename, 'S');
 
         $electroplanProjectId = isset($_GET['project_id']) ? (int)$_GET['project_id'] : (int)($_SESSION['electroplan_project_id'] ?? 0);
@@ -208,5 +207,13 @@ class PdfService
         }
     }
 
+    private function exportFilename(string $projectName, string $extension): string
+    {
+        $userName = (string)($_SESSION['username'] ?? 'User');
+        $clean = static fn(string $value, string $fallback): string =>
+            preg_replace('/[^A-Za-z0-9]+/', '', $value) ?: $fallback;
+
+        return $clean($userName, 'User') . '_' . $clean($projectName, 'Project') . '_' . date('dm') . '.' . $extension;
+    }
 
 }
