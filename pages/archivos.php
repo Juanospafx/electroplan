@@ -3,11 +3,14 @@
 require_once __DIR__ . '/../core/auth/session.php';
 require_once __DIR__ . '/../core/db/connection.php';
 require_once __DIR__ . '/../core/time.php';
+require_once __DIR__ . '/../funciones/file_search.php';
 
 $userName = $_SESSION['username'];
 
 $q = trim($_GET['q'] ?? '');
 $filterProject = trim((string)($_GET['project'] ?? 'all'));
+$page = max(1, (int)($_GET['page'] ?? 1));
+$perPage = 25;
 $where = "f.deleted_at IS NULL";
 $params = [];
 
@@ -16,27 +19,70 @@ if ($filterProject !== 'all') {
     $params[] = (int)$filterProject;
 }
 
-if ($q !== '') {
-    $where .= " AND (f.filename LIKE ? OR p.name LIKE ?)";
-    $like = '%' . $q . '%';
-    $params[] = $like;
-    $params[] = $like;
-}
-
 // Get available projects for filter
 $projectOptions = $pdo->query("SELECT DISTINCT id, name FROM projects WHERE deleted_at IS NULL ORDER BY name ASC")->fetchAll(PDO::FETCH_ASSOC);
 
-$stmt = $pdo->prepare("
+$selectSql = "
     SELECT f.*, p.name AS project_name,
+    p.description AS project_description,
+    fo.name AS folder_name,
+    sf.name AS sub_folder_name,
     (SELECT COUNT(*) FROM files f2 WHERE f2.project_id = f.project_id AND f2.filename = f.filename AND f2.deleted_at IS NULL AND f2.id != f.id) as version_count,
     (SELECT MAX(id) FROM files f3 WHERE f3.project_id = f.project_id AND f3.filename = f.filename AND f3.deleted_at IS NULL) as is_latest_id
     FROM files f
     LEFT JOIN projects p ON f.project_id = p.id
+    LEFT JOIN folders fo ON f.folder_id = fo.id
+    LEFT JOIN sub_folders sf ON f.sub_folder_id = sf.id
     WHERE $where
-    ORDER BY f.uploaded_at DESC
-");
-$stmt->execute($params);
-$filesRaw = $stmt->fetchAll(PDO::FETCH_ASSOC);
+";
+
+if ($q !== '') {
+    $normalizedQuery = file_search_normalize($q);
+    $candidateSeed = substr(str_replace(' ', '', $normalizedQuery), 0, 3);
+    $escapeLike = fn(string $value): string => str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $value);
+    $candidateLike = '%' . $escapeLike($candidateSeed !== '' ? $candidateSeed : $q) . '%';
+    $queryStarts = $escapeLike($q) . '%';
+    $queryContains = '%' . $escapeLike($q) . '%';
+    $candidateSql = $selectSql . "
+        AND (
+            f.filename LIKE ? OR p.name LIKE ? OR fo.name LIKE ? OR sf.name LIKE ? OR f.file_type LIKE ? OR p.description LIKE ?
+        )
+        ORDER BY
+            CASE
+                WHEN LOWER(f.filename) = LOWER(?) THEN 0
+                WHEN LOWER(f.filename) LIKE LOWER(?) THEN 1
+                WHEN LOWER(f.filename) LIKE LOWER(?) THEN 2
+                ELSE 3
+            END ASC,
+            f.uploaded_at DESC
+        LIMIT 2500
+    ";
+    $stmt = $pdo->prepare($candidateSql);
+    $stmt->execute(array_merge($params, array_fill(0, 6, $candidateLike), [$q, $queryStarts, $queryContains]));
+    $scoredFiles = [];
+    foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $file) {
+        $file['_search_score'] = file_search_score($file, $q);
+        if ($file['_search_score'] > 0) $scoredFiles[] = $file;
+    }
+    usort($scoredFiles, function($a, $b) {
+        $scoreCompare = ((int)$b['_search_score']) <=> ((int)$a['_search_score']);
+        return $scoreCompare !== 0 ? $scoreCompare : strcmp((string)$b['uploaded_at'], (string)$a['uploaded_at']);
+    });
+    $totalFiles = count($scoredFiles);
+    $totalPages = max(1, (int)ceil($totalFiles / $perPage));
+    $page = min($page, $totalPages);
+    $filesRaw = array_slice($scoredFiles, ($page - 1) * $perPage, $perPage);
+} else {
+    $countStmt = $pdo->prepare("SELECT COUNT(*) FROM files f LEFT JOIN projects p ON f.project_id = p.id WHERE $where");
+    $countStmt->execute($params);
+    $totalFiles = (int)$countStmt->fetchColumn();
+    $totalPages = max(1, (int)ceil($totalFiles / $perPage));
+    $page = min($page, $totalPages);
+    $offset = ($page - 1) * $perPage;
+    $stmt = $pdo->prepare($selectSql . " ORDER BY f.uploaded_at DESC LIMIT $perPage OFFSET $offset");
+    $stmt->execute($params);
+    $filesRaw = $stmt->fetchAll(PDO::FETCH_ASSOC);
+}
 
 // Add is_latest_version flag to each file
 $files = array_map(function($f) {
@@ -118,6 +164,13 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
     .file-card:hover { transform: translateY(-3px); border-color: var(--primary); }
     .file-card + .file-card { margin-top: 12px; }
     .file-meta { font-size: 0.8rem; color: var(--text-gray); }
+    .search-status { color: var(--text-gray); font-size: .82rem; min-height: 20px; }
+    .search-loading { display: none; align-items: center; gap: 8px; }
+    .search-loading.show { display: inline-flex; }
+    .download-action[disabled] { opacity: .65; cursor: wait; }
+    .pagination .page-link { background: var(--bg-card); border-color: var(--border-subtle); color: var(--text-gray); }
+    .pagination .page-item.active .page-link { background: var(--primary); border-color: var(--primary); color: #fff; }
+    .pagination .page-item.disabled .page-link { background: var(--bg-input); color: var(--text-muted); }
 
     @media (max-width: 992px) {
         .table-responsive { display: none; }
@@ -162,16 +215,20 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
             <h2 class="fw-bold mb-1">Uploaded Files</h2>
             <p class="text-gray mb-0">All files currently stored in the system.</p>
         </div>
-        <form class="d-flex gap-2" method="get" action="archivos.php" style="flex-wrap: wrap;">
-            <select name="project" class="form-control form-control-sm" style="max-width: 200px;">
+        <form id="fileSearchForm" class="d-flex gap-2" method="get" action="archivos.php" style="flex-wrap: wrap;">
+            <select id="fileProjectFilter" name="project" class="form-control form-control-sm" style="max-width: 200px;">
                 <option value="all">All Projects</option>
                 <?php foreach($projectOptions as $proj): ?>
                     <option value="<?= (int)$proj['id'] ?>" <?= $filterProject === (string)$proj['id'] ? 'selected' : '' ?>><?= htmlspecialchars($proj['name']) ?></option>
                 <?php endforeach; ?>
             </select>
-            <input type="text" name="q" class="form-control form-control-sm" style="max-width:240px" placeholder="Search file or project..." value="<?= htmlspecialchars($q) ?>">
+            <input id="fileSearchInput" type="text" name="q" class="form-control form-control-sm" style="max-width:240px" placeholder="Search file name, project, or folder..." value="<?= htmlspecialchars($q) ?>" autocomplete="off">
             <button class="btn btn-outline-light btn-sm rounded-pill px-3" type="submit"><i class="fas fa-search"></i></button>
         </form>
+    </div>
+    <div class="d-flex justify-content-between align-items-center mb-3 search-status">
+        <span><?= number_format($totalFiles) ?> file<?= $totalFiles === 1 ? '' : 's' ?> found<?= $q !== '' ? ' for "' . htmlspecialchars($q) . '"' : '' ?></span>
+        <span id="fileSearchLoading" class="search-loading"><i class="fas fa-spinner fa-spin"></i> Searching...</span>
     </div>
 
     <div class="table-responsive">
@@ -187,17 +244,6 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
             <tbody>
                 <?php foreach($files as $f): 
                     $projectLabel = !empty($f['project_name']) ? $f['project_name'] : 'No assigned project';
-                    $filePath = $f['filepath'] ?? '';
-                    if (strpos($filePath, 'uploads/') === 0) {
-                        $expected = __DIR__ . '/../' . $filePath;
-                        $legacy = __DIR__ . '/../api/' . $filePath;
-                        if (!file_exists($expected) && file_exists($legacy)) {
-                            $filePath = 'api/' . $filePath;
-                        }
-                    }
-                    if (strpos($filePath, 'uploads/') === 0 || strpos($filePath, 'api/uploads/') === 0) {
-                        $filePath = '../' . $filePath;
-                    }
                 ?>
                 <tr>
                     <td>
@@ -221,9 +267,7 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
                                 <?php else: ?>
                                     <li><a class="dropdown-item text-white hover-bg-body small" href="preview.php?id=<?= (int)$f['id'] ?>"><i class="fas fa-eye me-2 text-info"></i> Preview</a></li>
                                 <?php endif; ?>
-                                <?php if(!empty($filePath)): ?>
-                                    <li><a class="dropdown-item text-white hover-bg-body small" href="<?= htmlspecialchars($filePath) ?>" target="_blank" rel="noopener"><i class="fas fa-download me-2 text-primary"></i> Download</a></li>
-                                <?php endif; ?>
+                                <li><button type="button" class="dropdown-item text-white hover-bg-body small download-action" onclick="downloadFile(<?= (int)$f['id'] ?>, <?= htmlspecialchars(json_encode((string)$f['filename']), ENT_QUOTES) ?>, this)"><i class="fas fa-download me-2 text-primary"></i> Download</button></li>
                                 <?php if(($_SESSION['role'] ?? '') === 'admin'): ?>
                                     <li><hr class="dropdown-divider border-secondary my-1"></li>
                                     <li><button class="dropdown-item text-danger hover-bg-body small" onclick="deleteFile(<?= (int)$f['id'] ?>)"><i class="fas fa-trash me-2"></i> Delete</button></li>
@@ -248,17 +292,6 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
     <div class="file-cards">
         <?php foreach($files as $f): 
             $projectLabel = !empty($f['project_name']) ? $f['project_name'] : 'No assigned project';
-            $filePath = $f['filepath'] ?? '';
-            if (strpos($filePath, 'uploads/') === 0) {
-                $expected = __DIR__ . '/../' . $filePath;
-                $legacy = __DIR__ . '/../api/' . $filePath;
-                if (!file_exists($expected) && file_exists($legacy)) {
-                    $filePath = 'api/' . $filePath;
-                }
-            }
-            if (strpos($filePath, 'uploads/') === 0 || strpos($filePath, 'api/uploads/') === 0) {
-                $filePath = '../' . $filePath;
-            }
         ?>
             <div class="file-card">
                 <div class="fw-bold">
@@ -277,9 +310,7 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
                     <?php else: ?>
                         <a href="preview.php?id=<?= (int)$f['id'] ?>" class="btn-action" title="Preview"><i class="fas fa-eye"></i></a>
                     <?php endif; ?>
-                    <?php if(!empty($filePath)): ?>
-                        <a href="<?= htmlspecialchars($filePath) ?>" class="btn-action" title="Download" target="_blank" rel="noopener"><i class="fas fa-download"></i></a>
-                    <?php endif; ?>
+                    <button type="button" class="btn-action download-action" title="Download" onclick="downloadFile(<?= (int)$f['id'] ?>, <?= htmlspecialchars(json_encode((string)$f['filename']), ENT_QUOTES) ?>, this)"><i class="fas fa-download"></i></button>
                     <?php if(($_SESSION['role'] ?? '') === 'admin'): ?>
                         <button class="btn-action text-danger" title="Delete" onclick="deleteFile(<?= (int)$f['id'] ?>)" style="border-color: #ef4444;"><i class="fas fa-trash"></i></button>
                     <?php endif; ?>
@@ -291,9 +322,76 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
             <div class="file-card text-center text-gray">No files found.</div>
         <?php endif; ?>
     </div>
+
+    <?php if($totalPages > 1): ?>
+    <nav class="mt-4" aria-label="Files pagination">
+        <ul class="pagination pagination-sm justify-content-center">
+            <?php
+            $pageUrl = function(int $targetPage) use ($q, $filterProject): string {
+                return 'archivos.php?' . http_build_query(['q' => $q, 'project' => $filterProject, 'page' => $targetPage]);
+            };
+            ?>
+            <li class="page-item <?= $page <= 1 ? 'disabled' : '' ?>"><a class="page-link" href="<?= htmlspecialchars($pageUrl(max(1, $page - 1))) ?>">Previous</a></li>
+            <?php for($i = max(1, $page - 2); $i <= min($totalPages, $page + 2); $i++): ?>
+                <li class="page-item <?= $i === $page ? 'active' : '' ?>"><a class="page-link" href="<?= htmlspecialchars($pageUrl($i)) ?>"><?= $i ?></a></li>
+            <?php endfor; ?>
+            <li class="page-item <?= $page >= $totalPages ? 'disabled' : '' ?>"><a class="page-link" href="<?= htmlspecialchars($pageUrl(min($totalPages, $page + 1))) ?>">Next</a></li>
+        </ul>
+    </nav>
+    <?php endif; ?>
 </main>
 
 <script>
+    const fileSearchForm = document.getElementById('fileSearchForm');
+    const fileSearchInput = document.getElementById('fileSearchInput');
+    const fileProjectFilter = document.getElementById('fileProjectFilter');
+    const fileSearchLoading = document.getElementById('fileSearchLoading');
+    let fileSearchTimer = null;
+
+    function submitFileSearch() {
+        fileSearchLoading?.classList.add('show');
+        fileSearchForm?.submit();
+    }
+
+    fileSearchInput?.addEventListener('input', () => {
+        clearTimeout(fileSearchTimer);
+        fileSearchLoading?.classList.add('show');
+        fileSearchTimer = setTimeout(submitFileSearch, 500);
+    });
+    fileProjectFilter?.addEventListener('change', submitFileSearch);
+    fileSearchForm?.addEventListener('submit', () => fileSearchLoading?.classList.add('show'));
+
+    async function downloadFile(id, fallbackName, button) {
+        const originalHtml = button.innerHTML;
+        button.disabled = true;
+        button.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> Downloading...';
+        try {
+            const response = await fetch(`download.php?id=${encodeURIComponent(id)}`, { credentials: 'same-origin' });
+            if (!response.ok) throw new Error('Download failed');
+
+            const disposition = response.headers.get('Content-Disposition') || '';
+            const utf8Match = disposition.match(/filename\*=UTF-8''([^;]+)/i);
+            const plainMatch = disposition.match(/filename="?([^";]+)"?/i);
+            const filename = utf8Match ? decodeURIComponent(utf8Match[1]) : (plainMatch ? plainMatch[1] : fallbackName);
+            const blob = await response.blob();
+            const url = URL.createObjectURL(blob);
+            const anchor = document.createElement('a');
+            anchor.href = url;
+            anchor.download = filename || fallbackName || 'download';
+            document.body.appendChild(anchor);
+            anchor.click();
+            anchor.remove();
+            setTimeout(() => URL.revokeObjectURL(url), 1000);
+            appAlert('File downloaded successfully.', 'Download', 'success');
+        } catch (error) {
+            console.error(error);
+            appAlert('Unable to download file.', 'Download Error', 'error');
+        } finally {
+            button.disabled = false;
+            button.innerHTML = originalHtml;
+        }
+    }
+
     function deleteFile(id) {
         appConfirm("Move file to Recycle Bin?", "Delete File", () => {
             const fd = new FormData();
