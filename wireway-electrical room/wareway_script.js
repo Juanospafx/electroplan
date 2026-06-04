@@ -348,8 +348,7 @@ function exportReport() {
     printArea.innerHTML = reportHTML;
     window.print();
 
-    const ts = new Date().toISOString().replace('T', '_').slice(0, 19).replace(/:/g, '-');
-    autoSaveCurrentToolExport('wireway', reportHTML, `wireway_export_${ts}.pdf`);
+    autoSaveCurrentToolExport('wireway_calculator', reportHTML);
 }
 
 /* --- CALCULO --- */
@@ -517,7 +516,7 @@ async function ensureExportLibs() {
     return !!(window.html2canvas && window.jspdf && window.jspdf.jsPDF);
 }
 
-async function autoSaveCurrentToolExport(toolName, reportHtml, filename) {
+async function autoSaveCurrentToolExport(toolName, reportHtml) {
     let tmp = null;
     try {
         const cfg = getToolIntegrationConfig();
@@ -571,8 +570,6 @@ async function autoSaveCurrentToolExport(toolName, reportHtml, filename) {
         fd.append('action', cfg.action);
         fd.append('project_id', String(cfg.projectId));
         fd.append('tool_name', toolName);
-        const fallbackTs = new Date().toISOString().replace('T', '_').slice(0, 19).replace(/:/g, '-');
-        fd.append('filename', filename || ('export_' + fallbackTs + '.pdf'));
         fd.append('pdf_file', pdfBlob, 'export.pdf');
         await fetch(cfg.apiUrl, { method: 'POST', body: fd, credentials: 'include' });
     } catch (e) {

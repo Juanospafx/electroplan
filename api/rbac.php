@@ -56,12 +56,15 @@ function canViewFolder(PDO $pdo, int $userId, int $projectId, int $folderId): bo
 }
 function canViewFile(PDO $pdo, int $userId, int $projectId, int $fileId): bool {
     $st = $pdo->prepare("SELECT folder_id FROM files WHERE id=? AND project_id=? AND deleted_at IS NULL LIMIT 1");
-    $st->execute([$fileId,$projectId]); $folderId=(int)$st->fetchColumn(); if(!$folderId) return false;
+    $st->execute([$fileId,$projectId]);
+    $folderValue = $st->fetchColumn();
+    if ($folderValue === false) return false;
+    $folderId = (int)$folderValue;
     $role = getUserRoleInProject($pdo,$userId,$projectId);
     if (in_array($role,['owner','admin'],true)) return true;
     $q = $pdo->prepare("SELECT allow_view,deny_view FROM file_visibility_rules WHERE file_id=? AND ((subject_type='user' AND subject_id=?) OR (subject_type='role' AND subject_value=?)) ORDER BY id DESC LIMIT 1");
     try { $q->execute([$fileId,$userId,$role]); $r=$q->fetch(PDO::FETCH_ASSOC); if($r){ if((int)$r['deny_view']===1) return false; if((int)$r['allow_view']===1) return true; }} catch(Throwable $e) {}
-    return canViewFolder($pdo,$userId,$projectId,$folderId);
+    return $folderId > 0 ? canViewFolder($pdo,$userId,$projectId,$folderId) : canAccessProject($pdo,$userId,$projectId);
 }
 function canUploadToFolder(PDO $pdo, int $userId, int $projectId, ?int $folderId): bool {
     $role = getUserRoleInProject($pdo,$userId,$projectId);

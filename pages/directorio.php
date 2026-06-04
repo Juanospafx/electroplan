@@ -22,7 +22,10 @@ $stmt = $pdo->query("
     LEFT JOIN directory d ON d.project_id = p.id
     LEFT JOIN users u ON u.id = d.user_id
     WHERE p.deleted_at IS NULL
-    ORDER BY p.created_at DESC, u.username ASC
+    ORDER BY
+        CASE WHEN LOWER(COALESCE(p.status,'')) IN ('completed','closed','finished') THEN 1 ELSE 0 END ASC,
+        p.created_at DESC,
+        u.username ASC
 ");
 $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -58,6 +61,16 @@ if ($q !== '') {
         return stripos($p['project_name'], $q) !== false;
     });
 }
+
+$completedStatuses = ['completed', 'closed', 'finished'];
+$activeProjects = array_filter($directory, function($p) use ($completedStatuses) {
+    return !in_array(strtolower(trim((string)($p['project_status'] ?? ''))), $completedStatuses, true);
+});
+$completedProjects = array_filter($directory, function($p) use ($completedStatuses) {
+    return in_array(strtolower(trim((string)($p['project_status'] ?? ''))), $completedStatuses, true);
+});
+$activeCount = count($activeProjects);
+$completedCount = count($completedProjects);
 
 $pageTitle = "Directory | Brightronix";
 include __DIR__ . '/../views/header.php';
@@ -96,6 +109,8 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
     .table-rounded td { padding: 20px 25px; color: var(--text-white); vertical-align: middle; border-bottom: 1px solid var(--border-subtle); }
     .table-rounded tr:last-child td { border-bottom: none; }
     .table-rounded tr:hover td { background: rgba(255,255,255,0.02); }
+    .group-row td { background: var(--bg-input); color: var(--text-gray); font-weight: 700; text-transform: uppercase; letter-spacing: .6px; font-size: .72rem; padding: 14px 25px; border-bottom: 2px solid var(--border-subtle); }
+    .group-count { margin-left: 8px; font-size: .68rem; opacity: .85; }
     .user-chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px; border-radius: 8px; background: var(--bg-input); border: 1px solid var(--border-subtle); margin-right: 6px; margin-bottom: 6px; font-size: 0.75rem; }
     .user-role { color: var(--text-gray); font-size: 0.7rem; }
 
@@ -168,7 +183,10 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
                 </tr>
             </thead>
             <tbody>
-                <?php foreach($directory as $p): ?>
+                <?php if($activeCount > 0): ?>
+                <tr class="group-row"><td colspan="4"><i class="fas fa-check-circle me-2 text-success"></i> Active Projects <span class="group-count">(<?= $activeCount ?>)</span></td></tr>
+                <?php endif; ?>
+                <?php foreach($activeProjects as $p): ?>
                 <tr>
                     <td>
                         <div class="fw-bold"><?= htmlspecialchars($p['project_name']) ?></div>
@@ -190,6 +208,34 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
                         <?php else: ?>
                             <span class="text-gray">Unassigned</span>
                         <?php endif; ?>
+                        <?php if($isAdmin): ?>
+                            <div class="mt-2"><button class="btn btn-sm btn-outline-light rounded-pill" onclick="openDirAssignModal(<?= (int)$p['project_id'] ?>, '<?= addslashes($p['project_name']) ?>')"><i class="fas fa-user-plus me-1"></i> Manage</button></div>
+                        <?php endif; ?>
+                    </td>
+                </tr>
+                <?php endforeach; ?>
+
+                <?php if($completedCount > 0): ?>
+                <tr class="group-row"><td colspan="4"><i class="fas fa-flag-checkered me-2 text-muted"></i> Completed Projects <span class="group-count">(<?= $completedCount ?>)</span></td></tr>
+                <?php endif; ?>
+                <?php foreach($completedProjects as $p): ?>
+                <tr>
+                    <td>
+                        <div class="fw-bold"><?= htmlspecialchars($p['project_name']) ?></div>
+                        <div class="small text-gray" style="font-size:0.75rem">ID: #<?= $p['project_id'] ?></div>
+                    </td>
+                    <td class="small text-gray"><?= htmlspecialchars($p['project_status'] ?? 'Completed') ?></td>
+                    <td class="small text-gray"><?= htmlspecialchars($p['project_description'] ?: 'No description') ?></td>
+                    <td>
+                        <?php if (!empty($p['users'])): ?>
+                            <?php foreach($p['users'] as $u): ?>
+                                <span class="user-chip">
+                                    <?= htmlspecialchars($u['username']) ?>
+                                    <span class="user-role">(<?= htmlspecialchars($u['role']) ?>)</span>
+                                    <?php if ((int)$p['primary_user_id'] === (int)$u['id']): ?><span class="user-role">primary</span><?php endif; ?>
+                                </span>
+                            <?php endforeach; ?>
+                        <?php else: ?><span class="text-gray">Unassigned</span><?php endif; ?>
                         <?php if($isAdmin): ?>
                             <div class="mt-2"><button class="btn btn-sm btn-outline-light rounded-pill" onclick="openDirAssignModal(<?= (int)$p['project_id'] ?>, '<?= addslashes($p['project_name']) ?>')"><i class="fas fa-user-plus me-1"></i> Manage</button></div>
                         <?php endif; ?>

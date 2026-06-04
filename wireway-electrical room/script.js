@@ -396,6 +396,7 @@ function rd_exportReport() {
 
     printArea.innerHTML = reportHTML;
     window.print();
+    autoSaveCurrentToolExport('room_designer', reportHTML);
 }
 
 /* --- MOTOR DE CÃLCULO (RD) --- */
@@ -587,6 +588,80 @@ function rd_generateWallSVG(wall, items, forPrint) {
     }
     svg += `</g></svg>`;
     return svg;
+}
+
+function getToolIntegrationConfig() {
+    const params = new URLSearchParams(window.location.search);
+    return {
+        projectId: parseInt(params.get('project_id') || '0', 10) || 0,
+        apiUrl: params.get('ep_api') || '/electroplan/api/api.php',
+        action: params.get('ep_export_action') || 'save_tool_export'
+    };
+}
+
+async function ensureExportLibs() {
+    if (!window.html2canvas) {
+        await new Promise((resolve, reject) => {
+            const script = document.createElement('script');
+            script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+            script.onload = resolve;
+            script.onerror = reject;
+            document.head.appendChild(script);
+        });
+    }
+    if (!(window.jspdf && window.jspdf.jsPDF)) {
+        await new Promise((resolve, reject) => {
+            const script = document.createElement('script');
+            script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+            script.onload = resolve;
+            script.onerror = reject;
+            document.head.appendChild(script);
+        });
+    }
+    return !!(window.html2canvas && window.jspdf && window.jspdf.jsPDF);
+}
+
+async function autoSaveCurrentToolExport(toolName, reportHtml) {
+    let tmp = null;
+    try {
+        const cfg = getToolIntegrationConfig();
+        if (!cfg.projectId || !reportHtml || !(await ensureExportLibs())) return;
+
+        tmp = document.createElement('div');
+        tmp.style.cssText = 'position:fixed;left:-100000px;top:0;width:816px;background:#fff;z-index:-1;';
+        tmp.innerHTML = reportHtml;
+        document.body.appendChild(tmp);
+        await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+
+        const canvas = await window.html2canvas(tmp, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
+        const { jsPDF } = window.jspdf;
+        const pdf = new jsPDF('p', 'pt', 'letter');
+        const pageWidth = pdf.internal.pageSize.getWidth();
+        const pageHeight = pdf.internal.pageSize.getHeight();
+        const imgHeight = canvas.height * pageWidth / canvas.width;
+        const imgData = canvas.toDataURL('image/jpeg', 0.98);
+        let heightLeft = imgHeight;
+        let position = 0;
+        pdf.addImage(imgData, 'JPEG', 0, position, pageWidth, imgHeight);
+        heightLeft -= pageHeight;
+        while (heightLeft > 0) {
+            position = heightLeft - imgHeight;
+            pdf.addPage();
+            pdf.addImage(imgData, 'JPEG', 0, position, pageWidth, imgHeight);
+            heightLeft -= pageHeight;
+        }
+
+        const form = new FormData();
+        form.append('action', cfg.action);
+        form.append('project_id', String(cfg.projectId));
+        form.append('tool_name', toolName);
+        form.append('pdf_file', pdf.output('blob'), 'export.pdf');
+        await fetch(cfg.apiUrl, { method: 'POST', body: form, credentials: 'include' });
+    } catch (error) {
+        console.warn('Auto-save export failed', error);
+    } finally {
+        if (tmp && tmp.parentNode) tmp.parentNode.removeChild(tmp);
+    }
 }
 
 

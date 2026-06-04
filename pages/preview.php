@@ -901,7 +901,7 @@ body.theme-light .text-muted, body.theme-light .text-gray { color: var(--text-gr
         };
 
         const renderError = (msg) => {
-            document.getElementById('sheet-container').innerHTML = `<div style="color:#111827"><p><strong>Could not render spreadsheet preview.</strong></p><p>${msg}</p><p><a href="${fileUrl}" target="_blank" rel="noopener">Download/Open file</a></p></div>`;
+            document.getElementById('sheet-container').innerHTML = `<div style="color:#111827"><p><strong>Could not render spreadsheet preview.</strong></p><p>${msg}</p></div>`;
         };
 
         if (typeof XLSX === 'undefined') {
@@ -917,7 +917,19 @@ body.theme-light .text-muted, body.theme-light .text-gray { color: var(--text-gr
                 container.appendChild(tabs); container.appendChild(tableWrap);
 
                 const applySheet = (name) => {
-                    tableWrap.innerHTML = XLSX.utils.sheet_to_html(wb.Sheets[name], { id: 'sheet-table', editable: false });
+                    const sheet = wb.Sheets[name];
+                    const originalRange = XLSX.utils.decode_range(sheet['!ref'] || 'A1');
+                    const previewRange = {
+                        s: originalRange.s,
+                        e: {
+                            r: Math.min(originalRange.e.r, originalRange.s.r + 4999),
+                            c: Math.min(originalRange.e.c, originalRange.s.c + 199)
+                        }
+                    };
+                    const truncated = previewRange.e.r < originalRange.e.r || previewRange.e.c < originalRange.e.c;
+                    tableWrap.innerHTML = (truncated
+                        ? '<div style="color:#92400e;background:#fffbeb;border:1px solid #fde68a;padding:8px 12px;margin-bottom:10px;border-radius:8px;">Large sheet preview limited to 5,000 rows and 200 columns.</div>'
+                        : '') + XLSX.utils.sheet_to_html(sheet, { id: 'sheet-table', editable: false, range: XLSX.utils.encode_range(previewRange) });
                 };
 
                 wb.SheetNames.forEach((name, idx) => {

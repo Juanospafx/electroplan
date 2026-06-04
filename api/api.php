@@ -882,7 +882,20 @@ switch($action) {
             $reportDir = __DIR__ . '/../uploads/reports/';
             if (!is_dir($reportDir)) { mkdir($reportDir, 0777, true); }
 
-            $fileName = 'Report_F' . $fileId . '_' . time() . '.pdf';
+            $stmtReportNames = $pdo->prepare("SELECT p.name AS project_name, u.username
+                FROM files f
+                JOIN projects p ON p.id = f.project_id
+                LEFT JOIN users u ON u.id = ?
+                WHERE f.id = ? LIMIT 1");
+            $stmtReportNames->execute([(int)$userId, $fileId]);
+            $reportNames = $stmtReportNames->fetch(PDO::FETCH_ASSOC) ?: [];
+            $fileName = build_export_filename((string)($reportNames['username'] ?? ''), (string)($reportNames['project_name'] ?? ''), 'pdf');
+            $reportRoot = pathinfo($fileName, PATHINFO_FILENAME);
+            $reportVersion = 1;
+            while (is_file($reportDir . $fileName)) {
+                $reportVersion++;
+                $fileName = $reportRoot . '_v' . $reportVersion . '.pdf';
+            }
             $destPath = $reportDir . $fileName;
 
             if (!move_uploaded_file($_FILES['pdf_file']['tmp_name'], $destPath)) {
@@ -1063,13 +1076,11 @@ switch($action) {
         $projectId = (int)($_POST['project_id'] ?? 0);
         if (!canUploadToFolder($pdo, (int)$userId, $projectId, null)) { echo json_encode(['status'=>'error', 'msg'=>'Access Denied']); exit; }
         $toolNameRaw = trim((string)($_POST['tool_name'] ?? ''));
-        $filenameRaw = trim((string)($_POST['filename'] ?? ''));
-
         $toolMap = [
-            'panel_schedule' => ['slug' => 'panel_schedule', 'folder' => 'Panel Schedule'],
-            'wireway' => ['slug' => 'wireway', 'folder' => 'Wireway'],
-            'wireway_calculator' => ['slug' => 'wireway', 'folder' => 'Wireway'],
-            'room_designer' => ['slug' => 'room_designer', 'folder' => 'Room Designer']
+            'panel_schedule' => ['slug' => 'panel_schedule', 'name' => 'Panel Schedule'],
+            'wireway' => ['slug' => 'wireway', 'name' => 'Wireway Calculator'],
+            'wireway_calculator' => ['slug' => 'wireway', 'name' => 'Wireway Calculator'],
+            'room_designer' => ['slug' => 'room_designer', 'name' => 'Room Designer']
         ];
 
         if ($projectId <= 0) { echo json_encode(['status'=>'error', 'msg'=>'Invalid project_id']); exit; }
@@ -1079,10 +1090,9 @@ switch($action) {
         $toolCfg = $toolMap[$toolKey] ?? null;
         if (!$toolCfg) { echo json_encode(['status'=>'error', 'msg'=>'Invalid tool_name']); exit; }
         $toolSlug = $toolCfg['slug'];
-        $toolFolderName = $toolCfg['folder'];
 
         $origName = $_FILES['pdf_file']['name'] ?? '';
-        $ext = strtolower(pathinfo($origName ?: $filenameRaw, PATHINFO_EXTENSION));
+        $ext = strtolower(pathinfo($origName, PATHINFO_EXTENSION));
         if ($ext !== 'pdf') { echo json_encode(['status'=>'error', 'msg'=>'Only PDF allowed']); exit; }
 
         if ($_FILES['pdf_file']['error'] !== UPLOAD_ERR_OK) {
@@ -1090,58 +1100,43 @@ switch($action) {
         }
 
         try {
-            $stmtFolder = $pdo->prepare("SELECT id FROM folders WHERE project_id = ? AND name = 'Exports' AND deleted_at IS NULL LIMIT 1");
-            $stmtFolder->execute([$projectId]);
-            $toolsFolderId = (int)$stmtFolder->fetchColumn();
+            $stmtNames = $pdo->prepare("SELECT p.name AS project_name, u.username FROM projects p LEFT JOIN users u ON u.id = ? WHERE p.id = ? LIMIT 1");
+            $stmtNames->execute([(int)$userId, $projectId]);
+            $names = $stmtNames->fetch(PDO::FETCH_ASSOC);
+            if (!$names) { throw new Exception('Project not found'); }
 
-            if ($toolsFolderId <= 0) {
-                $pdo->prepare("INSERT INTO folders (project_id, name) VALUES (?, 'Exports')")->execute([$projectId]);
-                $toolsFolderId = (int)$pdo->lastInsertId();
-            }
+            $baseFile = build_export_filename((string)($names['username'] ?? ''), (string)$names['project_name'], $ext);
+            $next = generateNextVersionedFilename($pdo, $projectId, null, null, $baseFile);
+            $baseFile = $next['filename'];
+            $versionNum = (int)$next['version'];
+            $versionGroup = uniqid('vgroup_');
 
-            $stmtSub = $pdo->prepare("SELECT id FROM sub_folders WHERE folder_id = ? AND name = ? AND deleted_at IS NULL LIMIT 1");
-            $stmtSub->execute([$toolsFolderId, $toolFolderName]);
-            $toolSubFolderId = (int)$stmtSub->fetchColumn();
-            if ($toolSubFolderId <= 0) {
-                $pdo->prepare("INSERT INTO sub_folders (folder_id, name) VALUES (?, ?)")->execute([$toolsFolderId, $toolFolderName]);
-                $toolSubFolderId = (int)$pdo->lastInsertId();
-            }
-
-            $datePart = gmdate('Y-m-d');
-            $baseFile = $filenameRaw !== '' ? cleanName($filenameRaw) : ('export_' . $datePart . '.pdf');
-            if (strtolower(pathinfo($baseFile, PATHINFO_EXTENSION)) !== 'pdf') {
-                $baseFile .= '.pdf';
-            }
-
-            $targetDir = __DIR__ . '/../uploads/tool/' . $toolSlug . '/' . $projectId . '/';
+            // Tool exports are normal File Manager files at the project root.
+            $targetDir = __DIR__ . '/../uploads/projects/' . $projectId . '/';
             if (!is_dir($targetDir) && !mkdir($targetDir, 0775, true) && !is_dir($targetDir)) {
                 throw new Exception('Failed creating target directory');
             }
 
-            $diskName = time() . '_' . cleanName($baseFile);
+            $diskName = cleanName($baseFile);
             $targetPath = $targetDir . $diskName;
 
             if (!move_uploaded_file($_FILES['pdf_file']['tmp_name'], $targetPath)) {
                 throw new Exception('Failed moving uploaded file');
             }
 
-            $publicPath = 'uploads/tool/' . $toolSlug . '/' . $projectId . '/' . $diskName;
-
-            $next = generateNextVersionedFilename($pdo, (int)$projectId, (int)$toolsFolderId, (int)$toolSubFolderId, (string)$baseFile);
-            $baseFile = $next['filename'];
-            $versionNum = (int)$next['version'];
-            $versionGroup = uniqid('vgroup_');
+            $publicPath = 'uploads/projects/' . $projectId . '/' . $diskName;
 
             $stmt = $pdo->prepare("INSERT INTO files (project_id, folder_id, sub_folder_id, filename, filepath, file_type, uploaded_by, version_group_id, version_number)
-                                   VALUES (?, ?, ?, ?, ?, 'pdf', ?, ?, ?)");
-            $stmt->execute([$projectId, $toolsFolderId, $toolSubFolderId, $baseFile, $publicPath, $userId, $versionGroup, $versionNum]);
+                                   VALUES (?, NULL, NULL, ?, ?, 'pdf', ?, ?, ?)");
+            $stmt->execute([$projectId, $baseFile, $publicPath, $userId, $versionGroup, $versionNum]);
 
             echo json_encode([
                 'status' => 'success',
                 'path' => $publicPath,
-                'folder_id' => $toolsFolderId,
-                'sub_folder_id' => $toolSubFolderId,
-                'sub_folder_name' => $toolFolderName,
+                'folder_id' => null,
+                'sub_folder_id' => null,
+                'tool' => $toolSlug,
+                'tool_name' => $toolCfg['name'],
                 'filename' => $baseFile,
                 'version' => $versionNum
             ]);
