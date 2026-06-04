@@ -60,6 +60,16 @@ $stmt = $pdo->prepare($sql);
 $stmt->execute($params);
 $projects = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+// Count Active and Completed projects
+$activeProjects = array_filter($projects, function($p) {
+    return !in_array(strtolower((string)($p['status'] ?? '')), ['completed','closed','done','finished'], true);
+});
+$completedProjects = array_filter($projects, function($p) {
+    return in_array(strtolower((string)($p['status'] ?? '')), ['completed','closed','done','finished'], true);
+});
+$activeCount = count($activeProjects);
+$completedCount = count($completedProjects);
+
 $statusOptions = $pdo->query("SELECT DISTINCT status FROM projects WHERE deleted_at IS NULL AND status IS NOT NULL AND status <> '' ORDER BY status ASC")->fetchAll(PDO::FETCH_COLUMN);
 $companyOptions = $pdo->query("SELECT DISTINCT COALESCE(NULLIF(TRIM(company_name),''), 'Not specified') AS company FROM projects WHERE deleted_at IS NULL ORDER BY company ASC")->fetchAll(PDO::FETCH_COLUMN);
 
@@ -123,10 +133,50 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
         .table-rounded td { padding: 20px 25px; color: var(--text-white); vertical-align: middle; border-bottom: 1px solid var(--border-subtle); }
         .table-rounded tr:last-child td { border-bottom: none; }
         .table-rounded tr:hover td { background: var(--bg-body); }
-        .group-row td { background: var(--bg-input); color: var(--text-gray); font-weight: 700; text-transform: uppercase; letter-spacing: .6px; font-size: .72rem; padding: 10px 16px; }
+        .group-row td { background: var(--bg-input); color: var(--text-gray); font-weight: 700; text-transform: uppercase; letter-spacing: .6px; font-size: .72rem; padding: 14px 25px; border-bottom: 2px solid var(--border-subtle); margin-top: 8px; }
+        .group-row td .group-count { margin-left: 8px; font-size: 0.68rem; opacity: 0.85; }
         .projects-filters.box-card { height: auto !important; min-height: 0 !important; }
         .projects-filters .form-select, .projects-filters .btn { min-height: 36px; }
         .projects-filters .btn { white-space: nowrap; }
+        .projects-filters label { 
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-gray);
+            margin-bottom: 6px;
+        }
+        .projects-filters .form-select {
+            border-radius: 10px;
+            border: 1px solid var(--border-subtle);
+        }
+        .status-inline-select { min-width: 140px; max-width: 170px; font-weight: 600; }
+        @media (max-width: 1200px) { .status-inline-select { min-width: 120px; } }
+        @media (max-width: 992px) { .status-inline-select { min-width: 110px; } }
+        @media (max-width: 768px) {
+            .projects-filters {
+                padding: 12px !important;
+            }
+            .projects-filters .row {
+                gap: 8px !important;
+            }
+            .projects-filters .col-12 {
+                margin-bottom: 4px;
+            }
+            .projects-filters label {
+                margin-bottom: 4px;
+                font-size: 0.7rem;
+            }
+            .projects-filters .form-select {
+                font-size: 0.85rem;
+                min-height: 32px;
+            }
+            .projects-filters .btn {
+                font-size: 0.85rem;
+                min-height: 32px;
+                padding: 6px 12px;
+            }
+        }
         .projects-toolbar { flex-wrap: wrap; gap: 10px; }
         .status-inline-select { min-width: 140px; max-width: 170px; font-weight: 600; }
         @media (max-width: 1200px) { .status-inline-select { min-width: 120px; } }
@@ -140,12 +190,71 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
         .status-badge { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; padding: 5px 10px; border-radius: 8px; letter-spacing: 0.5px; }
         .info-pill { background: var(--bg-input); border: 1px solid var(--border-subtle); padding: 4px 10px; border-radius: 5px; font-size: 0.75rem; color: var(--text-gray); display: inline-flex; align-items: center; gap: 6px; }
 
+        /* Project Name Cell - Enhanced Clickability */
+        .project-name-cell { 
+            cursor: pointer; 
+            transition: all 0.2s ease;
+            user-select: none;
+        }
+        .project-name-cell:hover { 
+            background: rgba(251, 90, 58, 0.08) !important;
+        }
+        .project-name-cell:focus { 
+            outline: 2px solid var(--primary); 
+            outline-offset: -2px;
+            background: rgba(251, 90, 58, 0.12) !important;
+        }
+        .project-name-cell a { 
+            color: inherit; 
+            text-decoration: none;
+        }
+        .project-name-cell a:hover { 
+            color: var(--primary);
+        }
+
+        /* Mobile-responsive action buttons in cells */
+        @media (max-width: 768px) {
+            .table-rounded td:last-child {
+                min-width: auto !important;
+                width: 100% !important;
+                padding: 14px 16px !important;
+            }
+            .table-rounded td:last-child > div {
+                display: flex !important;
+                flex-direction: row !important;
+                flex-wrap: wrap;
+                gap: 6px !important;
+                align-items: center;
+                width: 100%;
+            }
+            .btn-action {
+                min-height: 36px !important;
+                padding: 5px 8px !important;
+                font-size: 0.7rem !important;
+                flex: 1;
+                min-width: 45px;
+            }
+        }
+
         /* Responsive cards */
         .proj-cards { display: none; }
         .proj-card { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 16px; padding: 16px; transition: 0.3s; }
         .proj-card:hover { transform: translateY(-3px); border-color: var(--primary); }
         .proj-card + .proj-card { margin-top: 12px; }
         .proj-meta { font-size: 0.8rem; color: var(--text-gray); }
+
+        /* Dropdown menu styling for status selector */
+        .dropdown-menu { border-radius: 12px !important; }
+        .dropdown-menu .dropdown-item {
+            padding: 8px 16px !important;
+            font-size: 0.85rem !important;
+            transition: all 0.15s ease;
+        }
+        .dropdown-menu .dropdown-item:hover {
+            background-color: var(--bg-input) !important;
+            color: var(--primary) !important;
+            transform: translateX(4px);
+        }
 
         /* Form Controls & Modals Integration */
         .form-control { background: var(--bg-input) !important; border: 1px solid var(--border-subtle) !important; color: var(--text-white) !important; border-radius: 10px; }
@@ -274,14 +383,14 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
                     ?>
                     <?php foreach($projects as $p): 
                         $stColor = getStatusColor($p['status'] ?? 'Active');
-                        $isCompleted = in_array(strtolower((string)($p['status'] ?? '')), ['completed','closed','done'], true);
+                        $isCompleted = in_array(strtolower((string)($p['status'] ?? '')), ['completed','closed','done','finished'], true);
                         if(!$isCompleted && !$printedActive){
                             $printedActive = true;
-                            echo "<tr class='group-row'><td colspan='7'>Active Projects</td></tr>";
+                            echo "<tr class='group-row'><td colspan='7'><i class='fas fa-check-circle me-2 text-success'></i> Active Projects <span class='group-count'>(" . $activeCount . ")</span></td></tr>";
                         }
                         if($isCompleted && !$printedCompleted){
                             $printedCompleted = true;
-                            echo "<tr class='group-row'><td colspan='7'>Completed Projects</td></tr>";
+                            echo "<tr class='group-row'><td colspan='7'><i class='fas fa-flag-checkered me-2 text-muted'></i> Completed Projects <span class='group-count'>(" . $completedCount . ")</span></td></tr>";
                         }
                     ?>
                     <tr>
@@ -320,11 +429,23 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
                         </td>
                         <td>
                             <?php if($isAdmin): ?>
-                            <select class="form-select form-select-sm status-inline-select" onchange="updateProjectStatusInline(<?= (int)$p['id'] ?>, this.value)">
-                                <?php foreach(['Planning','Active','On Hold','Completed'] as $st): ?>
-                                  <option value="<?= $st ?>" <?= (($p['status'] ?? 'Active') === $st) ? 'selected' : '' ?>><?= $st ?></option>
-                                <?php endforeach; ?>
-                            </select>
+                            <div class="dropdown d-inline-block w-100">
+                                <button class="btn btn-sm dropdown-toggle status-badge bg-opacity-25 w-100 text-start" type="button" data-bs-toggle="dropdown" aria-expanded="false" style="border: none; background-color: var(--bg-card) !important; padding: 6px 12px; font-size: 0.7rem;">
+                                    <i class="fas fa-ellipsis-h me-1" style="opacity: 0.6;"></i>
+                                    <?php $badgeClass = 'primary'; 
+                                        $status = $p['status'] ?? 'Active';
+                                        if(strtolower($status) === 'completed' || strtolower($status) === 'closed' || strtolower($status) === 'done') $badgeClass = 'secondary';
+                                        elseif(strtolower($status) === 'on hold') $badgeClass = 'warning';
+                                    ?>
+                                    <span class="status-badge bg-<?= $badgeClass ?> bg-opacity-25 text-<?= $badgeClass ?>"><?= htmlspecialchars($status) ?></span>
+                                </button>
+                                <ul class="dropdown-menu dropdown-menu-dark bg-card border-secondary shadow-lg" style="min-width: 150px;">
+                                    <li><a class="dropdown-item text-white hover-bg-body small" href="#" onclick="updateProjectStatusInline(<?= (int)$p['id'] ?>, 'Planning'); return false;"><i class="fas fa-circle text-info me-2" style="font-size: 0.5rem;"></i> Planning</a></li>
+                                    <li><a class="dropdown-item text-white hover-bg-body small" href="#" onclick="updateProjectStatusInline(<?= (int)$p['id'] ?>, 'Active'); return false;"><i class="fas fa-circle text-success me-2" style="font-size: 0.5rem;"></i> Active</a></li>
+                                    <li><a class="dropdown-item text-white hover-bg-body small" href="#" onclick="updateProjectStatusInline(<?= (int)$p['id'] ?>, 'On Hold'); return false;"><i class="fas fa-circle text-warning me-2" style="font-size: 0.5rem;"></i> On Hold</a></li>
+                                    <li><a class="dropdown-item text-white hover-bg-body small" href="#" onclick="updateProjectStatusInline(<?= (int)$p['id'] ?>, 'Completed'); return false;"><i class="fas fa-circle text-secondary me-2" style="font-size: 0.5rem;"></i> Completed</a></li>
+                                </ul>
+                            </div>
                             <?php else: ?>
                             <span class="status-badge bg-<?= $stColor ?> bg-opacity-25 text-<?= $stColor ?>"><?= $p['status'] ?? 'Active' ?></span>
                             <?php endif; ?>
@@ -335,7 +456,7 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
                             </span>
                         </td>
                         <td>
-                            <div class="d-flex flex-column gap-2 align-items-start" style="min-width:48px;">
+                            <div class="d-flex gap-2 align-items-center flex-wrap" style="min-width:48px;">
                                 <a href="project_dashboard.php?id=<?= $p['id'] ?>" class="btn-action" title="Open project"><i class="fas fa-external-link-alt"></i></a>
                                 <?php if($isAdmin): ?>
                                 <button class="btn-action delete" onclick="deleteProject(<?= $p['id'] ?>)" title="Delete project">
@@ -519,7 +640,8 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
     document.addEventListener('click', function(e){
         const cell = e.target.closest('.project-name-cell');
         if(!cell) return;
-        if(e.target.closest('a,button,select,input,label,.btn-action')) return;
+        // Prevent navigation if clicking on interactive elements
+        if(e.target.closest('a,button,select,input,label,.btn-action,.dropdown-toggle,.dropdown-menu')) return;
         const href = cell.getAttribute('data-href');
         if(href) window.location.href = href;
     });
