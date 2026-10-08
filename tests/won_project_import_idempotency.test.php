@@ -373,6 +373,7 @@ try {
 
     $rollbackPayload = buildCanonicalPayload('018f3a5b-9999-9999-9999-999999999999', '2026-10-09T00:00:00Z', 'idemp-rollback-001');
     $rollbackPayload['project']['number'] = 'EL-PRJ-2026-03';
+    $rollbackPayload['materials_snapshot']['items'][0]['item_id'] = $abortMarker;
     $rollbackPayload['materials_snapshot']['items'][0]['item_code'] = $abortMarker;
 
     $rollbackCaught = false;
