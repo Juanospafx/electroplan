@@ -627,4 +627,3 @@ if ($failureCount > 0) {
 
 echo "Todos los tests de contrato pasaron con éxito.\n";
 exit(0);
-
