@@ -1,17 +1,64 @@
 <?php
 declare(strict_types=1);
 
+function get_correlation_id(): string
+{
+    if (isset($GLOBALS['API_CORRELATION_ID']) && is_string($GLOBALS['API_CORRELATION_ID'])) {
+        return $GLOBALS['API_CORRELATION_ID'];
+    }
+
+    $header = get_header_value('X-Correlation-Id');
+    if ($header !== null && preg_match('/^[a-zA-Z0-9._-]{8,128}\z/', $header)) {
+        $cid = $header;
+    } else {
+        $data = random_bytes(16);
+        $data[6] = chr((ord($data[6]) & 0x0f) | 0x40);
+        $data[8] = chr((ord($data[8]) & 0x3f) | 0x80);
+        $cid = vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($data), 4));
+    }
+
+    $GLOBALS['API_CORRELATION_ID'] = $cid;
+    return $cid;
+}
+
+function set_correlation_id(?string $correlationId): void
+{
+    $GLOBALS['API_CORRELATION_ID'] = $correlationId;
+}
+
 function json_response(int $status, array $payload): void
 {
+    $cid = get_correlation_id();
+    if (!isset($payload['correlation_id'])) {
+        if (isset($payload['ok'])) {
+            $ordered = ['ok' => $payload['ok'], 'correlation_id' => $cid];
+            foreach ($payload as $k => $v) {
+                if ($k !== 'ok') {
+                    $ordered[$k] = $v;
+                }
+            }
+            $payload = $ordered;
+        } else {
+            $payload['correlation_id'] = $cid;
+        }
+    } else {
+        $cid = (string)$payload['correlation_id'];
+    }
+
     http_response_code($status);
     header('Content-Type: application/json');
+    header('X-Correlation-Id: ' . $cid);
     echo json_encode($payload);
     exit;
 }
 
 function ok_response($data, array $meta = null, int $status = 200): void
 {
-    $payload = ['ok' => true, 'data' => $data];
+    $payload = [
+        'ok' => true,
+        'correlation_id' => get_correlation_id(),
+        'data' => $data,
+    ];
     if ($meta !== null) {
         $payload['meta'] = $meta;
     }
@@ -24,7 +71,11 @@ function error_response(string $code, string $message, $details = null, int $sta
     if ($details !== null) {
         $error['details'] = $details;
     }
-    json_response($status, ['ok' => false, 'error' => $error]);
+    json_response($status, [
+        'ok' => false,
+        'correlation_id' => get_correlation_id(),
+        'error' => $error,
+    ]);
 }
 
 function read_json_body(): array
@@ -39,14 +90,30 @@ function read_json_body(): array
 
 function get_raw_body(): string
 {
+    if (isset($GLOBALS['RAW_REQUEST_BODY']) && is_string($GLOBALS['RAW_REQUEST_BODY'])) {
+        return $GLOBALS['RAW_REQUEST_BODY'];
+    }
     $raw = file_get_contents('php://input');
-    return $raw === false ? '' : $raw;
+    $normalized = $raw === false ? '' : $raw;
+    $GLOBALS['RAW_REQUEST_BODY'] = $normalized;
+    return $normalized;
 }
 
 function get_header_value(string $name): ?string
 {
     $key = 'HTTP_' . strtoupper(str_replace('-', '_', $name));
-    return $_SERVER[$key] ?? null;
+    if (isset($_SERVER[$key])) {
+        return (string)$_SERVER[$key];
+    }
+    if (isset($_SERVER[$name])) {
+        return (string)$_SERVER[$name];
+    }
+    foreach ($_SERVER as $k => $v) {
+        if (strcasecmp((string)$k, $key) === 0 || strcasecmp((string)$k, $name) === 0) {
+            return (string)$v;
+        }
+    }
+    return null;
 }
 
 function require_int($value): ?int
@@ -96,6 +163,13 @@ function get_client_role(): ?string
 function require_client_role(string $role): void
 {
     if (get_client_role() !== $role) {
+        error_response('FORBIDDEN', 'Insufficient privileges', null, 403);
+    }
+}
+
+function require_client_roles(array $roles): void
+{
+    if (!in_array(get_client_role(), $roles, true)) {
         error_response('FORBIDDEN', 'Insufficient privileges', null, 403);
     }
 }
