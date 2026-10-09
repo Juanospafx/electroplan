@@ -30,99 +30,116 @@ $getEnv = static function (string $key): ?string {
     return null;
 };
 
-$getEnvVar = static function (string $key) use ($getEnv): ?string {
-    return $getEnv($key) ?? $getEnv('ELECTROPLAN_' . $key);
+$repoRoot = dirname(__DIR__, 2);
+
+$isInsideOrEqual = static function (string $targetPath, string $basePath): bool {
+    $realTarget = realpath($targetPath);
+    $realBase = realpath($basePath);
+    if ($realTarget === false || $realBase === false) {
+        return false;
+    }
+    $normTarget = str_replace('\\', '/', $realTarget);
+    $normBase = str_replace('\\', '/', $realBase);
+    if (DIRECTORY_SEPARATOR === '\\') {
+        $normTarget = strtolower($normTarget);
+        $normBase = strtolower($normBase);
+    }
+    $normBase = rtrim($normBase, '/');
+    if ($normTarget === $normBase) {
+        return true;
+    }
+    $prefix = $normBase . '/';
+    return (strncmp($normTarget, $prefix, strlen($prefix)) === 0);
 };
 
-$privateConfigFile = $getEnvVar('PRIVATE_CONFIG');
+$isPrivateConfigDefined = (getenv('WON_PROJECT_PRIVATE_CONFIG') !== false)
+    || isset($_ENV['WON_PROJECT_PRIVATE_CONFIG'])
+    || isset($_SERVER['WON_PROJECT_PRIVATE_CONFIG']);
 
-$repoRoot = dirname(__DIR__, 2);
-$parentDir = dirname($repoRoot);
-
-if ($privateConfigFile === null || $privateConfigFile === '') {
-    $defaultCandidates = [
-        $parentDir . '/electroplan_hmac.php',
-        $parentDir . '/electroplan_private.php',
-        $parentDir . '/electroplan_config.php',
-        $parentDir . '/private_config.php',
-        $parentDir . '/config/electroplan_hmac.php',
-        $parentDir . '/config/private.php',
-        '/etc/electroplan/api_config.php',
-        '/etc/electroplan/hmac.php',
-    ];
-    foreach ($defaultCandidates as $candidate) {
-        if (is_file($candidate)) {
-            $privateConfigFile = $candidate;
-            break;
-        }
-    }
-}
-
+$privateConfigFile = null;
 $privateConfig = [];
-if ($privateConfigFile !== null && is_file($privateConfigFile)) {
-    $realPrivate = realpath($privateConfigFile);
-    $isSafe = ($realPrivate !== false);
 
-    if ($isSafe && !empty($_SERVER['DOCUMENT_ROOT'])) {
-        $realDoc = realpath($_SERVER['DOCUMENT_ROOT']);
-        if ($realDoc !== false) {
-            $normDoc = str_replace('\\', '/', strtolower($realDoc));
-            $normDocPrefix = rtrim($normDoc, '/') . '/';
-            $normPrivate = str_replace('\\', '/', strtolower($realPrivate));
-            if ($normPrivate === $normDoc || strncmp($normPrivate, $normDocPrefix, strlen($normDocPrefix)) === 0) {
-                $isSafe = false;
-            }
+if ($isPrivateConfigDefined) {
+    $rawVal = getenv('WON_PROJECT_PRIVATE_CONFIG');
+    if ($rawVal === false && isset($_ENV['WON_PROJECT_PRIVATE_CONFIG'])) {
+        $rawVal = (string)$_ENV['WON_PROJECT_PRIVATE_CONFIG'];
+    }
+    if (($rawVal === false || $rawVal === null) && isset($_SERVER['WON_PROJECT_PRIVATE_CONFIG'])) {
+        $rawVal = (string)$_SERVER['WON_PROJECT_PRIVATE_CONFIG'];
+    }
+
+    $candidatePath = is_string($rawVal) ? trim($rawVal) : '';
+    if ($candidatePath === '' || !file_exists($candidatePath) || !is_file($candidatePath) || !is_readable($candidatePath)) {
+        throw new \RuntimeException('Configuration error');
+    }
+
+    $realPrivate = realpath($candidatePath);
+    if ($realPrivate === false) {
+        throw new \RuntimeException('Configuration error');
+    }
+
+    if ($isInsideOrEqual($realPrivate, $repoRoot)) {
+        throw new \RuntimeException('Configuration error');
+    }
+
+    if (!empty($_SERVER['DOCUMENT_ROOT'])) {
+        if ($isInsideOrEqual($realPrivate, (string)$_SERVER['DOCUMENT_ROOT'])) {
+            throw new \RuntimeException('Configuration error');
         }
     }
 
-    if ($isSafe) {
-        try {
-            $loaded = require $privateConfigFile;
-            if (is_array($loaded)) {
-                $privateConfig = $loaded;
-            }
-        } catch (\Throwable $e) {
-            $privateConfig = [];
-        }
+    try {
+        $loaded = require $realPrivate;
+    } catch (\Throwable $e) {
+        throw new \RuntimeException('Configuration error');
     }
+
+    if (!is_array($loaded)) {
+        throw new \RuntimeException('Configuration error');
+    }
+
+    $privateConfigFile = $realPrivate;
+    $privateConfig = $loaded;
 }
 
-$activeKeyId = $getEnvVar('ACTIVE_KEY_ID')
-    ?? ($privateConfig['ACTIVE_KEY_ID'] ?? ($privateConfig['active_key_id'] ?? null));
-
-if ($activeKeyId === null && isset($privateConfig['CLIENTS']) && is_array($privateConfig['CLIENTS']) && !empty($privateConfig['CLIENTS'])) {
-    reset($privateConfig['CLIENTS']);
-    $firstKey = key($privateConfig['CLIENTS']);
-    if (is_string($firstKey) && $firstKey !== '') {
-        $activeKeyId = $firstKey;
-    }
-}
+$activeKeyId = $getEnv('WON_PROJECT_HMAC_ACTIVE_KEY_ID')
+    ?? (isset($privateConfig['WON_PROJECT_HMAC_ACTIVE_KEY_ID']) && is_string($privateConfig['WON_PROJECT_HMAC_ACTIVE_KEY_ID'])
+        ? $privateConfig['WON_PROJECT_HMAC_ACTIVE_KEY_ID']
+        : null);
 $activeKeyId = is_string($activeKeyId) ? trim($activeKeyId) : null;
 if ($activeKeyId === '') {
     $activeKeyId = null;
 }
 
-$activeKeySecret = $getEnvVar('ACTIVE_KEY_SECRET')
-    ?? ($privateConfig['ACTIVE_KEY_SECRET'] ?? ($privateConfig['active_key_secret'] ?? null));
+$activeKeySecret = $getEnv('WON_PROJECT_HMAC_ACTIVE_SECRET')
+    ?? (isset($privateConfig['WON_PROJECT_HMAC_ACTIVE_SECRET']) && is_string($privateConfig['WON_PROJECT_HMAC_ACTIVE_SECRET'])
+        ? $privateConfig['WON_PROJECT_HMAC_ACTIVE_SECRET']
+        : null);
+$activeKeySecret = is_string($activeKeySecret) && trim($activeKeySecret) !== '' ? trim($activeKeySecret) : null;
 
-if ($activeKeySecret === null && $activeKeyId !== null && isset($privateConfig['CLIENTS'][$activeKeyId])) {
-    $activeKeySecret = (string)$privateConfig['CLIENTS'][$activeKeyId];
+// Fail-closed: partial active configuration is invalidated
+if ($activeKeyId === null || $activeKeySecret === null) {
+    $activeKeyId = null;
+    $activeKeySecret = null;
 }
-$activeKeySecret = is_string($activeKeySecret) && $activeKeySecret !== '' ? $activeKeySecret : null;
 
-$prevKeyId = $getEnvVar('PREVIOUS_KEY_ID')
-    ?? ($privateConfig['PREVIOUS_KEY_ID'] ?? ($privateConfig['previous_key_id'] ?? null));
+$prevKeyId = $getEnv('WON_PROJECT_HMAC_PREVIOUS_KEY_ID')
+    ?? (isset($privateConfig['WON_PROJECT_HMAC_PREVIOUS_KEY_ID']) && is_string($privateConfig['WON_PROJECT_HMAC_PREVIOUS_KEY_ID'])
+        ? $privateConfig['WON_PROJECT_HMAC_PREVIOUS_KEY_ID']
+        : null);
 $prevKeyId = is_string($prevKeyId) ? trim($prevKeyId) : null;
 if ($prevKeyId === '') {
     $prevKeyId = null;
 }
 
-$prevKeySecret = $getEnvVar('PREVIOUS_KEY_SECRET')
-    ?? ($privateConfig['PREVIOUS_KEY_SECRET'] ?? ($privateConfig['previous_key_secret'] ?? null));
-$prevKeySecret = is_string($prevKeySecret) && $prevKeySecret !== '' ? $prevKeySecret : null;
+$prevKeySecret = $getEnv('WON_PROJECT_HMAC_PREVIOUS_SECRET')
+    ?? (isset($privateConfig['WON_PROJECT_HMAC_PREVIOUS_SECRET']) && is_string($privateConfig['WON_PROJECT_HMAC_PREVIOUS_SECRET'])
+        ? $privateConfig['WON_PROJECT_HMAC_PREVIOUS_SECRET']
+        : null);
+$prevKeySecret = is_string($prevKeySecret) && trim($prevKeySecret) !== '' ? trim($prevKeySecret) : null;
 
-$rawPrevAcceptUntil = $getEnvVar('PREVIOUS_ACCEPT_UNTIL')
-    ?? ($privateConfig['PREVIOUS_ACCEPT_UNTIL'] ?? ($privateConfig['previous_accept_until'] ?? null));
+$rawPrevAcceptUntil = $getEnv('WON_PROJECT_HMAC_PREVIOUS_ACCEPT_UNTIL')
+    ?? ($privateConfig['WON_PROJECT_HMAC_PREVIOUS_ACCEPT_UNTIL'] ?? null);
 
 $prevAcceptUntil = null;
 if ($rawPrevAcceptUntil !== null && $rawPrevAcceptUntil !== '') {
@@ -137,9 +154,15 @@ if ($rawPrevAcceptUntil !== null && $rawPrevAcceptUntil !== '') {
     }
 }
 
-$rawSkew = $getEnvVar('MAX_TIMESTAMP_SKEW_SECONDS')
-    ?? $getEnv('MAX_TIMESTAMP_SKEW')
-    ?? ($privateConfig['MAX_TIMESTAMP_SKEW_SECONDS'] ?? ($privateConfig['max_timestamp_skew_seconds'] ?? ($privateConfig['MAX_TIMESTAMP_SKEW'] ?? 300)));
+// Fail-closed: partial or invalid previous configuration is invalidated
+if ($prevKeyId === null || $prevKeySecret === null || $prevAcceptUntil === null) {
+    $prevKeyId = null;
+    $prevKeySecret = null;
+    $prevAcceptUntil = null;
+}
+
+$rawSkew = $getEnv('WON_PROJECT_MAX_TIMESTAMP_SKEW_SECONDS')
+    ?? ($privateConfig['WON_PROJECT_MAX_TIMESTAMP_SKEW_SECONDS'] ?? null);
 
 $maxTimestampSkew = 300;
 if ($rawSkew !== null && is_numeric($rawSkew)) {
@@ -152,8 +175,8 @@ if ($rawSkew !== null && is_numeric($rawSkew)) {
 $clientRoles = [];
 if (isset($privateConfig['CLIENT_ROLES']) && is_array($privateConfig['CLIENT_ROLES'])) {
     $clientRoles = $privateConfig['CLIENT_ROLES'];
-} elseif (isset($privateConfig['client_roles']) && is_array($privateConfig['client_roles'])) {
-    $clientRoles = $privateConfig['client_roles'];
+} elseif (isset($privateConfig['WON_PROJECT_CLIENT_ROLES']) && is_array($privateConfig['WON_PROJECT_CLIENT_ROLES'])) {
+    $clientRoles = $privateConfig['WON_PROJECT_CLIENT_ROLES'];
 }
 
 $clients = [];
@@ -162,6 +185,13 @@ if ($activeKeyId !== null && $activeKeySecret !== null) {
 }
 
 return [
+    'WON_PROJECT_HMAC_ACTIVE_KEY_ID' => $activeKeyId,
+    'WON_PROJECT_HMAC_ACTIVE_SECRET' => $activeKeySecret,
+    'WON_PROJECT_HMAC_PREVIOUS_KEY_ID' => $prevKeyId,
+    'WON_PROJECT_HMAC_PREVIOUS_SECRET' => $prevKeySecret,
+    'WON_PROJECT_HMAC_PREVIOUS_ACCEPT_UNTIL' => $prevAcceptUntil,
+    'WON_PROJECT_MAX_TIMESTAMP_SKEW_SECONDS' => $maxTimestampSkew,
+    'WON_PROJECT_PRIVATE_CONFIG' => $privateConfigFile,
     'ACTIVE_KEY_ID' => $activeKeyId,
     'ACTIVE_KEY_SECRET' => $activeKeySecret,
     'PREVIOUS_KEY_ID' => $prevKeyId,

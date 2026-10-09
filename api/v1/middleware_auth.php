@@ -18,15 +18,31 @@ function verify_hmac_auth(array $config): void
 
     $now = time();
 
-    $activeKeyId = isset($config['ACTIVE_KEY_ID']) && is_string($config['ACTIVE_KEY_ID']) ? trim($config['ACTIVE_KEY_ID']) : null;
-    $activeKeySecret = isset($config['ACTIVE_KEY_SECRET']) && is_string($config['ACTIVE_KEY_SECRET']) && $config['ACTIVE_KEY_SECRET'] !== '' ? $config['ACTIVE_KEY_SECRET'] : null;
+    $activeKeyId = isset($config['WON_PROJECT_HMAC_ACTIVE_KEY_ID']) && is_string($config['WON_PROJECT_HMAC_ACTIVE_KEY_ID'])
+        ? trim($config['WON_PROJECT_HMAC_ACTIVE_KEY_ID'])
+        : (isset($config['ACTIVE_KEY_ID']) && is_string($config['ACTIVE_KEY_ID']) ? trim($config['ACTIVE_KEY_ID']) : null);
+    if ($activeKeyId === '') {
+        $activeKeyId = null;
+    }
 
-    $prevKeyId = isset($config['PREVIOUS_KEY_ID']) && is_string($config['PREVIOUS_KEY_ID']) ? trim($config['PREVIOUS_KEY_ID']) : null;
-    $prevKeySecret = isset($config['PREVIOUS_KEY_SECRET']) && is_string($config['PREVIOUS_KEY_SECRET']) && $config['PREVIOUS_KEY_SECRET'] !== '' ? $config['PREVIOUS_KEY_SECRET'] : null;
+    $activeKeySecret = isset($config['WON_PROJECT_HMAC_ACTIVE_SECRET']) && is_string($config['WON_PROJECT_HMAC_ACTIVE_SECRET']) && trim($config['WON_PROJECT_HMAC_ACTIVE_SECRET']) !== ''
+        ? trim($config['WON_PROJECT_HMAC_ACTIVE_SECRET'])
+        : (isset($config['ACTIVE_KEY_SECRET']) && is_string($config['ACTIVE_KEY_SECRET']) && trim($config['ACTIVE_KEY_SECRET']) !== '' ? trim($config['ACTIVE_KEY_SECRET']) : null);
 
+    $prevKeyId = isset($config['WON_PROJECT_HMAC_PREVIOUS_KEY_ID']) && is_string($config['WON_PROJECT_HMAC_PREVIOUS_KEY_ID'])
+        ? trim($config['WON_PROJECT_HMAC_PREVIOUS_KEY_ID'])
+        : (isset($config['PREVIOUS_KEY_ID']) && is_string($config['PREVIOUS_KEY_ID']) ? trim($config['PREVIOUS_KEY_ID']) : null);
+    if ($prevKeyId === '') {
+        $prevKeyId = null;
+    }
+
+    $prevKeySecret = isset($config['WON_PROJECT_HMAC_PREVIOUS_SECRET']) && is_string($config['WON_PROJECT_HMAC_PREVIOUS_SECRET']) && trim($config['WON_PROJECT_HMAC_PREVIOUS_SECRET']) !== ''
+        ? trim($config['WON_PROJECT_HMAC_PREVIOUS_SECRET'])
+        : (isset($config['PREVIOUS_KEY_SECRET']) && is_string($config['PREVIOUS_KEY_SECRET']) && trim($config['PREVIOUS_KEY_SECRET']) !== '' ? trim($config['PREVIOUS_KEY_SECRET']) : null);
+
+    $rawUntil = $config['WON_PROJECT_HMAC_PREVIOUS_ACCEPT_UNTIL'] ?? ($config['PREVIOUS_ACCEPT_UNTIL'] ?? null);
     $prevAcceptUntil = null;
-    if (isset($config['PREVIOUS_ACCEPT_UNTIL'])) {
-        $rawUntil = $config['PREVIOUS_ACCEPT_UNTIL'];
+    if ($rawUntil !== null && $rawUntil !== '') {
         if (is_int($rawUntil)) {
             $prevAcceptUntil = $rawUntil > 0 ? $rawUntil : null;
         } elseif (is_numeric($rawUntil)) {
@@ -40,15 +56,19 @@ function verify_hmac_auth(array $config): void
 
     $selectedSecret = null;
 
-    $activeConfigComplete = ($activeKeyId !== null && $activeKeyId !== '') && ($activeKeySecret !== null);
-    if ($activeConfigComplete && hash_equals($activeKeyId, $clientId)) {
-        $selectedSecret = $activeKeySecret;
+    $activeConfigComplete = ($activeKeyId !== null && $activeKeyId !== '') && ($activeKeySecret !== null && $activeKeySecret !== '');
+    if ($activeKeyId !== null && $activeKeyId !== '' && hash_equals($activeKeyId, $clientId)) {
+        if ($activeConfigComplete) {
+            $selectedSecret = $activeKeySecret;
+        } else {
+            error_response('UNAUTHORIZED', 'Invalid client', null, 401);
+        }
     }
 
     if ($selectedSecret === null) {
         $prevConfigComplete = ($prevKeyId !== null && $prevKeyId !== '')
-            && ($prevKeySecret !== null)
-            && ($prevAcceptUntil !== null);
+            && ($prevKeySecret !== null && $prevKeySecret !== '')
+            && ($prevAcceptUntil !== null && $prevAcceptUntil > 0);
 
         if ($prevKeyId !== null && $prevKeyId !== '' && hash_equals($prevKeyId, $clientId)) {
             if ($prevConfigComplete && $now <= $prevAcceptUntil) {
@@ -57,10 +77,6 @@ function verify_hmac_auth(array $config): void
                 error_response('UNAUTHORIZED', 'Invalid client', null, 401);
             }
         }
-    }
-
-    if ($selectedSecret === null && !$activeConfigComplete && isset($config['CLIENTS'][$clientId]) && is_string($config['CLIENTS'][$clientId])) {
-        $selectedSecret = $config['CLIENTS'][$clientId];
     }
 
     if ($selectedSecret === null) {
@@ -72,7 +88,8 @@ function verify_hmac_auth(array $config): void
     }
 
     $ts = (int)$timestamp;
-    $maxSkew = (int)($config['MAX_TIMESTAMP_SKEW_SECONDS'] ?? ($config['MAX_TIMESTAMP_SKEW'] ?? 300));
+    $rawMaxSkew = $config['WON_PROJECT_MAX_TIMESTAMP_SKEW_SECONDS'] ?? ($config['MAX_TIMESTAMP_SKEW_SECONDS'] ?? ($config['MAX_TIMESTAMP_SKEW'] ?? 300));
+    $maxSkew = is_numeric($rawMaxSkew) ? (int)$rawMaxSkew : 300;
     if ($maxSkew <= 0) {
         $maxSkew = 300;
     }
@@ -92,6 +109,9 @@ function verify_hmac_auth(array $config): void
         error_response('UNAUTHORIZED', 'Invalid signature', null, 401);
     }
 
-    $role = $config['CLIENT_ROLES'][$clientId] ?? 'service';
+    $role = 'service';
+    if (isset($config['CLIENT_ROLES']) && is_array($config['CLIENT_ROLES']) && isset($config['CLIENT_ROLES'][$clientId]) && is_string($config['CLIENT_ROLES'][$clientId])) {
+        $role = $config['CLIENT_ROLES'][$clientId];
+    }
     set_client_context($clientId, $role);
 }
