@@ -2,7 +2,13 @@ name: Deploy to FTP
 
 on:
   push:
-    branches: [ "main" ]
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: electroplan-production
+  cancel-in-progress: false
 
 jobs:
   ftp-deploy:
@@ -11,13 +17,39 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Build deploy artifact
+        run: |
+          mkdir -p deploy_artifact
+          rsync -av --delete \
+            --exclude='.git/' \
+            --exclude='.github/' \
+            --exclude='.gitignore' \
+            --exclude='.gitattributes' \
+            --exclude='.env*' \
+            --exclude='config.local.php' \
+            --exclude='tests/' \
+            --exclude='docs/' \
+            --exclude='harness/' \
+            --exclude='schemas/' \
+            --exclude='apps/' \
+            --exclude='node_modules/' \
+            --exclude='logs/' \
+            --exclude='dumps/' \
+            --exclude='temp/' \
+            --exclude='tmp/' \
+            --exclude='cache/' \
+            --exclude='*.md' \
+            --exclude='deploy_artifact/' \
+            ./ deploy_artifact/
+
       - name: Deploy to FTP server
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
           server: ${{ secrets.FTP_SERVER }}
           username: ${{ secrets.FTP_USERNAME }}
           password: ${{ secrets.FTP_PASSWORD }}
+          # FTP en puerto 21 se conserva y documenta por falta de evidencia de soporte FTPS en el servidor de destino
           port: 21
-          local-dir: ./
+          local-dir: ./deploy_artifact/
           server-dir: ./
           dangerous-clean-slate: false

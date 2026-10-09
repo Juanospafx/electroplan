@@ -1,0 +1,49 @@
+# Environment configuration
+.env
+.env.*
+*.env
+
+# Private and local configuration
+config.local.php
+*.local.php
+local.config.php
+config/*.local.php
+
+# Logs
+*.log
+logs/
+log/
+
+# Database dumps and backups
+*.sql
+*.dump
+dumps/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.temp
+*~
+
+# Caches
+cache/
+.cache/
+*.cache
+
+# Build outputs and deployment artifacts
+deploy_artifact/
+dist/
+build/
+outputs/
+out/
+
+# Orchestration harness and tooling
+harness/
+
+# Dependency directories and editor metadata
+node_modules/
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
