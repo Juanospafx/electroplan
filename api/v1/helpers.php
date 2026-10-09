@@ -52,7 +52,7 @@ function json_response(int $status, array $payload): void
     exit;
 }
 
-function ok_response($data, array $meta = null, int $status = 200): void
+function ok_response($data, ?array $meta = null, int $status = 200): void
 {
     $payload = [
         'ok' => true,
