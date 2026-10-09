@@ -15,9 +15,14 @@ logs/
 log/
 
 # Database dumps and backups
-*.sql
-*.dump
 dumps/
+*.dump
+dump.sql
+dump*.sql
+backup*.sql
+*.sql.dump
+*.sql.bak
+*.sql.gz
 
 # Temporary files
 tmp/

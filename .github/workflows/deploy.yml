@@ -39,8 +39,15 @@ jobs:
             --exclude='tmp/' \
             --exclude='cache/' \
             --exclude='*.md' \
+            --exclude='*.sql' \
+            --exclude='db/' \
+            --exclude='db/migrations/' \
             --exclude='deploy_artifact/' \
             ./ deploy_artifact/
+          test -d deploy_artifact/api
+          test -d deploy_artifact/core
+          test -d deploy_artifact/assets
+          test -f deploy_artifact/index.php
 
       - name: Deploy to FTP server
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
