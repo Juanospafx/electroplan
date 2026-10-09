@@ -344,8 +344,22 @@ try {
     $serviceSecret = bin2hex(random_bytes(24));
     $adminSecret   = bin2hex(random_bytes(24));
     $viewerSecret  = bin2hex(random_bytes(24));
+    $acceptUntil   = time() + 86400;
 
     $testConfigContent = "<?php\ndeclare(strict_types=1);\n\nreturn [\n"
+        . "    'WON_PROJECT_HMAC_ACTIVE_KEY_ID' => 'service-client',\n"
+        . "    'WON_PROJECT_HMAC_ACTIVE_SECRET' => " . var_export($serviceSecret, true) . ",\n"
+        . "    'WON_PROJECT_HMAC_PREVIOUS_KEY_ID' => 'viewer-client',\n"
+        . "    'WON_PROJECT_HMAC_PREVIOUS_SECRET' => " . var_export($viewerSecret, true) . ",\n"
+        . "    'WON_PROJECT_HMAC_PREVIOUS_ACCEPT_UNTIL' => " . $acceptUntil . ",\n"
+        . "    'WON_PROJECT_MAX_TIMESTAMP_SKEW_SECONDS' => 300,\n"
+        . "    'ACTIVE_KEY_ID' => 'service-client',\n"
+        . "    'ACTIVE_KEY_SECRET' => " . var_export($serviceSecret, true) . ",\n"
+        . "    'PREVIOUS_KEY_ID' => 'viewer-client',\n"
+        . "    'PREVIOUS_KEY_SECRET' => " . var_export($viewerSecret, true) . ",\n"
+        . "    'PREVIOUS_ACCEPT_UNTIL' => " . $acceptUntil . ",\n"
+        . "    'MAX_TIMESTAMP_SKEW_SECONDS' => 300,\n"
+        . "    'MAX_TIMESTAMP_SKEW' => 300,\n"
         . "    'CLIENTS' => [\n"
         . "        'service-client' => " . var_export($serviceSecret, true) . ",\n"
         . "        'admin-client'   => " . var_export($adminSecret, true) . ",\n"
@@ -356,7 +370,6 @@ try {
         . "        'admin-client'   => 'admin',\n"
         . "        'viewer-client'  => 'viewer',\n"
         . "    ],\n"
-        . "    'MAX_TIMESTAMP_SKEW' => 300,\n"
         . "];\n";
     file_put_contents($tempDir . '/api/v1/config.php', $testConfigContent);
 
