@@ -173,10 +173,11 @@ if ($rawSkew !== null && is_numeric($rawSkew)) {
 }
 
 $clientRoles = [];
-if (isset($privateConfig['CLIENT_ROLES']) && is_array($privateConfig['CLIENT_ROLES'])) {
-    $clientRoles = $privateConfig['CLIENT_ROLES'];
-} elseif (isset($privateConfig['WON_PROJECT_CLIENT_ROLES']) && is_array($privateConfig['WON_PROJECT_CLIENT_ROLES'])) {
-    $clientRoles = $privateConfig['WON_PROJECT_CLIENT_ROLES'];
+if ($activeKeyId !== null && $activeKeySecret !== null) {
+    $clientRoles[$activeKeyId] = 'admin';
+}
+if ($prevKeyId !== null && $prevKeySecret !== null && $prevAcceptUntil !== null && $prevAcceptUntil >= time()) {
+    $clientRoles[$prevKeyId] = 'admin';
 }
 
 $clients = [];
