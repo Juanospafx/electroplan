@@ -185,6 +185,8 @@ final class DeploymentWorkflowContractTest
             'tests',
             'docs',
             'harness',
+            'db',
+            'db/migrations',
         ];
 
         foreach ($requiredExclusions as $exclusion) {
@@ -196,6 +198,15 @@ final class DeploymentWorkflowContractTest
                 "Build artifact step excludes '{$exclusion}'"
             );
         }
+
+        // Verify artifact step explicitly asserts physical runtime files/directories
+        $this->assert(
+            str_contains($content, 'test -d deploy_artifact/api') &&
+            str_contains($content, 'test -d deploy_artifact/core') &&
+            str_contains($content, 'test -d deploy_artifact/assets') &&
+            str_contains($content, 'test -f deploy_artifact/index.php'),
+            "Artifact build step explicitly verifies api, core, assets, and index.php in deploy_artifact"
+        );
 
         // Test exclusion filter simulation against candidate file sets
         $simulatedExcludedPaths = [
@@ -212,6 +223,8 @@ final class DeploymentWorkflowContractTest
             'schemas/task.schema.json',
             'node_modules/dummy/index.js',
             'config.local.php',
+            'db/migrations/20261006_init.sql',
+            'db/schema.sql',
         ];
 
         $simulatedRuntimePaths = [
@@ -325,6 +338,11 @@ final class DeploymentWorkflowContractTest
             fn($line) => $line !== '' && !str_starts_with($line, '#')
         ));
 
+        $this->assert(
+            !in_array('*.sql', $patterns, true),
+            ".gitignore does NOT contain global '*.sql' rule"
+        );
+
         $testCases = [
             'env' => ['.env', '.env.local', '.env.production'],
             'config privada' => ['config.local.php', 'db.local.php', 'local.config.php'],
@@ -341,6 +359,16 @@ final class DeploymentWorkflowContractTest
                 $ignored = $this->isPathGitignored($path, $patterns);
                 $this->assert($ignored, ".gitignore protects {$category}: {$path}");
             }
+        }
+
+        $legitimateSqlPaths = [
+            'db/schema.sql',
+            'db/migrations/20261006_init.sql',
+        ];
+
+        foreach ($legitimateSqlPaths as $path) {
+            $ignored = $this->isPathGitignored($path, $patterns);
+            $this->assert(!$ignored, "Legitimate repository SQL file is visible (NOT ignored): {$path}");
         }
     }
 
