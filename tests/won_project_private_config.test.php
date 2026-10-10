@@ -86,9 +86,11 @@ function remove_dir_recursive(string $dir): void
         if (is_dir($path) && !is_link($path)) {
             remove_dir_recursive($path);
         } else {
+            @chmod($path, 0777);
             @unlink($path);
         }
     }
+    @chmod($dir, 0777);
     @rmdir($dir);
 }
 
@@ -107,7 +109,13 @@ $tempDir = realpath($tempDir) ?: $tempDir;
 
 $cleanup = function () use (&$tempDir): void {
     if (is_string($tempDir) && is_dir($tempDir)) {
-        remove_dir_recursive($tempDir);
+        for ($i = 0; $i < 5; $i++) {
+            remove_dir_recursive($tempDir);
+            if (!is_dir($tempDir)) {
+                break;
+            }
+            usleep(25000);
+        }
     }
 };
 
@@ -130,7 +138,22 @@ function run_isolated(string $scriptCode, array $env = [], ?string $docRoot = nu
         2 => ['pipe', 'w'],
     ];
 
-    $procEnv = $_SERVER;
+    $procEnv = [];
+    foreach ($_SERVER as $k => $v) {
+        if (is_array($v) || is_object($v)) {
+            continue;
+        }
+        $procEnv[(string)$k] = (string)$v;
+    }
+    foreach ($_ENV as $k => $v) {
+        if (is_array($v) || is_object($v)) {
+            continue;
+        }
+        if (!isset($procEnv[(string)$k])) {
+            $procEnv[(string)$k] = (string)$v;
+        }
+    }
+
     // Clear tracked variables from inherited environment
     $trackedKeys = [
         'WON_PROJECT_PRIVATE_CONFIG',
@@ -148,10 +171,10 @@ function run_isolated(string $scriptCode, array $env = [], ?string $docRoot = nu
 
     // Apply custom test environment
     foreach ($env as $k => $v) {
-        if ($v === null) {
+        if ($v === null || is_array($v) || is_object($v)) {
             unset($procEnv[$k]);
         } else {
-            $procEnv[$k] = (string)$v;
+            $procEnv[(string)$k] = (string)$v;
         }
     }
 
@@ -677,11 +700,13 @@ try {
     assert_no_leak($resOld['stdout'], $sensitiveAuthTerms, 'Group 10: Skew error output');
 
     echo "All Electroplan HMAC private config and rotation regression tests passed successfully.\n";
+    $cleanup();
     exit(0);
 
 } catch (\Throwable $e) {
     echo "TEST FAILURE: " . $e->getMessage() . "\n";
     echo $e->getTraceAsString() . "\n";
+    $cleanup();
     exit(1);
 } finally {
     $cleanup();

@@ -15,13 +15,13 @@ $getEnv = static function (string $key): ?string {
             return $val;
         }
     }
-    if (isset($_ENV[$key])) {
+    if (isset($_ENV[$key]) && is_scalar($_ENV[$key])) {
         $val = trim((string)$_ENV[$key]);
         if ($val !== '') {
             return $val;
         }
     }
-    if (isset($_SERVER[$key])) {
+    if (isset($_SERVER[$key]) && is_scalar($_SERVER[$key])) {
         $val = trim((string)$_SERVER[$key]);
         if ($val !== '') {
             return $val;
@@ -61,10 +61,10 @@ $privateConfig = [];
 
 if ($isPrivateConfigDefined) {
     $rawVal = getenv('WON_PROJECT_PRIVATE_CONFIG');
-    if ($rawVal === false && isset($_ENV['WON_PROJECT_PRIVATE_CONFIG'])) {
+    if ($rawVal === false && isset($_ENV['WON_PROJECT_PRIVATE_CONFIG']) && is_scalar($_ENV['WON_PROJECT_PRIVATE_CONFIG'])) {
         $rawVal = (string)$_ENV['WON_PROJECT_PRIVATE_CONFIG'];
     }
-    if (($rawVal === false || $rawVal === null) && isset($_SERVER['WON_PROJECT_PRIVATE_CONFIG'])) {
+    if (($rawVal === false || $rawVal === null) && isset($_SERVER['WON_PROJECT_PRIVATE_CONFIG']) && is_scalar($_SERVER['WON_PROJECT_PRIVATE_CONFIG'])) {
         $rawVal = (string)$_SERVER['WON_PROJECT_PRIVATE_CONFIG'];
     }
 
@@ -82,8 +82,20 @@ if ($isPrivateConfigDefined) {
         throw new \RuntimeException('Configuration error');
     }
 
-    if (!empty($_SERVER['DOCUMENT_ROOT'])) {
-        if ($isInsideOrEqual($realPrivate, (string)$_SERVER['DOCUMENT_ROOT'])) {
+    $docRoots = [];
+    if (isset($_SERVER['DOCUMENT_ROOT']) && is_string($_SERVER['DOCUMENT_ROOT']) && trim($_SERVER['DOCUMENT_ROOT']) !== '') {
+        $docRoots[] = trim($_SERVER['DOCUMENT_ROOT']);
+    }
+    $envDocRoot = getenv('DOCUMENT_ROOT');
+    if ($envDocRoot !== false && trim((string)$envDocRoot) !== '') {
+        $docRoots[] = trim((string)$envDocRoot);
+    }
+    if (isset($_ENV['DOCUMENT_ROOT']) && is_string($_ENV['DOCUMENT_ROOT']) && trim($_ENV['DOCUMENT_ROOT']) !== '') {
+        $docRoots[] = trim($_ENV['DOCUMENT_ROOT']);
+    }
+
+    foreach (array_unique($docRoots) as $docRoot) {
+        if ($isInsideOrEqual($realPrivate, $docRoot)) {
             throw new \RuntimeException('Configuration error');
         }
     }
