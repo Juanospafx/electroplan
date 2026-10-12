@@ -1,12 +1,16 @@
 <?php
 // db.php style config
-$host = 'localhost';
-$db   = 'brightro_panelmaster';
-$user = 'brightro_panelmaster';
-$pass = 'rootadmin01#';
-$charset = 'utf8mb4';
+require_once dirname(__DIR__, 4) . '/core/config/DatabaseConfig.php';
 
-$dsn = "mysql:host=$host;dbname=$db;charset=$charset";
+$config = DatabaseConfig::load();
+$host = $config['host'];
+$db   = $config['name'];
+$user = $config['user'];
+$pass = $config['password'];
+$port = $config['port'];
+$charset = $config['charset'] ?? 'utf8mb4';
+
+$dsn = DatabaseConfig::getDsn($config);
 $options = [
     PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
@@ -14,11 +18,9 @@ $options = [
 ];
 
 try {
-    $pdo = new PDO($dsn, $user, $pass, $options);
-} catch (PDOException $e) {
-    http_response_code(500);
-    echo 'Database connection failed';
-    exit;
+    $pdo = DatabaseConfig::createPdo($dsn, $user, $pass, $options);
+} catch (\PDOException $e) {
+    throw new \PDOException('Database connection failed');
 }
 
 return $pdo;
