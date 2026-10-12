@@ -284,12 +284,20 @@ function http_request(string $method, string $path, array $headers, string $body
     }
 
     $json = json_decode($responseBody, true);
+    if (!is_array($json)) {
+        $boundedBody = substr($responseBody, 0, 500);
+        throw new \RuntimeException(sprintf(
+            'HTTP response is not valid JSON (status %d): %s',
+            $statusCode,
+            $boundedBody
+        ));
+    }
 
     return [
         'status' => $statusCode,
         'headers' => $parsedHeaders,
         'raw_body' => $responseBody,
-        'json' => is_array($json) ? $json : null,
+        'json' => $json,
     ];
 }
 
@@ -457,9 +465,10 @@ if ($mode === 'imported') {
     WonProjectsController::setImportService(null);
 }
 
-// Predefine $pdo for SQLite memory
-$pdo = new PDO('sqlite::memory:');
-$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+// Predefine $pdo as an anonymous PDO subclass with an empty constructor
+$pdo = new class extends PDO {
+    public function __construct() {}
+};
 
 // Delegate to real entrypoint
 require __DIR__ . '/api/v1/index.php';
