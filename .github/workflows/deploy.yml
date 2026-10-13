@@ -48,6 +48,19 @@ jobs:
           test -d deploy_artifact/core
           test -d deploy_artifact/assets
           test -f deploy_artifact/index.php
+          NOW_UTC=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+          cat <<EOF > deploy_artifact/deployment_manifest.json
+          {
+            "format_version": "1.0.0",
+            "repository": "${{ github.repository }}",
+            "commit_sha": "${{ github.sha }}",
+            "generated_at_utc": "${NOW_UTC}",
+            "workflow_run_id": "${{ github.run_id }}"
+          }
+          EOF
+          (cd deploy_artifact && find . -type f ! -name 'SHA256SUMS' -print0 | LC_ALL=C sort -z | xargs -0 sha256sum > SHA256SUMS)
+          test -f deploy_artifact/deployment_manifest.json
+          test -f deploy_artifact/SHA256SUMS
 
       - name: Deploy to FTP server
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
