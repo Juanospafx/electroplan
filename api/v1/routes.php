@@ -10,6 +10,7 @@ return [
     ['PATCH','/api/v1/projects/{id}',             'ProjectsController@update',    true],
     ['POST', '/api/v1/projects/{id}/assign',      'DirectoryController@assign',   true],
     ['GET',  '/api/v1/projects/{id}/folders',     'FoldersController@index',      true],
-    ['POST', '/api/v1/files',                     'FilesController@store',        true],
-    ['GET',  '/api/v1/directory',                 'DirectoryController@index',    true],
+    ['POST', '/api/v1/files',                               'FilesController@store',         true],
+    ['GET',  '/api/v1/directory',                           'DirectoryController@index',     true],
+    ['POST', '/api/v1/integrations/takeoff/won-projects',   'WonProjectsController@store',   true],
 ];

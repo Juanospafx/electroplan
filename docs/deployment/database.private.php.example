@@ -1,0 +1,24 @@
+<?php
+/**
+ * Electroplan - Plantilla de Configuración Privada de Base de Datos
+ *
+ * INSTRUCCIONES DE DESPLIEGUE:
+ * 1. Copie este archivo a una ubicación segura fuera del repositorio y del document root del servidor web
+ *    (ejemplo: /etc/electroplan/database.private.php o C:\secure\electroplan\database.private.php).
+ * 2. Asegúrese de que los permisos del archivo restrinjan el acceso al usuario del servidor web.
+ * 3. Configure la variable de entorno:
+ *    ELECTROPLAN_DB_PRIVATE_CONFIG=/ruta/segura/a/database.private.php
+ * 4. Reemplace los placeholders no utilizables con los valores reales del entorno.
+ *
+ * NOTA: Las variables de entorno individuales (ELECTROPLAN_DB_HOST, ELECTROPLAN_DB_PORT,
+ * ELECTROPLAN_DB_NAME, ELECTROPLAN_DB_USER, ELECTROPLAN_DB_PASSWORD) tienen precedencia
+ * sobre los valores definidos en este archivo.
+ */
+
+return [
+    'ELECTROPLAN_DB_HOST' => 'db.example.invalid',
+    'ELECTROPLAN_DB_PORT' => '3306',
+    'ELECTROPLAN_DB_NAME' => 'electroplan_db_placeholder',
+    'ELECTROPLAN_DB_USER' => 'electroplan_user_placeholder',
+    'ELECTROPLAN_DB_PASSWORD' => 'replace_with_secure_password_placeholder',
+];
