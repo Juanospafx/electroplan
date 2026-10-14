@@ -1,55 +1,81 @@
 <?php
 // login.php - Diseño Moderno V5.2 (Show Password Toggle)
-$__ep_debug_log = __DIR__ . '/../logs/login_debug.log';
-if (!is_dir(dirname($__ep_debug_log))) { @mkdir(dirname($__ep_debug_log), 0775, true); }
-function ep_login_log($msg) {
-    global $__ep_debug_log;
-    @file_put_contents($__ep_debug_log, '['.date('c').'] '.$msg.PHP_EOL, FILE_APPEND);
+
+if (!function_exists('ep_login_log')) {
+    function ep_login_log(string $msg): void {
+        // Incidental file/log writes disabled in runtime
+    }
+}
+
+if (isset($injectedPdo) && $injectedPdo instanceof PDO) {
+    $pdo = $injectedPdo;
+} elseif (!isset($pdo)) {
+    try {
+        require_once __DIR__ . '/../core/db/connection.php';
+    } catch (Throwable $e) {
+        ep_login_log('DB bootstrap error');
+        if (php_sapi_name() !== 'cli') {
+            http_response_code(500);
+            exit('Internal Server Error');
+        }
+    }
 }
 
 try {
-    require_once __DIR__ . '/../core/db/connection.php';
+    if (session_status() !== PHP_SESSION_ACTIVE && !headers_sent()) session_start();
 } catch (Throwable $e) {
-    ep_login_log('DB bootstrap error: ' . $e->getMessage());
-    http_response_code(500);
-    exit('Internal Server Error');
-}
-
-try {
-    if (session_status() !== PHP_SESSION_ACTIVE) session_start();
-} catch (Throwable $e) {
-    ep_login_log('Session start error: ' . $e->getMessage());
+    ep_login_log('Session start error');
 }
 
 ep_login_log('login.php loaded');
 
+require_once __DIR__ . '/../config/SsoConfig.php';
+
+$ssoEnabled = false;
+if (isset($injectedSsoConfig) && is_array($injectedSsoConfig)) {
+    $ssoEnabled = !empty($injectedSsoConfig['enabled']) || !empty($injectedSsoConfig['SSO_ENABLED']);
+} elseif (isset($injectedSsoEnabled)) {
+    $ssoEnabled = (bool)$injectedSsoEnabled;
+} else {
+    $ssoEnabled = class_exists('\SsoConfig') && \SsoConfig::isEnabled();
+}
+
 $error = '';
+if (!empty($_GET['error'])) {
+    $error = 'Authentication failed. Please try again.';
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $user = trim($_POST['username']);
-    $pass = $_POST['password'];
+    $user = trim($_POST['username'] ?? '');
+    $pass = $_POST['password'] ?? '';
 
     if (!empty($user) && !empty($pass)) {
-        // Buscar usuario
-        $stmt = $pdo->prepare("SELECT id, username, password, role FROM users WHERE username = ?");
-        $stmt->execute([$user]);
-        $userData = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (isset($pdo) && $pdo instanceof PDO) {
+            // Buscar usuario
+            $stmt = $pdo->prepare("SELECT id, username, password, role FROM users WHERE username = ?");
+            $stmt->execute([$user]);
+            $userData = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        if ($userData) {
-            // Usuario existe, verificamos contraseña
-            if (password_verify($pass, $userData['password'])) {
-                // Login Exitoso
-                $_SESSION['user_id'] = $userData['id'];
-                $_SESSION['username'] = $userData['username'];
-                $_SESSION['role'] = $userData['role'];
-                
-                header("Location: index.php");
-                exit;
+            if ($userData) {
+                // Usuario existe, verificamos contraseña
+                if (password_verify($pass, $userData['password'])) {
+                    // Login Exitoso
+                    $_SESSION['user_id'] = $userData['id'];
+                    $_SESSION['username'] = $userData['username'];
+                    $_SESSION['role'] = $userData['role'];
+
+                    if (!headers_sent() && php_sapi_name() !== 'cli') {
+                        header("Location: index.php");
+                        exit;
+                    }
+                } else {
+                    $error = "Contraseña incorrecta.";
+                }
             } else {
-                $error = "Contraseña incorrecta.";
+                $error = "El usuario no existe.";
             }
         } else {
-            $error = "El usuario no existe.";
+            $error = "Error de conexión con la base de datos.";
         }
     } else {
         $error = "Por favor complete todos los campos.";
@@ -317,7 +343,20 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
 
         <?php if($error): ?>
             <div class="alert alert-danger py-2 text-center mb-4">
-                <i class="fas fa-exclamation-circle me-2"></i> <?= $error ?>
+                <i class="fas fa-exclamation-circle me-2"></i> <?= htmlspecialchars($error, ENT_QUOTES, 'UTF-8') ?>
+            </div>
+        <?php endif; ?>
+
+        <?php if (!empty($ssoEnabled)): ?>
+            <div class="mb-3 text-center">
+                <a href="sso-login.php" class="btn btn-outline-primary w-100 btn-sso" id="ssoLoginBtn" style="border-radius: 50px; padding: 12px; font-weight: 600; border-color: var(--primary); color: white; background: rgba(251, 90, 58, 0.15); text-decoration: none; display: block;">
+                    <i class="fas fa-shield-alt me-2"></i> Iniciar sesión con SSO
+                </a>
+            </div>
+            <div class="d-flex align-items-center my-3">
+                <hr class="flex-grow-1" style="border-color: var(--border-subtle); margin: 0;">
+                <span class="px-2 text-muted" style="font-size: 0.8rem;">o con contraseña</span>
+                <hr class="flex-grow-1" style="border-color: var(--border-subtle); margin: 0;">
             </div>
         <?php endif; ?>
 
