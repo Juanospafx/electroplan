@@ -964,6 +964,10 @@ $_POST = [];
 $logoutGetResult = require dirname(__DIR__) . '/pages/logout.php';
 $runner->assert(is_array($logoutGetResult) && $logoutGetResult['success'] === false, 'logout.php via GET returns failure');
 $runner->assert(!empty($_SESSION['user_id']) && $_SESSION['user_id'] === 1, 'logout.php via GET preserves session user_id (fails closed)');
+$runner->assert(!empty($_SESSION['username']) && $_SESSION['username'] === 'carlos_tech', 'logout.php via GET preserves session username');
+$runner->assert(!empty($_SESSION['role']) && $_SESSION['role'] === 'technician', 'logout.php via GET preserves session role');
+$runner->assert(!empty($_SESSION['sso_provider']) && $_SESSION['sso_provider'] === 'central_hub', 'logout.php via GET preserves federation provider');
+$runner->assert(!empty($_SESSION['sso_hub_user_id']) && $_SESSION['sso_hub_user_id'] === 'hub-tech-101', 'logout.php via GET preserves federation hub_user_id');
 
 // 7.2 Logout via POST without CSRF token is rejected
 $_SESSION = [
@@ -981,6 +985,9 @@ $_POST = [];
 $logoutNoCsrfResult = require dirname(__DIR__) . '/pages/logout.php';
 $runner->assert(is_array($logoutNoCsrfResult) && $logoutNoCsrfResult['success'] === false, 'logout.php without CSRF token returns failure');
 $runner->assert(!empty($_SESSION['user_id']) && $_SESSION['user_id'] === 1, 'logout.php without CSRF token preserves session (fails closed)');
+$runner->assert(!empty($_SESSION['username']) && $_SESSION['username'] === 'carlos_tech', 'logout.php without CSRF token preserves session username');
+$runner->assert(!empty($_SESSION['role']) && $_SESSION['role'] === 'technician', 'logout.php without CSRF token preserves session role');
+$runner->assert(!empty($_SESSION['sso_provider']) && $_SESSION['sso_provider'] === 'central_hub', 'logout.php without CSRF token preserves federation provider');
 
 // 7.3 Logout via POST with invalid CSRF token is rejected
 $_SERVER['REQUEST_METHOD'] = 'POST';
@@ -989,6 +996,9 @@ $_POST = ['csrf_token' => 'tampered_invalid_token'];
 $logoutBadCsrfResult = require dirname(__DIR__) . '/pages/logout.php';
 $runner->assert(is_array($logoutBadCsrfResult) && $logoutBadCsrfResult['success'] === false, 'logout.php with invalid CSRF token returns failure');
 $runner->assert(!empty($_SESSION['user_id']) && $_SESSION['user_id'] === 1, 'logout.php with invalid CSRF token preserves session (fails closed)');
+$runner->assert(!empty($_SESSION['username']) && $_SESSION['username'] === 'carlos_tech', 'logout.php with invalid CSRF token preserves session username');
+$runner->assert(!empty($_SESSION['role']) && $_SESSION['role'] === 'technician', 'logout.php with invalid CSRF token preserves session role');
+$runner->assert(!empty($_SESSION['sso_provider']) && $_SESSION['sso_provider'] === 'central_hub', 'logout.php with invalid CSRF token preserves federation provider');
 
 // 7.4 Logout via POST with valid CSRF token succeeds
 $_SESSION['csrf_token'] = SsoSession::getCsrfToken();
@@ -1001,11 +1011,76 @@ $runner->assert(is_array($logoutResult) && $logoutResult['success'] === true, 'l
 $runner->assert($logoutResult['redirect_url'] === 'login.php', 'logout.php target redirect is local login.php');
 $runner->assert(empty($_SESSION), 'logout.php clears all $_SESSION variables');
 $runner->assert(!isset($_SESSION['user_id']), 'logout.php removes user_id from session');
+$runner->assert(!isset($_SESSION['username']), 'logout.php removes username from session');
 $runner->assert(!isset($_SESSION['role']), 'logout.php removes role from session');
-$runner->assert(!isset($_SESSION['sso_provider']), 'logout.php removes federation metadata');
+$runner->assert(!isset($_SESSION['sso_provider']), 'logout.php removes federation provider metadata');
+$runner->assert(!isset($_SESSION['sso_hub_user_id']), 'logout.php removes federation hub_user_id metadata');
+$runner->assert(!isset($_SESSION['sso_authenticated_at']), 'logout.php removes federation authenticated_at metadata');
 $runner->assert(isset($logoutResult['cookie']) && $logoutResult['cookie']['secure'] === true, 'logout.php enforces Secure=true cookie attribute');
 $runner->assert(isset($logoutResult['cookie']) && $logoutResult['cookie']['httponly'] === true, 'logout.php enforces HttpOnly=true cookie attribute');
 $runner->assert(isset($logoutResult['cookie']) && $logoutResult['cookie']['samesite'] === 'Lax', 'logout.php enforces SameSite=Lax cookie attribute');
+$runner->assert(isset($logoutResult['cookie']) && $logoutResult['cookie']['expires'] < time(), 'logout.php enforces expired cookie timestamp in the past');
+
+// 7.5 Direct SsoSession::logout() invocation cleans local and federation state
+$_SESSION = [
+    'user_id' => 2,
+    'username' => 'maria_admin',
+    'role' => 'admin',
+    'sso_provider' => 'central_hub',
+    'sso_hub_user_id' => 'hub-admin-202',
+    'sso_authenticated_at' => time(),
+    'csrf_token' => 'some_csrf_val',
+    'sso_state' => 'transient_state',
+];
+$directLogoutCookie = SsoSession::logout();
+$runner->assert(empty($_SESSION), 'SsoSession::logout() clears all session variables');
+$runner->assert($directLogoutCookie['secure'] === true, 'SsoSession::logout() cookie is Secure=true');
+$runner->assert($directLogoutCookie['httponly'] === true, 'SsoSession::logout() cookie is HttpOnly=true');
+$runner->assert($directLogoutCookie['samesite'] === 'Lax', 'SsoSession::logout() cookie is SameSite=Lax');
+$runner->assert($directLogoutCookie['expires'] < time(), 'SsoSession::logout() cookie expires in the past');
+
+// 7.6 UI form submission in views/sidebar.php submits via POST with session-bound CSRF
+$_SESSION = [
+    'user_id' => 1,
+    'username' => 'carlos_tech',
+    'role' => 'technician',
+    'csrf_token' => SsoSession::getCsrfToken(),
+];
+$_SERVER['REQUEST_METHOD'] = 'GET';
+$_SERVER['PHP_SELF'] = '/pages/index.php';
+ob_start();
+require dirname(__DIR__) . '/views/sidebar.php';
+$sidebarHtml = ob_get_clean();
+
+$runner->assert(stripos($sidebarHtml, '<form') !== false, 'sidebar.php renders form for logout');
+$runner->assert(preg_match('/<form[^>]+method=["\']POST["\']/i', $sidebarHtml) === 1, 'sidebar.php logout form uses method="POST"');
+$runner->assert(preg_match('/<form[^>]+action=["\'][^"\']*logout\.php["\']/i', $sidebarHtml) === 1, 'sidebar.php logout form action points to logout.php');
+$runner->assert(strpos($sidebarHtml, 'name="csrf_token"') !== false, 'sidebar.php logout form includes csrf_token input');
+$runner->assert(strpos($sidebarHtml, 'value="' . $_SESSION['csrf_token'] . '"') !== false, 'sidebar.php csrf_token input value matches session-bound CSRF token');
+$runner->assert(preg_match('/<button[^>]+type=["\']submit["\'][^>]*>.*?Logout/is', $sidebarHtml) === 1, 'sidebar.php includes submit button with Logout text');
+$runner->assert(preg_match('/<a[^>]+href=["\'][^"\']*logout\.php["\']/i', $sidebarHtml) === 0, 'sidebar.php contains zero GET links to logout.php');
+
+// 7.7 Traditional local login rollback works cleanly after logout
+$_SESSION = [];
+SsoSession::resetLifecycle();
+$freshCsrf = SsoSession::getCsrfToken();
+$_SERVER['REQUEST_METHOD'] = 'POST';
+$_POST = [
+    'username' => 'carlos_tech',
+    'password' => 'TechPassword123!',
+    'csrf_token' => $freshCsrf,
+];
+$injectedPdo = $pdo;
+$injectedSsoEnabled = false;
+$error = '';
+ob_start();
+require dirname(__DIR__) . '/pages/login.php';
+ob_end_clean();
+
+$runner->assert(!empty($_SESSION['user_id']) && $_SESSION['user_id'] === 1, 'Post-logout rollback to traditional login succeeds with user_id');
+$runner->assert(!empty($_SESSION['username']) && $_SESSION['username'] === 'carlos_tech', 'Post-logout rollback to traditional login establishes username');
+$runner->assert(!empty($_SESSION['role']) && $_SESSION['role'] === 'technician', 'Post-logout rollback to traditional login establishes role');
+$runner->assert(empty($_SESSION['sso_provider']), 'Traditional local login establishes zero federation metadata');
 
 $_SERVER['REQUEST_METHOD'] = 'GET';
 $_POST = [];

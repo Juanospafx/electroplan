@@ -1,7 +1,7 @@
 <?php
 // sidebar.php - Barra lateral centralizada e inteligente
 // Detectamos el script actual y los parámetros
-$currentScript = basename($_SERVER['PHP_SELF']);
+$currentScript = basename($_SERVER['PHP_SELF'] ?? '');
 $pId   = $_GET['project_id'] ?? null;
 $view  = $_GET['view'] ?? '';
 
@@ -20,6 +20,11 @@ $isDashboard = ($currentScript === 'index.php' && !$pId && !$isTrash);
 $userRoleRawSidebar = $_SESSION['role'] ?? 'viewer';
 $isAdminSidebar = (strtolower($userRoleRawSidebar) === 'admin');
 $isNotViewerSidebar = (strtolower($userRoleRawSidebar) !== 'viewer');
+
+if (!class_exists('\Electroplan\Auth\SsoSession')) {
+    require_once __DIR__ . '/../core/auth/SsoSession.php';
+}
+$csrfTokenSidebar = \Electroplan\Auth\SsoSession::getCsrfToken();
 ?>
 
 <style>
@@ -172,8 +177,11 @@ $isNotViewerSidebar = (strtolower($userRoleRawSidebar) !== 'viewer');
     </div>
     
     <div class="px-4 pb-4">
-        <a href="../pages/logout.php" class="menu-item text-danger">
-            <i class="fas fa-sign-out-alt"></i><span class="menu-label">Logout</span>
-        </a>
+        <form method="POST" action="../pages/logout.php" style="margin: 0; padding: 0;">
+            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars($csrfTokenSidebar, ENT_QUOTES, 'UTF-8') ?>">
+            <button type="submit" class="menu-item text-danger" aria-label="Logout" style="cursor: pointer; width: 100%; border: 1px solid transparent; background: transparent; text-align: left; font-family: inherit;">
+                <i class="fas fa-sign-out-alt"></i><span class="menu-label">Logout</span>
+            </button>
+        </form>
     </div>
 </nav>

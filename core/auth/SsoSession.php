@@ -419,14 +419,46 @@ class SsoSession
     }
 
     /**
+     * Clears all local and federation session state, safely invalidates the session cookie,
+     * and destroys the session.
+     *
+     * @return array<string, mixed> Enforced expired cookie options.
+     */
+    public static function logout(): array
+    {
+        $_SESSION = [];
+
+        $params = session_get_cookie_params();
+        $cookieOptions = [
+            'expires' => time() - 42000,
+            'path' => !empty($params['path']) ? $params['path'] : '/',
+            'domain' => !empty($params['domain']) ? $params['domain'] : '',
+            'secure' => true,
+            'httponly' => true,
+            'samesite' => 'Lax',
+        ];
+
+        if (ini_get('session.use_cookies') && !headers_sent()) {
+            setcookie(
+                session_name(),
+                '',
+                $cookieOptions
+            );
+        }
+
+        if (session_status() === PHP_SESSION_ACTIVE && !headers_sent()) {
+            @session_destroy();
+        }
+
+        return $cookieOptions;
+    }
+
+    /**
      * Clears and destroys the current session.
      */
     public static function destroy(): void
     {
-        $_SESSION = [];
-        if (session_status() === PHP_SESSION_ACTIVE && !headers_sent()) {
-            @session_destroy();
-        }
+        self::logout();
     }
 
     /**
