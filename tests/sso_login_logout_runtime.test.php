@@ -423,6 +423,49 @@ $runner->assert(!empty($_SESSION['user_id']) && $_SESSION['user_id'] === 1, 'Loc
 $runner->assert(!empty($_SESSION['username']) && $_SESSION['username'] === 'carlos_tech', 'Local login sets username in session');
 $runner->assert(!empty($_SESSION['role']) && $_SESSION['role'] === 'technician', 'Local login sets role in session');
 $runner->assert(SsoSession::wasSessionIdRegenerated() === true, 'Session identifier regenerates after successful local authentication');
+$runner->assert($_SESSION['csrf_token'] !== $validToken, 'Local login rotates CSRF token on successful authentication');
+$runner->assert(SsoSession::validateCsrfToken($_SESSION['csrf_token']) === true, 'New post-login CSRF token is valid');
+$runner->assert(SsoSession::validateCsrfToken($validToken) === false, 'Pre-login CSRF token is invalidated');
+
+// 2.1.d Successful local login for active admin
+$_SESSION = [];
+SsoSession::resetLifecycle();
+$validTokenAdmin = SsoSession::getCsrfToken();
+$_SERVER['REQUEST_METHOD'] = 'POST';
+$_POST = [
+    'username' => 'maria_admin',
+    'password' => 'AdminPass456!',
+    'csrf_token' => $validTokenAdmin,
+];
+$error = '';
+ob_start();
+require dirname(__DIR__) . '/pages/login.php';
+ob_end_clean();
+
+$runner->assert(!empty($_SESSION['user_id']) && $_SESSION['user_id'] === 2, 'Local login creates session user_id for admin');
+$runner->assert(!empty($_SESSION['username']) && $_SESSION['username'] === 'maria_admin', 'Local login sets username in session for admin');
+$runner->assert(!empty($_SESSION['role']) && $_SESSION['role'] === 'admin', 'Local login sets admin role in session');
+$runner->assert(SsoSession::wasSessionIdRegenerated() === true, 'Session identifier regenerates after admin authentication');
+
+// 2.1.e Successful local login for active viewer
+$_SESSION = [];
+SsoSession::resetLifecycle();
+$validTokenViewer = SsoSession::getCsrfToken();
+$_SERVER['REQUEST_METHOD'] = 'POST';
+$_POST = [
+    'username' => 'juan_viewer',
+    'password' => 'ViewerPass789!',
+    'csrf_token' => $validTokenViewer,
+];
+$error = '';
+ob_start();
+require dirname(__DIR__) . '/pages/login.php';
+ob_end_clean();
+
+$runner->assert(!empty($_SESSION['user_id']) && $_SESSION['user_id'] === 3, 'Local login creates session user_id for viewer');
+$runner->assert(!empty($_SESSION['username']) && $_SESSION['username'] === 'juan_viewer', 'Local login sets username in session for viewer');
+$runner->assert(!empty($_SESSION['role']) && $_SESSION['role'] === 'viewer', 'Local login sets viewer role in session');
+$runner->assert(SsoSession::wasSessionIdRegenerated() === true, 'Session identifier regenerates after viewer authentication');
 
 // 2.2 Local login with invalid password fails (with valid CSRF)
 $_SESSION = [];
@@ -1149,6 +1192,14 @@ $rotatedCsrf = SsoSession::getCsrfToken(true);
 $runner->assert($rotatedCsrf !== $generatedCsrf, 'SsoSession rotates CSRF token on demand');
 $runner->assert(SsoSession::validateCsrfToken($rotatedCsrf) === true, 'Rotated CSRF token is valid');
 $runner->assert(SsoSession::validateCsrfToken($generatedCsrf) === false, 'Previous CSRF token is no longer valid after rotation');
+
+// 8.7 Role whitelist exact validation
+$runner->assert(SsoSession::isAllowedRole('admin') === true, 'SsoSession::isAllowedRole accepts admin');
+$runner->assert(SsoSession::isAllowedRole('technician') === true, 'SsoSession::isAllowedRole accepts technician');
+$runner->assert(SsoSession::isAllowedRole('viewer') === true, 'SsoSession::isAllowedRole accepts viewer');
+$runner->assert(SsoSession::isAllowedRole('viwer') === false, 'SsoSession::isAllowedRole rejects misspelled viwer');
+$runner->assert(SsoSession::isAllowedRole('superadmin') === false, 'SsoSession::isAllowedRole rejects unknown superadmin');
+$runner->assert(SsoSession::isAllowedRole('') === false, 'SsoSession::isAllowedRole rejects empty role');
 
 // =========================================================================
 // SUITE 9: PROTOCOL ARTIFACT ISOLATION STATIC CHECKS (OAUTH2 ONLY)

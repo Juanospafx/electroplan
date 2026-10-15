@@ -21,8 +21,10 @@ if (isset($injectedPdo) && $injectedPdo instanceof PDO) {
     }
 }
 
+require_once __DIR__ . '/../core/auth/SsoSession.php';
+
 try {
-    if (session_status() !== PHP_SESSION_ACTIVE && !headers_sent()) session_start();
+    \Electroplan\Auth\SsoSession::startHardenedSession();
 } catch (Throwable $e) {
     ep_login_log('Session start error');
 }
@@ -46,39 +48,68 @@ if (!empty($_GET['error'])) {
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $user = trim($_POST['username'] ?? '');
-    $pass = $_POST['password'] ?? '';
+    $submittedCsrf = $_POST['csrf_token'] ?? null;
+    if (!\Electroplan\Auth\SsoSession::validateCsrfToken(is_string($submittedCsrf) ? $submittedCsrf : null)) {
+        $error = "Token de seguridad inválido o expirado.";
+    } else {
+        $user = trim($_POST['username'] ?? '');
+        $pass = $_POST['password'] ?? '';
 
-    if (!empty($user) && !empty($pass)) {
-        if (isset($pdo) && $pdo instanceof PDO) {
-            // Buscar usuario
-            $stmt = $pdo->prepare("SELECT id, username, password, role FROM users WHERE username = ?");
-            $stmt->execute([$user]);
-            $userData = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!empty($user) && !empty($pass)) {
+            if (isset($pdo) && $pdo instanceof PDO) {
+                // Buscar usuario
+                try {
+                    $stmt = $pdo->prepare("SELECT id, username, password, role, active FROM users WHERE username = ?");
+                    $stmt->execute([$user]);
+                    $userData = $stmt->fetch(PDO::FETCH_ASSOC);
+                } catch (Throwable $e) {
+                    $stmt = $pdo->prepare("SELECT id, username, password, role FROM users WHERE username = ?");
+                    $stmt->execute([$user]);
+                    $userData = $stmt->fetch(PDO::FETCH_ASSOC);
+                }
 
-            if ($userData) {
-                // Usuario existe, verificamos contraseña
-                if (password_verify($pass, $userData['password'])) {
-                    // Login Exitoso
-                    $_SESSION['user_id'] = $userData['id'];
-                    $_SESSION['username'] = $userData['username'];
-                    $_SESSION['role'] = $userData['role'];
+                if ($userData) {
+                    $isActive = true;
+                    if (array_key_exists('active', $userData)) {
+                        $isActive = ($userData['active'] === 1 || $userData['active'] === '1' || $userData['active'] === true);
+                    }
 
-                    if (!headers_sent() && php_sapi_name() !== 'cli') {
-                        header("Location: index.php");
-                        exit;
+                    if (!$isActive) {
+                        $error = "La cuenta de usuario está inactiva.";
+                    } elseif (password_verify($pass, $userData['password'])) {
+                        $allowedRoles = \Electroplan\Auth\SsoSession::ALLOWED_ROLES;
+                        $userRole = trim((string)($userData['role'] ?? ''));
+
+                        if (!\Electroplan\Auth\SsoSession::isAllowedRole($userRole)) {
+                            $error = "Rol de usuario inválido o no autorizado.";
+                        } else {
+                            // Login Exitoso
+                            \Electroplan\Auth\SsoSession::clearTransients();
+                            \Electroplan\Auth\SsoSession::regenerateSessionId();
+
+                            $_SESSION['user_id'] = (int)$userData['id'];
+                            $_SESSION['username'] = (string)$userData['username'];
+                            $_SESSION['role'] = $userRole;
+
+                            \Electroplan\Auth\SsoSession::getCsrfToken(true);
+
+                            if (!headers_sent() && php_sapi_name() !== 'cli') {
+                                header("Location: index.php");
+                                exit;
+                            }
+                        }
+                    } else {
+                        $error = "Contraseña incorrecta.";
                     }
                 } else {
-                    $error = "Contraseña incorrecta.";
+                    $error = "El usuario no existe.";
                 }
             } else {
-                $error = "El usuario no existe.";
+                $error = "Error de conexión con la base de datos.";
             }
         } else {
-            $error = "Error de conexión con la base de datos.";
+            $error = "Por favor complete todos los campos.";
         }
-    } else {
-        $error = "Por favor complete todos los campos.";
     }
 }
 ?>
@@ -361,6 +392,7 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
         <?php endif; ?>
 
         <form method="POST">
+            <input type="hidden" name="csrf_token" value="<?= htmlspecialchars(\Electroplan\Auth\SsoSession::getCsrfToken(), ENT_QUOTES, 'UTF-8') ?>">
             <div class="mb-3">
                 <label class="form-label">Username</label>
                 <div class="input-group">

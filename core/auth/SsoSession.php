@@ -25,6 +25,17 @@ class SsoSession
         'viewer',
     ];
 
+    /**
+     * Checks if a role is in the exact allowed local roles whitelist.
+     *
+     * @param string $role
+     * @return bool
+     */
+    public static function isAllowedRole(string $role): bool
+    {
+        return in_array($role, self::ALLOWED_ROLES, true);
+    }
+
     private static bool $lastRegenerated = false;
     private static array $lastConfiguredCookieParams = [];
     private static bool $configuredBeforeSessionStart = false;
