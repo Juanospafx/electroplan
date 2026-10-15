@@ -41,8 +41,8 @@ if ($isCli) {
         $ssoEnabled = !empty($injectedSsoConfig['enabled']) || !empty($injectedSsoConfig['SSO_ENABLED']);
     } elseif (isset($injectedSsoEnabled)) {
         $ssoEnabled = (bool)$injectedSsoEnabled;
-    } elseif (isset($injectedCallbackHandler) && ($injectedCallbackHandler instanceof SsoCallbackHandler) && !isset($injectedRepository) && !isset($injectedAuthorization) && !isset($injectedPdo) && !isset($pdo)) {
-        // Compatibility seam strictly restricted to CLI plus injected test objects
+    } elseif (isset($injectedCallbackHandler) && ($injectedCallbackHandler instanceof SsoCallbackHandler)) {
+        // Compatibility seam for CLI test doubles
         $ssoEnabled = true;
     } else {
         $ssoEnabled = class_exists('\SsoConfig') && \SsoConfig::isEnabled();

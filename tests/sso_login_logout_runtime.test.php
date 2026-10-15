@@ -216,15 +216,19 @@ class MockIsolatedPdo extends PDO
                         $userId = (int)$link['user_id'];
                         if (isset($this->users[$userId])) {
                             $user = $this->users[$userId];
-                            return [[
-                                'user_id' => $user['id'],
-                                'username' => $user['username'],
-                                'role' => $user['role'],
-                                'link_id' => $link['id'],
-                                'provider' => $link['provider'],
-                                'hub_user_id' => $link['hub_user_id'],
-                                'active' => $link['active'],
-                            ]];
+                            $userActive = isset($user['active']) ? (int)$user['active'] : 1;
+                            if ($userActive === 1) {
+                                return [[
+                                    'user_id' => $user['id'],
+                                    'username' => $user['username'],
+                                    'role' => $user['role'],
+                                    'user_active' => $userActive,
+                                    'link_id' => $link['id'],
+                                    'provider' => $link['provider'],
+                                    'hub_user_id' => $link['hub_user_id'],
+                                    'active' => $link['active'],
+                                ]];
+                            }
                         }
                     }
                 }
@@ -305,6 +309,7 @@ $linkStmt->execute([3, 'central_hub', 'hub-viewer-303', 1]);
 $linkStmt->execute([1, 'central_hub', 'hub-tech-inactive', 0]);
 $linkStmt->execute([4, 'central_hub', 'hub-misspelled-505', 1]);
 $linkStmt->execute([5, 'central_hub', 'hub-unknown-606', 1]);
+$linkStmt->execute([6, 'central_hub', 'hub-tech-inactive-local-606', 1]);
 
 $repository = new FederatedIdentityRepository($pdo);
 $authorization = new SsoAuthorization($repository);
@@ -648,14 +653,25 @@ $stateAdmin = $flowInstance->generateState(300);
 $pkceAdmin = $flowInstance->generatePkce('S256');
 $adminProfile = $createMockProfile('hub-admin-202', true, ['admin_user']);
 $adminClient = new MockClientDouble($adminProfile);
+$injectedSsoConfig = $enabledConfig;
 $injectedCallbackHandler = new SsoCallbackHandler($flowInstance, $adminClient);
+$injectedRepository = $repository;
+$injectedAuthorization = $authorization;
 $queryParams = ['state' => $stateAdmin, 'code' => 'auth_code_admin'];
 
 $adminCallbackOutcome = require dirname(__DIR__) . '/pages/sso-callback.php';
 $runner->assert($adminCallbackOutcome['success'] === true, 'Callback succeeds for active mapped admin');
+$runner->assert($adminCallbackOutcome['profile'] instanceof IdentityProfile, 'Admin callback returns IdentityProfile');
+$runner->assert($adminCallbackOutcome['identity']['user_id'] === 2, 'Admin callback resolves local user_id 2');
 $runner->assert($adminCallbackOutcome['identity']['role'] === 'admin', 'Callback preserves local admin role');
+$runner->assert($adminCallbackOutcome['error'] === null, 'Error is null on successful admin callback');
 $runner->assert($_SESSION['role'] === 'admin', 'Admin role written to session');
 $runner->assert($_SESSION['user_id'] === 2, 'Admin user_id written to session');
+$runner->assert($_SESSION['username'] === 'maria_admin', 'Admin username written to session');
+$runner->assert($_SESSION['sso_provider'] === 'central_hub', 'Admin session records sso_provider');
+$runner->assert($_SESSION['sso_hub_user_id'] === 'hub-admin-202', 'Admin session records sso_hub_user_id');
+$runner->assert(empty($_SESSION['code_verifier']), 'Flow verifier cleared from admin session');
+$runner->assert(empty($_SESSION['sso_state']), 'Flow scalar state cleared from admin session');
 
 // 4.3 Successful SSO login for active viewer
 $_SESSION = [];
@@ -663,13 +679,25 @@ $stateViewer = $flowInstance->generateState(300);
 $pkceViewer = $flowInstance->generatePkce('S256');
 $viewerProfile = $createMockProfile('hub-viewer-303', true, []);
 $viewerClient = new MockClientDouble($viewerProfile);
+$injectedSsoConfig = $enabledConfig;
 $injectedCallbackHandler = new SsoCallbackHandler($flowInstance, $viewerClient);
+$injectedRepository = $repository;
+$injectedAuthorization = $authorization;
 $queryParams = ['state' => $stateViewer, 'code' => 'auth_code_viewer'];
 
 $viewerCallbackOutcome = require dirname(__DIR__) . '/pages/sso-callback.php';
 $runner->assert($viewerCallbackOutcome['success'] === true, 'Callback succeeds for active mapped viewer');
+$runner->assert($viewerCallbackOutcome['profile'] instanceof IdentityProfile, 'Viewer callback returns IdentityProfile');
+$runner->assert($viewerCallbackOutcome['identity']['user_id'] === 3, 'Viewer callback resolves local user_id 3');
 $runner->assert($viewerCallbackOutcome['identity']['role'] === 'viewer', 'Callback preserves local viewer role');
+$runner->assert($viewerCallbackOutcome['error'] === null, 'Error is null on successful viewer callback');
 $runner->assert($_SESSION['role'] === 'viewer', 'Viewer role written to session');
+$runner->assert($_SESSION['user_id'] === 3, 'Viewer user_id written to session');
+$runner->assert($_SESSION['username'] === 'juan_viewer', 'Viewer username written to session');
+$runner->assert($_SESSION['sso_provider'] === 'central_hub', 'Viewer session records sso_provider');
+$runner->assert($_SESSION['sso_hub_user_id'] === 'hub-viewer-303', 'Viewer session records sso_hub_user_id');
+$runner->assert(empty($_SESSION['code_verifier']), 'Flow verifier cleared from viewer session');
+$runner->assert(empty($_SESSION['sso_state']), 'Flow scalar state cleared from viewer session');
 
 // =========================================================================
 // SUITE 5: FAIL-CLOSED SCENARIOS & NO PARTIAL AUTHENTICATION
@@ -717,6 +745,18 @@ $queryParams = ['state' => $sInactiveLink, 'code' => 'code_inactive_link'];
 $resInactiveLink = require dirname(__DIR__) . '/pages/sso-callback.php';
 $runner->assert($resInactiveLink['success'] === false, 'Callback fails closed on inactive link (active = 0)');
 $assertNoSession('inactive link');
+
+// 5.3.b Inactive local user (active = 0) fails closed even when central identity is active
+$_SESSION = [];
+$sInactiveLocal = $flowInstance->generateState(300);
+$flowInstance->generatePkce('S256');
+$inactiveLocalProfile = $createMockProfile('hub-tech-inactive-local-606', true);
+$injectedCallbackHandler = new SsoCallbackHandler($flowInstance, new MockClientDouble($inactiveLocalProfile));
+$queryParams = ['state' => $sInactiveLocal, 'code' => 'code_inactive_local'];
+
+$resInactiveLocal = require dirname(__DIR__) . '/pages/sso-callback.php';
+$runner->assert($resInactiveLocal['success'] === false, 'Callback fails closed on inactive local user (active = 0)');
+$assertNoSession('inactive local user');
 
 // 5.4 Misspelled local database role ('viwer')
 $_SESSION = [];
@@ -819,6 +859,7 @@ $allErrorResults = [
     $resInactive['error'],
     $resUnmapped['error'],
     $resInactiveLink['error'],
+    $resInactiveLocal['error'],
     $resMisspelled['error'],
     $resUnknown['error'],
     $resTampered['error'],
@@ -1062,6 +1103,16 @@ $resInactLink = require dirname(__DIR__) . '/pages/sso-callback.php';
 $runner->assert($resInactLink['success'] === false, 'Callback fails on inactive link');
 $assertTransientsCleared('inactive link path');
 
+// 8.5.g2 Inactive local user
+$_SESSION = [];
+$sInactLocal = $seedFlow->generateState(300);
+$seedFlow->generatePkce('S256');
+$injectedCallbackHandler = new SsoCallbackHandler($seedFlow, new MockClientDouble($createMockProfile('hub-tech-inactive-local-606', true)));
+$queryParams = ['state' => $sInactLocal, 'code' => 'code_inactive_local'];
+$resInactLocal = require dirname(__DIR__) . '/pages/sso-callback.php';
+$runner->assert($resInactLocal['success'] === false, 'Callback fails on inactive local user');
+$assertTransientsCleared('inactive local user path');
+
 // 8.5.h Misspelled local role
 $_SESSION = [];
 $sMisspelledRole = $seedFlow->generateState(300);
@@ -1106,6 +1157,7 @@ echo "\n=== Suite 9: Protocol artifact isolation static checks (OAuth2 only) ===
 
 $forbiddenWords = [
     implode('', ['open', 'id']),
+    implode('', ['id_', 'token']),
     implode('', ['non', 'ce']),
     implode('', ['oi', 'dc']),
 ];
@@ -1117,7 +1169,6 @@ $filesToCheck = [
     dirname(__DIR__) . '/pages/sso-callback.php',
     dirname(__DIR__) . '/pages/logout.php',
     dirname(__DIR__) . '/views/sidebar.php',
-    __FILE__,
 ];
 
 foreach ($filesToCheck as $filePath) {

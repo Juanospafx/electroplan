@@ -19,10 +19,69 @@ use InvalidArgumentException;
  */
 class SsoSession
 {
+    public const ALLOWED_ROLES = [
+        'admin',
+        'technician',
+        'viewer',
+    ];
+
     private static bool $lastRegenerated = false;
     private static array $lastConfiguredCookieParams = [];
     private static bool $configuredBeforeSessionStart = false;
     private static array $lifecycleLog = [];
+
+    /**
+     * Retrieves or generates a session-bound CSRF token.
+     *
+     * @param bool $forceNew If true, generates a fresh token.
+     * @return string The session-bound CSRF token.
+     */
+    public static function getCsrfToken(bool $forceNew = false): string
+    {
+        if (session_status() === PHP_SESSION_NONE && !headers_sent()) {
+            self::startHardenedSession();
+        }
+
+        if (!isset($_SESSION) || !is_array($_SESSION)) {
+            $_SESSION = [];
+        }
+
+        if ($forceNew || empty($_SESSION['csrf_token']) || !is_string($_SESSION['csrf_token'])) {
+            $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+        }
+
+        return $_SESSION['csrf_token'];
+    }
+
+    /**
+     * Validates a CSRF token against the session-bound token using timing-attack safe comparison.
+     *
+     * @param string|null $token
+     * @return bool True if valid, false otherwise.
+     */
+    public static function validateCsrfToken(?string $token): bool
+    {
+        if ($token === null || $token === '') {
+            return false;
+        }
+
+        if (!isset($_SESSION) || !is_array($_SESSION) || empty($_SESSION['csrf_token']) || !is_string($_SESSION['csrf_token'])) {
+            return false;
+        }
+
+        return hash_equals($_SESSION['csrf_token'], $token);
+    }
+
+    /**
+     * Alias for validateCsrfToken.
+     *
+     * @param string|null $token
+     * @return bool
+     */
+    public static function verifyCsrfToken(?string $token): bool
+    {
+        return self::validateCsrfToken($token);
+    }
 
     /**
      * Resets lifecycle and test state.
@@ -229,9 +288,16 @@ class SsoSession
             throw new InvalidArgumentException('Explicitly resolved identity must contain a non-empty role.');
         }
         $role = trim($roleRaw);
-        $allowedRoles = ['admin', 'technician', 'viewer'];
-        if (!in_array($role, $allowedRoles, true)) {
+        if (!in_array($role, self::ALLOWED_ROLES, true)) {
             throw new InvalidArgumentException('Resolved identity contains invalid or unsupported role.');
+        }
+
+        // Validate active status if provided (fail closed on inactive local user)
+        if (isset($resolvedIdentity['active']) && ($resolvedIdentity['active'] === false || $resolvedIdentity['active'] === 0 || $resolvedIdentity['active'] === '0')) {
+            throw new InvalidArgumentException('Resolved identity is inactive.');
+        }
+        if (isset($resolvedIdentity['user_active']) && ($resolvedIdentity['user_active'] === false || $resolvedIdentity['user_active'] === 0 || $resolvedIdentity['user_active'] === '0')) {
+            throw new InvalidArgumentException('Resolved local user is inactive.');
         }
 
         // 5. Validate provider and hub_user_id (session creation requires non-empty provider and hub_user_id)
@@ -282,7 +348,7 @@ class SsoSession
     /**
      * Regenerates the session ID to mitigate session fixation.
      */
-    public function regenerateSessionId(): bool
+    public static function regenerateSessionId(): bool
     {
         if (session_status() === PHP_SESSION_ACTIVE) {
             $regenerated = @session_regenerate_id(true);
@@ -293,6 +359,14 @@ class SsoSession
         // In test environments where active session is mocked
         self::$lastRegenerated = true;
         return true;
+    }
+
+    /**
+     * Alias for regenerateSessionId.
+     */
+    public static function regenerate(): bool
+    {
+        return self::regenerateSessionId();
     }
 
     public static function wasSessionIdRegenerated(): bool
@@ -326,7 +400,7 @@ class SsoSession
             return false;
         }
 
-        if (!is_string($_SESSION['role']) || !in_array($_SESSION['role'], ['admin', 'technician', 'viewer'], true)) {
+        if (!is_string($_SESSION['role']) || !in_array($_SESSION['role'], self::ALLOWED_ROLES, true)) {
             return false;
         }
 
