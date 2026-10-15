@@ -180,6 +180,7 @@ class MockIsolatedPdo extends PDO
                         'username' => (string)$params[1],
                         'password' => (string)$params[2],
                         'role' => (string)$params[3],
+                        'active' => isset($params[4]) ? (int)$params[4] : 1,
                     ];
                 }
                 return [];
@@ -230,6 +231,7 @@ class MockIsolatedPdo extends PDO
 
         // SELECT ... FROM sso_identity_links l INNER JOIN users u ... (findLinkedUser)
         // Implements case-insensitive database collation simulation (MariaDB utf8mb4_general_ci)
+        // Simulates u.active = 1 filter requiring an active local user
         if (stripos($normalizedQuery, 'FROM sso_identity_links l') !== false && stripos($normalizedQuery, 'INNER JOIN users') !== false) {
             return new MockIsolatedStatement([], function (?array $params) {
                 $provider = (string)($params[':provider'] ?? $params['provider'] ?? '');
@@ -245,15 +247,19 @@ class MockIsolatedPdo extends PDO
                         $userId = (int)$link['user_id'];
                         if (isset($this->users[$userId])) {
                             $user = $this->users[$userId];
-                            return [[
-                                'user_id' => $user['id'],
-                                'username' => $user['username'],
-                                'role' => $user['role'],
-                                'link_id' => $link['id'],
-                                'provider' => $link['provider'],
-                                'hub_user_id' => $link['hub_user_id'],
-                                'active' => $link['active'],
-                            ]];
+                            $userActive = isset($user['active']) ? (int)$user['active'] : 1;
+                            if ($userActive === 1) {
+                                return [[
+                                    'user_id' => $user['id'],
+                                    'username' => $user['username'],
+                                    'role' => $user['role'],
+                                    'user_active' => $userActive,
+                                    'link_id' => $link['id'],
+                                    'provider' => $link['provider'],
+                                    'hub_user_id' => $link['hub_user_id'],
+                                    'active' => $link['active'],
+                                ]];
+                            }
                         }
                     }
                 }
@@ -332,11 +338,13 @@ $tables = $pdo->query("SELECT name FROM sqlite_master WHERE type='table'")->fetc
 $runner->assert(in_array('users', $tables, true), 'Users table created in in-memory double');
 $runner->assert(in_array('sso_identity_links', $tables, true), 'sso_identity_links table created in in-memory double');
 
-// Seed test users
+// Seed test users: covers active existing users (default active = 1) and inactive user (active = 0)
 $userStmt = $pdo->prepare("INSERT INTO users (id, username, password, role) VALUES (?, ?, ?, ?)");
 $userStmt->execute([1, 'carlos_tech', '$2y$10$dummyhashfortesting000000000000000000000000000000000', 'technician']);
 $userStmt->execute([2, 'admin_maria', '$2y$10$dummyhashfortesting000000000000000000000000000000001', 'admin']);
 $userStmt->execute([3, 'viewer_juan', '$2y$10$dummyhashfortesting000000000000000000000000000000002', 'viewer']);
+// Inactive local user
+$userStmt->execute([4, 'diego_inactive', '$2y$10$dummyhashfortesting000000000000000000000000000000003', 'technician', 0]);
 
 // Seed test links
 $linkStmt = $pdo->prepare("INSERT INTO sso_identity_links (user_id, provider, hub_user_id, active) VALUES (?, ?, ?, ?)");
@@ -348,6 +356,8 @@ $linkStmt->execute([2, 'central_hub', 'hub-usr-102-inactive', 0]);
 $linkStmt->execute([9999, 'central_hub', 'hub-usr-orphan', 1]);
 // Different provider link for carlos_tech
 $linkStmt->execute([1, 'secondary_hub', 'sec-usr-999', 1]);
+// Active link for inactive local user 4 (diego_inactive)
+$linkStmt->execute([4, 'central_hub', 'hub-usr-104-inactive-local', 1]);
 
 // Repository construction requires explicit PDO dependency
 $repoRef = new \ReflectionMethod(FederatedIdentityRepository::class, '__construct');
@@ -357,9 +367,9 @@ $repo = new FederatedIdentityRepository($pdo);
 $runner->assert($repo->getPdo() === $pdo, 'Repository correctly wrapped in-memory PDO double instance');
 
 // =========================================================================
-// SUITE 2: MISSING & INACTIVE IDENTITY LINKS
+// SUITE 2: MISSING & INACTIVE IDENTITY LINKS & LOCAL USER ACTIVE ENFORCEMENT
 // =========================================================================
-echo "\n=== Suite 2: Missing & inactive identity links ===\n";
+echo "\n=== Suite 2: Missing & inactive identity links & local user active enforcement ===\n";
 
 // 2.1 Non-existent link
 $resMissing = $repo->findLinkedUser('central_hub', 'non-existent-hub-id');
@@ -375,6 +385,72 @@ $runner->assert($resEmptyProvider === null, 'Empty provider returns null');
 
 $resEmptyHubId = $repo->findLinkedUser('central_hub', '   ');
 $runner->assert($resEmptyHubId === null, 'Empty hub_user_id returns null');
+
+// 2.4 Inactive local user (active = 0) fails closed even when link is active (active-central / inactive-local denial)
+$resInactiveLocal = $repo->findLinkedUser('central_hub', 'hub-usr-104-inactive-local');
+$runner->assert($resInactiveLocal === null, 'Inactive local user (active = 0) returns null even when link is active');
+
+// 2.5 Active central IdentityProfile linked to inactive local user returns null
+$inactiveLocalProfile = IdentityProfile::fromClaims([
+    'hub_user_id' => 'hub-usr-104-inactive-local',
+    'provider' => 'central_hub',
+    'active' => true,
+]);
+$resInactiveProfileResolution = $repo->resolveUserByProfile($inactiveLocalProfile);
+$runner->assert($resInactiveProfileResolution === null, 'Active central IdentityProfile linked to inactive local user returns null');
+
+// 2.6 Missing or invalid local user active state fails closed
+$mockStmtCorrupt = new class extends PDO {
+    public function __construct() {}
+    public function prepare($statement, $options = []): PDOStatement|false {
+        return new MockIsolatedStatement([
+            [
+                'user_id' => 1,
+                'username' => 'corrupt_user',
+                'role' => 'technician',
+                'provider' => 'central_hub',
+                'hub_user_id' => 'hub-corrupt',
+                'link_id' => 99,
+                'active' => 1,
+                'user_active' => 'invalid_state',
+            ]
+        ]);
+    }
+};
+$repoCorrupt = new FederatedIdentityRepository($mockStmtCorrupt);
+$resCorrupt = $repoCorrupt->findLinkedUser('central_hub', 'hub-corrupt');
+$runner->assert($resCorrupt === null, 'Invalid local active state fails closed (returns null)');
+
+$mockStmtMissing = new class extends PDO {
+    public function __construct() {}
+    public function prepare($statement, $options = []): PDOStatement|false {
+        return new MockIsolatedStatement([
+            [
+                'user_id' => 1,
+                'username' => 'missing_active_user',
+                'role' => 'technician',
+                'provider' => 'central_hub',
+                'hub_user_id' => 'hub-missing',
+                'link_id' => 100,
+                'active' => 1,
+            ]
+        ]);
+    }
+};
+$repoMissing = new FederatedIdentityRepository($mockStmtMissing);
+$resMissingActive = $repoMissing->findLinkedUser('central_hub', 'hub-missing');
+$runner->assert($resMissingActive === null, 'Missing local active state fails closed (returns null)');
+
+// 2.7 Database error fails closed without exposing SQL, DSN or credentials
+$mockStmtError = new class extends PDO {
+    public function __construct() {}
+    public function prepare($statement, $options = []): PDOStatement|false {
+        throw new \PDOException('SQLSTATE[HY000] [2002] Connection refused to dsn mysql:host=127.0.0.1;dbname=secret_db');
+    }
+};
+$repoError = new FederatedIdentityRepository($mockStmtError);
+$resError = $repoError->findLinkedUser('central_hub', 'hub-usr-101');
+$runner->assert($resError === null, 'Database exception fails closed gracefully and returns null');
 
 // =========================================================================
 // SUITE 3: MISSING USER (ORPHAN LINK) & INTEGRITY
@@ -450,6 +526,8 @@ $runner->assert($resSuccess['username'] === 'carlos_tech', 'Resolved username ma
 $runner->assert($resSuccess['role'] === 'technician', 'Resolved role matches local record');
 $runner->assert($resSuccess['provider'] === 'central_hub', 'Resolved provider returned');
 $runner->assert($resSuccess['hub_user_id'] === 'hub-usr-101', 'Resolved hub_user_id returned');
+$runner->assert(isset($resSuccess['active']) && $resSuccess['active'] === true, 'Resolved active flag is true for active local user');
+$runner->assert(isset($resSuccess['user_active']) && $resSuccess['user_active'] === true, 'Resolved user_active flag is true for active local user');
 
 // 6.2 Resolution via IdentityProfile
 $validProfile = IdentityProfile::fromClaims([
@@ -691,9 +769,17 @@ $runner->assert($threwEmptyHubId, 'SsoSession rejects identity with empty hub_us
 echo "\n=== Suite 8: SsoSession cookie parameters configuration (no downgrade) ===\n";
 
 $cookieMethodRef = new \ReflectionMethod(SsoSession::class, 'configureCookieParams');
+$cookieParams = $cookieMethodRef->getParameters();
+$paramType = count($cookieParams) === 1 && $cookieParams[0]->hasType() ? $cookieParams[0]->getType() : null;
+$paramTypeName = $paramType instanceof \ReflectionNamedType ? $paramType->getName() : ltrim((string)$paramType, '?');
+
 $runner->assert(
-    $cookieMethodRef->getNumberOfParameters() === 0,
-    'configureCookieParams takes zero arguments: no security downgrade parameter exists'
+    $cookieMethodRef->getNumberOfRequiredParameters() === 0
+    && count($cookieParams) === 1
+    && $cookieParams[0]->isOptional()
+    && $cookieParams[0]->allowsNull()
+    && $paramTypeName === 'array',
+    'configureCookieParams matches accepted optional-array signature (?array $customParams = null)'
 );
 
 SsoSession::configureCookieParams();
@@ -702,6 +788,27 @@ $cookieConfig = SsoSession::getLastConfiguredCookieParams();
 $runner->assert($cookieConfig['secure'] === true, 'Session cookie configured with Secure = true');
 $runner->assert($cookieConfig['httponly'] === true, 'Session cookie configured with HttpOnly = true');
 $runner->assert($cookieConfig['samesite'] === 'Lax', 'Session cookie configured with SameSite = Lax');
+
+// Verify attempts to set secure=false, httponly=false or SameSite other than Lax cannot weaken cookie contract
+$downgradeResult = SsoSession::configureCookieParams([
+    'secure' => false,
+    'httponly' => false,
+    'samesite' => 'None',
+]);
+$downgradeConfig = SsoSession::getLastConfiguredCookieParams();
+
+$runner->assert(
+    $downgradeResult['secure'] === true && $downgradeConfig['secure'] === true,
+    'Attempt to set secure=false cannot weaken Secure attribute'
+);
+$runner->assert(
+    $downgradeResult['httponly'] === true && $downgradeConfig['httponly'] === true,
+    'Attempt to set httponly=false cannot weaken HttpOnly attribute'
+);
+$runner->assert(
+    $downgradeResult['samesite'] === 'Lax' && $downgradeConfig['samesite'] === 'Lax',
+    'Attempt to set SameSite other than Lax cannot weaken SameSite attribute'
+);
 
 // =========================================================================
 // SUITE 9: SSOSESSION ESTABLISHMENT, METADATA & FLOW CLEANUP
@@ -794,6 +901,8 @@ $filesToCheck = [
     dirname(__DIR__) . '/core/auth/FederatedIdentityRepository.php',
     dirname(__DIR__) . '/core/auth/SsoSession.php',
     dirname(__DIR__) . '/db/migrations/20261012_sso_identity_links.sql',
+    dirname(__DIR__) . '/db/migrations/20261015_sso_local_user_active.sql',
+    dirname(__DIR__) . '/tests/sso_local_user_active_schema.test.php',
     __FILE__,
 ];
 

@@ -152,6 +152,7 @@ class MockIsolatedAuthPdo extends PDO
                         'username' => (string)$params[1],
                         'password' => (string)$params[2],
                         'role' => (string)$params[3],
+                        'active' => isset($params[4]) ? (int)$params[4] : 1,
                     ];
                 }
                 return [];
@@ -186,6 +187,7 @@ class MockIsolatedAuthPdo extends PDO
         }
 
         // SELECT ... FROM sso_identity_links l INNER JOIN users u ...
+        // Simulates u.active = 1 filter requiring an active local user
         if (stripos($normalized, 'FROM sso_identity_links l') !== false && stripos($normalized, 'INNER JOIN users') !== false) {
             return new MockIsolatedAuthStatement([], function (?array $params) {
                 $provider = (string)($params[':provider'] ?? $params['provider'] ?? '');
@@ -200,15 +202,19 @@ class MockIsolatedAuthPdo extends PDO
                         $userId = (int)$link['user_id'];
                         if (isset($this->users[$userId])) {
                             $user = $this->users[$userId];
-                            return [[
-                                'user_id' => $user['id'],
-                                'username' => $user['username'],
-                                'role' => $user['role'],
-                                'link_id' => $link['id'],
-                                'provider' => $link['provider'],
-                                'hub_user_id' => $link['hub_user_id'],
-                                'active' => $link['active'],
-                            ]];
+                            $userActive = isset($user['active']) ? (int)$user['active'] : 1;
+                            if ($userActive === 1) {
+                                return [[
+                                    'user_id' => $user['id'],
+                                    'username' => $user['username'],
+                                    'role' => $user['role'],
+                                    'user_active' => $userActive,
+                                    'link_id' => $link['id'],
+                                    'provider' => $link['provider'],
+                                    'hub_user_id' => $link['hub_user_id'],
+                                    'active' => $link['active'],
+                                ]];
+                            }
                         }
                     }
                 }
@@ -232,7 +238,7 @@ $pdo = new MockIsolatedAuthPdo();
 $driverName = $pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
 $runner->assert($driverName === 'isolated_double', 'Zero real database access: uses isolated in-memory PDO double');
 
-// Seed test users: covers admin, technician, viewer, unknown role, misspelled role, empty role
+// Seed test users: covers admin, technician, viewer, unknown role, misspelled role, empty role, inactive user
 $userStmt = $pdo->prepare("INSERT INTO users (id, username, password, role) VALUES (?, ?, ?, ?)");
 $userStmt->execute([1, 'carlos_tech', 'hash1', 'technician']);
 $userStmt->execute([2, 'maria_admin', 'hash2', 'admin']);
@@ -240,6 +246,8 @@ $userStmt->execute([3, 'juan_viewer', 'hash3', 'viewer']);
 $userStmt->execute([4, 'ana_unknown', 'hash4', 'superadmin']);
 $userStmt->execute([5, 'pedro_misspelled', 'hash5', 'viwer']);
 $userStmt->execute([6, 'luis_empty', 'hash6', '']);
+// Inactive local user with valid role (technician)
+$userStmt->execute([7, 'diego_inactive_local', 'hash7', 'technician', 0]);
 
 // Seed test links: covers active links, inactive links, cross-provider, orphan links
 $linkStmt = $pdo->prepare("INSERT INTO sso_identity_links (user_id, provider, hub_user_id, active) VALUES (?, ?, ?, ?)");
@@ -253,6 +261,8 @@ $linkStmt->execute([5, 'central_hub', 'hub-misspelled-505', 1]);
 $linkStmt->execute([6, 'central_hub', 'hub-empty-606', 1]);
 $linkStmt->execute([9999, 'central_hub', 'hub-orphan-999', 1]);
 $linkStmt->execute([1, 'secondary_hub', 'sec-tech-101', 1]);
+// Active link for inactive local user 7
+$linkStmt->execute([7, 'central_hub', 'hub-tech-inactive-local-707', 1]);
 
 $repository = new FederatedIdentityRepository($pdo);
 $auth = new SsoAuthorization($repository);
@@ -419,6 +429,80 @@ $wrongProviderProfile = IdentityProfile::fromClaims([
 $resWrongProvider = $auth->authorize($wrongProviderProfile);
 $runner->assert($resWrongProvider['success'] === false, 'Cross-provider query fails closed');
 
+// 5.6 Inactive local user fails closed even when central identity is active (active-central / inactive-local denial)
+$inactiveLocalProfile = IdentityProfile::fromClaims([
+    'hub_user_id' => 'hub-tech-inactive-local-707',
+    'provider' => 'central_hub',
+    'active' => true,
+    'roles' => ['admin'],
+]);
+$resInactiveLocal = $auth->authorize($inactiveLocalProfile);
+$runner->assert($resInactiveLocal['success'] === false, 'Active central identity with inactive local user fails closed (active-central / inactive-local denial)');
+$runner->assert($resInactiveLocal['identity'] === null, 'Inactive local user returns null identity');
+$runner->assert(is_string($resInactiveLocal['error']) && trim($resInactiveLocal['error']) !== '', 'Inactive local user returns sanitized non-empty error');
+$runner->assert($auth->isAuthorized($inactiveLocalProfile) === false, 'isAuthorized returns false for inactive local user');
+$runner->assert($auth->authorizeIdentity($inactiveLocalProfile) === null, 'authorizeIdentity returns null for inactive local user');
+
+// 5.7 Inactive central identity AND inactive local user fails closed
+$inactiveBothProfile = IdentityProfile::fromClaims([
+    'hub_user_id' => 'hub-tech-inactive-local-707',
+    'provider' => 'central_hub',
+    'active' => false,
+]);
+$resInactiveBoth = $auth->authorize($inactiveBothProfile);
+$runner->assert($resInactiveBoth['success'] === false, 'Inactive central and inactive local user fails closed');
+$runner->assert($resInactiveBoth['identity'] === null, 'Inactive central and inactive local user returns null identity');
+
+// 5.8 Missing or invalid local user active state fails closed
+$mockRepoMissingActive = new class extends FederatedIdentityRepository {
+    public function __construct() {}
+    public function findLinkedUser(string $provider, string $hubUserId): ?array {
+        return [
+            'user_id' => 1,
+            'id' => 1,
+            'username' => 'missing_active_user',
+            'role' => 'technician',
+            'provider' => 'central_hub',
+            'hub_user_id' => 'hub-missing-active',
+            'link_id' => 10,
+        ];
+    }
+};
+$authMissingActive = new SsoAuthorization($mockRepoMissingActive);
+$profileMissingActive = IdentityProfile::fromClaims([
+    'hub_user_id' => 'hub-missing-active',
+    'provider' => 'central_hub',
+    'active' => true,
+]);
+$resMissingActive = $authMissingActive->authorize($profileMissingActive);
+$runner->assert($resMissingActive['success'] === false, 'Missing local active state fails closed');
+$runner->assert($resMissingActive['identity'] === null, 'Missing local active state returns null identity');
+
+$mockRepoInvalidActive = new class extends FederatedIdentityRepository {
+    public function __construct() {}
+    public function findLinkedUser(string $provider, string $hubUserId): ?array {
+        return [
+            'user_id' => 1,
+            'id' => 1,
+            'username' => 'invalid_active_user',
+            'role' => 'technician',
+            'provider' => 'central_hub',
+            'hub_user_id' => 'hub-invalid-active',
+            'link_id' => 11,
+            'user_active' => 'corrupted_state',
+        ];
+    }
+};
+$authInvalidActive = new SsoAuthorization($mockRepoInvalidActive);
+$profileInvalidActive = IdentityProfile::fromClaims([
+    'hub_user_id' => 'hub-invalid-active',
+    'provider' => 'central_hub',
+    'active' => true,
+]);
+$resInvalidActive = $authInvalidActive->authorize($profileInvalidActive);
+$runner->assert($resInvalidActive['success'] === false, 'Invalid local active state fails closed');
+$runner->assert($resInvalidActive['identity'] === null, 'Invalid local active state returns null identity');
+
 // =========================================================================
 // SUITE 6: UNKNOWN, MISSPELLED AND EMPTY LOCAL ROLES FAIL CLOSED (NO FALLBACK)
 // =========================================================================
@@ -521,6 +605,9 @@ $errorCases = [
     $resUnknownRole['error'],
     $resMisspelled['error'],
     $resEmptyRole['error'],
+    $resInactiveLocal['error'],
+    $resMissingActive['error'],
+    $resInvalidActive['error'],
 ];
 
 $leakedTerms = [
@@ -594,6 +681,8 @@ $forbiddenTerms = [
 
 $filesToCheck = [
     dirname(__DIR__) . '/core/auth/SsoAuthorization.php',
+    dirname(__DIR__) . '/db/migrations/20261015_sso_local_user_active.sql',
+    dirname(__DIR__) . '/tests/sso_local_user_active_schema.test.php',
     __FILE__,
 ];
 

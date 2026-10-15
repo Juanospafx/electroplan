@@ -11,7 +11,7 @@ use InvalidArgumentException;
  * Enforces strict fail-closed authorization rules:
  * 1. Accepts ONLY an active IdentityProfile with valid provider and hub_user_id.
  * 2. Resolves local identity exclusively via FederatedIdentityRepository.
- * 3. Requires an explicit, active federated link (active = 1) and an existing local user.
+ * 3. Requires an explicit, active federated link (active = 1) and an existing active local user (active = 1).
  * 4. Preserves the local database role exactly and accepts only the existing
  *    Electroplan roles: admin, technician, viewer.
  * 5. Strictly isolates central userinfo roles: central roles NEVER grant, elevate,
@@ -21,6 +21,8 @@ use InvalidArgumentException;
  *    never normalizes invalid roles and never assigns default or fallback roles.
  * 8. Returns sanitized, generic error messages without leaking rejected roles,
  *    internal database details, tokens, or credentials.
+ * 9. Requires active local user state even when central identity is active;
+ *    missing or invalid local active state fails closed.
  */
 class SsoAuthorization
 {
@@ -34,6 +36,7 @@ class SsoAuthorization
     public const ERROR_INVALID_PROFILE = 'Authorization failed: invalid or missing identity profile.';
     public const ERROR_INACTIVE_PROFILE = 'Authorization failed: central user account is inactive.';
     public const ERROR_UNMAPPED_IDENTITY = 'Authorization failed: no active linked local account found.';
+    public const ERROR_INACTIVE_LOCAL_USER = 'Authorization failed: local user account is inactive.';
     public const ERROR_INVALID_ROLE = 'Authorization failed: local user role is invalid or unsupported.';
 
     private FederatedIdentityRepository $repository;
@@ -83,7 +86,11 @@ class SsoAuthorization
         }
 
         // 4. Resolve local user through the accepted federated identity repository
-        $linkedUser = $this->repository->findLinkedUser($provider, $hubUserId);
+        try {
+            $linkedUser = $this->repository->findLinkedUser($provider, $hubUserId);
+        } catch (\Throwable $e) {
+            return $this->failure(self::ERROR_UNMAPPED_IDENTITY);
+        }
         if ($linkedUser === null) {
             return $this->failure(self::ERROR_UNMAPPED_IDENTITY);
         }
@@ -117,7 +124,22 @@ class SsoAuthorization
             return $this->failure(self::ERROR_INVALID_ROLE);
         }
 
-        // 7. Assemble authorized identity preserving the local database role exactly.
+        // 7. Validate local user active state
+        // Identity resolution and authorization require an active local user even when central identity is active.
+        // Missing, 0, false, null, or invalid active state fails closed.
+        if (array_key_exists('user_active', $linkedUser)) {
+            $localActive = $linkedUser['user_active'];
+        } elseif (array_key_exists('active', $linkedUser)) {
+            $localActive = $linkedUser['active'];
+        } else {
+            return $this->failure(self::ERROR_INACTIVE_LOCAL_USER);
+        }
+
+        if ($localActive !== true && $localActive !== 1 && $localActive !== '1') {
+            return $this->failure(self::ERROR_INACTIVE_LOCAL_USER);
+        }
+
+        // 8. Assemble authorized identity preserving the local database role exactly.
         // Central roles from IdentityProfile->getRoles() or claims are NEVER trusted
         // and NEVER used to elevate or grant local permissions.
         $authorizedIdentity = [
@@ -125,6 +147,7 @@ class SsoAuthorization
             'id' => $userId,
             'username' => $username,
             'role' => $localRole,
+            'active' => true,
             'provider' => (string)($linkedUser['provider'] ?? $provider),
             'hub_user_id' => (string)($linkedUser['hub_user_id'] ?? $hubUserId),
             'link_id' => (int)($linkedUser['link_id'] ?? 0),
