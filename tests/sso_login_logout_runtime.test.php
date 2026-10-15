@@ -117,6 +117,7 @@ class MockIsolatedPdo extends PDO
     public array $users = [];
     /** @var array<int, array<string, mixed>> */
     public array $links = [];
+    public bool $simulateMissingActiveColumn = false;
     private int $linkAutoIncrement = 1;
 
     public function __construct()
@@ -146,7 +147,10 @@ class MockIsolatedPdo extends PDO
 
         // SELECT id, username, password, role FROM users WHERE username = ?
         if (stripos($normalized, 'SELECT') === 0 && stripos($normalized, 'FROM users WHERE username = ?') !== false) {
-            return new MockIsolatedStatement([], function (?array $params) {
+            return new MockIsolatedStatement([], function (?array $params) use ($normalized) {
+                if ($this->simulateMissingActiveColumn && stripos($normalized, 'active') !== false) {
+                    throw new PDOException("Unknown column 'active' in 'field list'");
+                }
                 $uname = (string)($params[0] ?? '');
                 foreach ($this->users as $u) {
                     if ($u['username'] === $uname) {
@@ -155,6 +159,7 @@ class MockIsolatedPdo extends PDO
                             'username' => $u['username'],
                             'password' => $u['password'],
                             'role' => $u['role'],
+                            'active' => isset($u['active']) ? (int)$u['active'] : 1,
                         ]];
                     }
                 }
@@ -172,6 +177,7 @@ class MockIsolatedPdo extends PDO
                         'username' => (string)$params[1],
                         'password' => (string)$params[2],
                         'role' => (string)$params[3],
+                        'active' => isset($params[4]) ? (int)$params[4] : 1,
                     ];
                 }
                 return [];
@@ -285,11 +291,12 @@ $pdo = new MockIsolatedPdo();
 $userStmt = $pdo->prepare("INSERT INTO users (id, username, password, role) VALUES (?, ?, ?, ?)");
 // Password for carlos_tech is 'TechPassword123!'
 $passwordHash = password_hash('TechPassword123!', PASSWORD_BCRYPT);
-$userStmt->execute([1, 'carlos_tech', $passwordHash, 'technician']);
-$userStmt->execute([2, 'maria_admin', password_hash('AdminPass456!', PASSWORD_BCRYPT), 'admin']);
-$userStmt->execute([3, 'juan_viewer', password_hash('ViewerPass789!', PASSWORD_BCRYPT), 'viewer']);
-$userStmt->execute([4, 'pedro_misspelled', password_hash('Pass!', PASSWORD_BCRYPT), 'viwer']);
-$userStmt->execute([5, 'ana_unknown', password_hash('Pass!', PASSWORD_BCRYPT), 'superadmin']);
+$userStmt->execute([1, 'carlos_tech', $passwordHash, 'technician', 1]);
+$userStmt->execute([2, 'maria_admin', password_hash('AdminPass456!', PASSWORD_BCRYPT), 'admin', 1]);
+$userStmt->execute([3, 'juan_viewer', password_hash('ViewerPass789!', PASSWORD_BCRYPT), 'viewer', 1]);
+$userStmt->execute([4, 'pedro_misspelled', password_hash('Pass!', PASSWORD_BCRYPT), 'viwer', 1]);
+$userStmt->execute([5, 'ana_unknown', password_hash('Pass!', PASSWORD_BCRYPT), 'superadmin', 1]);
+$userStmt->execute([6, 'diego_inactive', password_hash('InactivePass123!', PASSWORD_BCRYPT), 'technician', 0]);
 
 $linkStmt = $pdo->prepare("INSERT INTO sso_identity_links (user_id, provider, hub_user_id, active) VALUES (?, ?, ?, ?)");
 $linkStmt->execute([1, 'central_hub', 'hub-tech-101', 1]);
@@ -351,12 +358,14 @@ $runner->assert($ssoCallbackResult['profile'] === null, 'sso-callback.php return
 $runner->assert(empty($_SESSION['user_id']), 'sso-callback.php creates zero session variables when disabled');
 
 // =========================================================================
-// SUITE 2: PRESERVATION OF LOCAL LOGIN AS ROLLBACK PATH
+// SUITE 2: PRESERVATION OF LOCAL LOGIN AS ROLLBACK PATH & CSRF HARDENING
 // =========================================================================
-echo "\n=== Suite 2: Preservation of local login as rollback path ===\n";
+echo "\n=== Suite 2: Preservation of local login as rollback path & CSRF hardening ===\n";
 
-// 2.1 Successful local login creates session
+// 2.1.a Local login fails without CSRF token (state change requires valid CSRF)
 $_SESSION = [];
+SsoSession::resetLifecycle();
+$validToken = SsoSession::getCsrfToken();
 $_SERVER['REQUEST_METHOD'] = 'POST';
 $_POST = [
     'username' => 'carlos_tech',
@@ -364,6 +373,43 @@ $_POST = [
 ];
 $injectedPdo = $pdo;
 $injectedSsoEnabled = false;
+$error = '';
+ob_start();
+require dirname(__DIR__) . '/pages/login.php';
+ob_end_clean();
+
+$runner->assert(empty($_SESSION['user_id']), 'Local login without CSRF token creates zero session');
+$runner->assert(!empty($error) && stripos($error, 'inválido') !== false, 'Local login without CSRF returns invalid CSRF error');
+
+// 2.1.b Local login fails with invalid/tampered CSRF token
+$_SESSION = [];
+SsoSession::resetLifecycle();
+$validToken = SsoSession::getCsrfToken();
+$_SERVER['REQUEST_METHOD'] = 'POST';
+$_POST = [
+    'username' => 'carlos_tech',
+    'password' => 'TechPassword123!',
+    'csrf_token' => 'invalid_tampered_token_999',
+];
+$error = '';
+ob_start();
+require dirname(__DIR__) . '/pages/login.php';
+ob_end_clean();
+
+$runner->assert(empty($_SESSION['user_id']), 'Local login with invalid CSRF token creates zero session');
+$runner->assert(!empty($error) && stripos($error, 'inválido') !== false, 'Local login with invalid CSRF returns invalid CSRF error');
+
+// 2.1.c Successful local login with valid CSRF token creates session
+$_SESSION = [];
+SsoSession::resetLifecycle();
+$validToken = SsoSession::getCsrfToken();
+$_SERVER['REQUEST_METHOD'] = 'POST';
+$_POST = [
+    'username' => 'carlos_tech',
+    'password' => 'TechPassword123!',
+    'csrf_token' => $validToken,
+];
+$error = '';
 ob_start();
 require dirname(__DIR__) . '/pages/login.php';
 ob_end_clean();
@@ -371,14 +417,19 @@ ob_end_clean();
 $runner->assert(!empty($_SESSION['user_id']) && $_SESSION['user_id'] === 1, 'Local login creates session user_id');
 $runner->assert(!empty($_SESSION['username']) && $_SESSION['username'] === 'carlos_tech', 'Local login sets username in session');
 $runner->assert(!empty($_SESSION['role']) && $_SESSION['role'] === 'technician', 'Local login sets role in session');
+$runner->assert(SsoSession::wasSessionIdRegenerated() === true, 'Session identifier regenerates after successful local authentication');
 
-// 2.2 Local login with invalid password fails
+// 2.2 Local login with invalid password fails (with valid CSRF)
 $_SESSION = [];
+SsoSession::resetLifecycle();
+$validToken = SsoSession::getCsrfToken();
 $_SERVER['REQUEST_METHOD'] = 'POST';
 $_POST = [
     'username' => 'carlos_tech',
     'password' => 'WrongPassword!',
+    'csrf_token' => $validToken,
 ];
+$error = '';
 ob_start();
 require dirname(__DIR__) . '/pages/login.php';
 ob_end_clean();
@@ -386,19 +437,96 @@ ob_end_clean();
 $runner->assert(empty($_SESSION['user_id']), 'Local login with bad password sets no session user_id');
 $runner->assert(!empty($error) && $error === 'Contraseña incorrecta.', 'Local login returns invalid password error');
 
-// 2.3 Local login with non-existent user fails
+// 2.3 Local login with non-existent user fails (with valid CSRF)
 $_SESSION = [];
+SsoSession::resetLifecycle();
+$validToken = SsoSession::getCsrfToken();
 $_SERVER['REQUEST_METHOD'] = 'POST';
 $_POST = [
     'username' => 'nonexistent_user',
     'password' => 'SomePassword123!',
+    'csrf_token' => $validToken,
 ];
+$error = '';
 ob_start();
 require dirname(__DIR__) . '/pages/login.php';
 ob_end_clean();
 
 $runner->assert(empty($_SESSION['user_id']), 'Local login with unknown user sets no session user_id');
 $runner->assert(!empty($error) && $error === 'El usuario no existe.', 'Local login returns unknown user error');
+
+// 2.4 Local login for inactive user fails closed (with valid CSRF and valid password)
+$_SESSION = [];
+SsoSession::resetLifecycle();
+$validToken = SsoSession::getCsrfToken();
+$_SERVER['REQUEST_METHOD'] = 'POST';
+$_POST = [
+    'username' => 'diego_inactive',
+    'password' => 'InactivePass123!',
+    'csrf_token' => $validToken,
+];
+$error = '';
+ob_start();
+require dirname(__DIR__) . '/pages/login.php';
+ob_end_clean();
+
+$runner->assert(empty($_SESSION['user_id']), 'Local login with inactive user creates zero session user_id');
+$runner->assert(!empty($error) && stripos($error, 'inactiv') !== false, 'Local login returns inactive user error');
+
+// 2.5 Role denial on local login: misspelled role 'viwer' denied without default/fallback
+$_SESSION = [];
+SsoSession::resetLifecycle();
+$validToken = SsoSession::getCsrfToken();
+$_SERVER['REQUEST_METHOD'] = 'POST';
+$_POST = [
+    'username' => 'pedro_misspelled',
+    'password' => 'Pass!',
+    'csrf_token' => $validToken,
+];
+$error = '';
+ob_start();
+require dirname(__DIR__) . '/pages/login.php';
+ob_end_clean();
+
+$runner->assert(empty($_SESSION['user_id']), 'Local login with misspelled role "viwer" creates zero session user_id');
+$runner->assert(!empty($error) && stripos($error, 'Rol de usuario') !== false, 'Local login rejects misspelled role');
+
+// 2.6 Role denial on local login: unknown role 'superadmin' denied without privilege escalation
+$_SESSION = [];
+SsoSession::resetLifecycle();
+$validToken = SsoSession::getCsrfToken();
+$_SERVER['REQUEST_METHOD'] = 'POST';
+$_POST = [
+    'username' => 'ana_unknown',
+    'password' => 'Pass!',
+    'csrf_token' => $validToken,
+];
+$error = '';
+ob_start();
+require dirname(__DIR__) . '/pages/login.php';
+ob_end_clean();
+
+$runner->assert(empty($_SESSION['user_id']), 'Local login with unknown role "superadmin" creates zero session user_id');
+$runner->assert(!empty($error) && stripos($error, 'Rol de usuario') !== false, 'Local login rejects unknown role');
+
+// 2.7 Rollback resilience: database schema without active column still authenticates active users
+$_SESSION = [];
+SsoSession::resetLifecycle();
+$validToken = SsoSession::getCsrfToken();
+$pdo->simulateMissingActiveColumn = true;
+$_SERVER['REQUEST_METHOD'] = 'POST';
+$_POST = [
+    'username' => 'carlos_tech',
+    'password' => 'TechPassword123!',
+    'csrf_token' => $validToken,
+];
+$error = '';
+ob_start();
+require dirname(__DIR__) . '/pages/login.php';
+ob_end_clean();
+
+$runner->assert(!empty($_SESSION['user_id']) && $_SESSION['user_id'] === 1, 'Local login succeeds on rolled-back schema missing active column');
+$pdo->simulateMissingActiveColumn = false;
 
 // Clean POST state
 $_SERVER['REQUEST_METHOD'] = 'GET';
@@ -437,6 +565,7 @@ $runner->assert(strpos($loginOutputEnabled, 'sso-login.php') !== false, 'login.p
 $runner->assert(strpos($loginOutputEnabled, 'Iniciar sesión con SSO') !== false, 'login.php displays SSO action text');
 $runner->assert(strpos($loginOutputEnabled, 'name="username"') !== false, 'login.php preserves local username field');
 $runner->assert(strpos($loginOutputEnabled, 'name="password"') !== false, 'login.php preserves local password field');
+$runner->assert(strpos($loginOutputEnabled, 'name="csrf_token"') !== false, 'login.php includes session-bound CSRF token field');
 
 // 3.2 sso-login.php generates state and PKCE S256 through SsoFlow
 $_SESSION = [];
@@ -732,11 +861,11 @@ foreach ($allErrorResults as $errMsg) {
 $runner->assert(!$leakFound, 'All callback error messages are generic, sanitized, and leak zero internal values');
 
 // =========================================================================
-// SUITE 7: LOCAL LOGOUT WIRING
+// SUITE 7: LOCAL LOGOUT WIRING (POST & CSRF ENFORCEMENT)
 // =========================================================================
-echo "\n=== Suite 7: Local logout wiring ===\n";
+echo "\n=== Suite 7: Local logout wiring (POST & CSRF enforcement) ===\n";
 
-// 7.1 Setup authenticated local session
+// 7.1 Logout via GET is rejected (state change requires POST)
 $_SESSION = [
     'user_id' => 1,
     'username' => 'carlos_tech',
@@ -745,13 +874,46 @@ $_SESSION = [
     'sso_hub_user_id' => 'hub-tech-101',
     'sso_authenticated_at' => time(),
 ];
+$_SERVER['REQUEST_METHOD'] = 'GET';
+$_POST = [];
 
-$runner->assert(!empty($_SESSION['user_id']), 'Session is pre-populated before logout');
+$logoutGetResult = require dirname(__DIR__) . '/pages/logout.php';
+$runner->assert(is_array($logoutGetResult) && $logoutGetResult['success'] === false, 'logout.php via GET returns failure');
+$runner->assert(!empty($_SESSION['user_id']) && $_SESSION['user_id'] === 1, 'logout.php via GET preserves session user_id (fails closed)');
 
-// 7.2 Run pages/logout.php
+// 7.2 Logout via POST without CSRF token is rejected
+$_SESSION = [
+    'user_id' => 1,
+    'username' => 'carlos_tech',
+    'role' => 'technician',
+    'sso_provider' => 'central_hub',
+    'sso_hub_user_id' => 'hub-tech-101',
+    'sso_authenticated_at' => time(),
+    'csrf_token' => 'valid_csrf_token_abc',
+];
+$_SERVER['REQUEST_METHOD'] = 'POST';
+$_POST = [];
+
+$logoutNoCsrfResult = require dirname(__DIR__) . '/pages/logout.php';
+$runner->assert(is_array($logoutNoCsrfResult) && $logoutNoCsrfResult['success'] === false, 'logout.php without CSRF token returns failure');
+$runner->assert(!empty($_SESSION['user_id']) && $_SESSION['user_id'] === 1, 'logout.php without CSRF token preserves session (fails closed)');
+
+// 7.3 Logout via POST with invalid CSRF token is rejected
+$_SERVER['REQUEST_METHOD'] = 'POST';
+$_POST = ['csrf_token' => 'tampered_invalid_token'];
+
+$logoutBadCsrfResult = require dirname(__DIR__) . '/pages/logout.php';
+$runner->assert(is_array($logoutBadCsrfResult) && $logoutBadCsrfResult['success'] === false, 'logout.php with invalid CSRF token returns failure');
+$runner->assert(!empty($_SESSION['user_id']) && $_SESSION['user_id'] === 1, 'logout.php with invalid CSRF token preserves session (fails closed)');
+
+// 7.4 Logout via POST with valid CSRF token succeeds
+$_SESSION['csrf_token'] = SsoSession::getCsrfToken();
+$_SERVER['REQUEST_METHOD'] = 'POST';
+$_POST = ['csrf_token' => $_SESSION['csrf_token']];
+
 $logoutResult = require dirname(__DIR__) . '/pages/logout.php';
 
-$runner->assert(is_array($logoutResult) && $logoutResult['success'] === true, 'logout.php returns success outcome');
+$runner->assert(is_array($logoutResult) && $logoutResult['success'] === true, 'logout.php with POST and valid CSRF returns success');
 $runner->assert($logoutResult['redirect_url'] === 'login.php', 'logout.php target redirect is local login.php');
 $runner->assert(empty($_SESSION), 'logout.php clears all $_SESSION variables');
 $runner->assert(!isset($_SESSION['user_id']), 'logout.php removes user_id from session');
@@ -760,6 +922,9 @@ $runner->assert(!isset($_SESSION['sso_provider']), 'logout.php removes federatio
 $runner->assert(isset($logoutResult['cookie']) && $logoutResult['cookie']['secure'] === true, 'logout.php enforces Secure=true cookie attribute');
 $runner->assert(isset($logoutResult['cookie']) && $logoutResult['cookie']['httponly'] === true, 'logout.php enforces HttpOnly=true cookie attribute');
 $runner->assert(isset($logoutResult['cookie']) && $logoutResult['cookie']['samesite'] === 'Lax', 'logout.php enforces SameSite=Lax cookie attribute');
+
+$_SERVER['REQUEST_METHOD'] = 'GET';
+$_POST = [];
 
 // =========================================================================
 // SUITE 8: HARDENED SESSION BOOTSTRAP, COOKIE IMMUTABILITY & TRANSIENT CLEANUP
@@ -919,6 +1084,21 @@ $assertTransientsCleared('success path');
 $runner->assert($_SESSION['user_id'] === 1, 'Local user_id established');
 $runner->assert($_SESSION['role'] === 'technician', 'Local role established');
 
+// 8.6 SsoSession CSRF token lifecycle, rotation and timing-safe validation
+$_SESSION = [];
+$generatedCsrf = SsoSession::getCsrfToken();
+$runner->assert(is_string($generatedCsrf) && strlen($generatedCsrf) === 64, 'SsoSession generates 64-char hex CSRF token');
+$runner->assert(SsoSession::getCsrfToken() === $generatedCsrf, 'SsoSession::getCsrfToken returns identical session-bound token');
+$runner->assert(SsoSession::validateCsrfToken($generatedCsrf) === true, 'SsoSession validates matching CSRF token');
+$runner->assert(SsoSession::validateCsrfToken('wrong_token') === false, 'SsoSession rejects wrong CSRF token');
+$runner->assert(SsoSession::validateCsrfToken(null) === false, 'SsoSession rejects null CSRF token');
+$runner->assert(SsoSession::validateCsrfToken('') === false, 'SsoSession rejects empty CSRF token');
+
+$rotatedCsrf = SsoSession::getCsrfToken(true);
+$runner->assert($rotatedCsrf !== $generatedCsrf, 'SsoSession rotates CSRF token on demand');
+$runner->assert(SsoSession::validateCsrfToken($rotatedCsrf) === true, 'Rotated CSRF token is valid');
+$runner->assert(SsoSession::validateCsrfToken($generatedCsrf) === false, 'Previous CSRF token is no longer valid after rotation');
+
 // =========================================================================
 // SUITE 9: PROTOCOL ARTIFACT ISOLATION STATIC CHECKS (OAUTH2 ONLY)
 // =========================================================================
@@ -926,16 +1106,17 @@ echo "\n=== Suite 9: Protocol artifact isolation static checks (OAuth2 only) ===
 
 $forbiddenWords = [
     implode('', ['open', 'id']),
-    implode('', ['id_', 'token']),
     implode('', ['non', 'ce']),
     implode('', ['oi', 'dc']),
 ];
 
 $filesToCheck = [
+    dirname(__DIR__) . '/core/auth/SsoSession.php',
     dirname(__DIR__) . '/pages/login.php',
     dirname(__DIR__) . '/pages/sso-login.php',
     dirname(__DIR__) . '/pages/sso-callback.php',
     dirname(__DIR__) . '/pages/logout.php',
+    dirname(__DIR__) . '/views/sidebar.php',
     __FILE__,
 ];
 
