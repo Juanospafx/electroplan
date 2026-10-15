@@ -296,5 +296,44 @@ $runner->assertThrows(
     "generatePkce('none') debe ser rechazado con InvalidArgumentException"
 );
 
+// =========================================================================
+// SUITE 3: ALMACENAMIENTO EXCLUSIVO EN SESIÓN DE SERVIDOR (SIN COOKIES INDEPENDIENTES)
+// =========================================================================
+echo "\n=== Suite 3: Hardened Server Session Storage Only (No Standalone Cookies) ===\n";
+$_SESSION = [];
+$_COOKIE = [];
+$sessionFlow = new $className();
+
+// 3.1 State y verifier se guardan únicamente en el array de sesión del servidor
+$sState = $sessionFlow->generateState(300);
+$sPkce = $sessionFlow->generatePkce('S256');
+
+$runner->assert(
+    isset($_SESSION['sso_states'][$sState]),
+    "State debe guardarse exclusivamente en la sesión del servidor (\$_SESSION)"
+);
+
+$runner->assert(
+    !empty($_SESSION['code_verifier']),
+    "PKCE code_verifier debe guardarse exclusivamente en la sesión del servidor (\$_SESSION)"
+);
+
+$runner->assert(
+    empty($_COOKIE),
+    "Ninguna cookie independiente debe crearse para state o verifier (\$_COOKIE vacío)"
+);
+
+$runner->assert(
+    !isset($_COOKIE['state']) && !isset($_COOKIE['sso_state']) && !isset($_COOKIE['code_verifier']),
+    "State y PKCE verifier no deben residir en cookies independientes del cliente"
+);
+
+// 3.2 Limpieza de transitorios de flujo
+$sessionFlow->clearFlowSession();
+$runner->assert(
+    empty($_SESSION['sso_state']) && empty($_SESSION['sso_states']) && empty($_SESSION['code_verifier']),
+    "clearFlowSession elimina state y verifier de la sesión del servidor"
+);
+
 // Resumen y salida
 exit($runner->summary());

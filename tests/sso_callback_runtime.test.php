@@ -23,11 +23,13 @@ require_once dirname(__DIR__) . '/core/auth/IdentityProviderClient.php';
 require_once dirname(__DIR__) . '/core/auth/OAuthIdentityProviderClient.php';
 require_once dirname(__DIR__) . '/core/auth/SsoFlow.php';
 require_once dirname(__DIR__) . '/core/auth/SsoCallbackHandler.php';
+require_once dirname(__DIR__) . '/core/auth/SsoSession.php';
 
 use Electroplan\Auth\IdentityProfile;
 use Electroplan\Auth\IdentityProviderClient;
 use Electroplan\Auth\SsoCallbackHandler;
 use Electroplan\Auth\SsoFlow;
+use Electroplan\Auth\SsoSession;
 
 // Autonomous test runner
 class CallbackRuntimeTestRunner
@@ -377,5 +379,60 @@ $queryParams = ['error' => 'access_denied', 'state' => $seed['state']];
 $pageFailResult = require dirname(__DIR__) . '/pages/sso-callback.php';
 $runner->assert($pageFailResult['success'] === false, 'pages/sso-callback.php fails closed on error parameter');
 $runner->assert($pageFailResult['profile'] === null, 'pages/sso-callback.php returns null profile on failure');
+$runner->assert(empty($_SESSION['sso_state']), 'Provider error path clears sso_state transient');
+$runner->assert(empty($_SESSION['sso_states']), 'Provider error path clears sso_states transient');
+$runner->assert(empty($_SESSION['code_verifier']), 'Provider error path clears code_verifier transient');
+
+// 8.3 Transient cleanup on missing state parameter
+$_SESSION = [];
+$seed = $seedFlowSession($flow);
+$queryParams = ['code' => 'some_code_123'];
+$pageMissingState = require dirname(__DIR__) . '/pages/sso-callback.php';
+$runner->assert($pageMissingState['success'] === false, 'pages/sso-callback.php fails closed on missing state');
+$runner->assert(empty($_SESSION['sso_state']), 'Missing state path clears sso_state');
+$runner->assert(empty($_SESSION['sso_states']), 'Missing state path clears sso_states');
+$runner->assert(empty($_SESSION['code_verifier']), 'Missing state path clears code_verifier');
+
+// 8.4 Transient cleanup on invalid/tampered state
+$_SESSION = [];
+$seed = $seedFlowSession($flow);
+$queryParams = ['state' => 'tampered_state_value', 'code' => 'some_code_123'];
+$pageTampered = require dirname(__DIR__) . '/pages/sso-callback.php';
+$runner->assert($pageTampered['success'] === false, 'pages/sso-callback.php fails closed on tampered state');
+$runner->assert(empty($_SESSION['sso_state']), 'Tampered state path clears sso_state');
+$runner->assert(empty($_SESSION['sso_states']), 'Tampered state path clears sso_states');
+$runner->assert(empty($_SESSION['code_verifier']), 'Tampered state path clears code_verifier');
+
+// 8.5 Transient cleanup on expired state
+$_SESSION = [];
+$now = time();
+$seedExp = $seedFlowSession($flow, 300, $now);
+$injectedCurrentTime = $now + 305;
+$queryParams = ['state' => $seedExp['state'], 'code' => 'some_code_123'];
+$pageExpired = require dirname(__DIR__) . '/pages/sso-callback.php';
+$runner->assert($pageExpired['success'] === false, 'pages/sso-callback.php fails closed on expired state');
+$runner->assert(empty($_SESSION['sso_state']), 'Expired state path clears sso_state');
+$runner->assert(empty($_SESSION['sso_states']), 'Expired state path clears sso_states');
+$runner->assert(empty($_SESSION['code_verifier']), 'Expired state path clears code_verifier');
+$injectedCurrentTime = null;
+
+// 8.6 Transient cleanup on missing authorization code
+$_SESSION = [];
+$seed = $seedFlowSession($flow);
+$queryParams = ['state' => $seed['state']];
+$pageMissingCode = require dirname(__DIR__) . '/pages/sso-callback.php';
+$runner->assert($pageMissingCode['success'] === false, 'pages/sso-callback.php fails closed on missing authorization code');
+$runner->assert(empty($_SESSION['sso_state']), 'Missing code path clears sso_state');
+$runner->assert(empty($_SESSION['sso_states']), 'Missing code path clears sso_states');
+$runner->assert(empty($_SESSION['code_verifier']), 'Missing code path clears code_verifier');
+
+// 8.7 Hardened session cookies configured before session_start and non-relaxable
+$cookieParams = SsoSession::getLastConfiguredCookieParams();
+$runner->assert(isset($cookieParams['secure']) && $cookieParams['secure'] === true, 'SsoSession enforces Secure=true cookie parameter');
+$runner->assert(isset($cookieParams['httponly']) && $cookieParams['httponly'] === true, 'SsoSession enforces HttpOnly=true cookie parameter');
+$runner->assert(isset($cookieParams['samesite']) && $cookieParams['samesite'] === 'Lax', 'SsoSession enforces SameSite=Lax cookie parameter');
+
+// 8.8 Zero standalone cookies for state or verifier
+$runner->assert(!isset($_COOKIE['state']) && !isset($_COOKIE['sso_state']) && !isset($_COOKIE['code_verifier']), 'Zero standalone cookies for state or verifier');
 
 exit($runner->summary());

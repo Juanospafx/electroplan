@@ -21,17 +21,14 @@ require_once __DIR__ . '/../core/auth/IdentityProfile.php';
 require_once __DIR__ . '/../core/auth/IdentityProviderClient.php';
 require_once __DIR__ . '/../core/auth/OAuthIdentityProviderClient.php';
 require_once __DIR__ . '/../core/auth/SsoFlow.php';
+require_once __DIR__ . '/../core/auth/SsoSession.php';
 
 use Electroplan\Auth\SsoFlow;
 use Electroplan\Auth\OAuthIdentityProviderClient;
 use Electroplan\Auth\IdentityProviderClient;
+use Electroplan\Auth\SsoSession;
 
-if (session_status() === PHP_SESSION_NONE && !headers_sent()) {
-    @session_start();
-}
-if (!isset($_SESSION) || !is_array($_SESSION)) {
-    $_SESSION = [];
-}
+SsoSession::startHardenedSession();
 
 // Resolve configuration and enabled flag
 $config = null;
@@ -60,6 +57,7 @@ if (isset($injectedSsoConfig) && is_array($injectedSsoConfig)) {
 
 // Fail closed if SSO is disabled or configuration is unavailable
 if (!$ssoEnabled || $config === null) {
+    SsoSession::clearTransients();
     if (!headers_sent() && php_sapi_name() !== 'cli') {
         http_response_code(403);
     }
@@ -94,6 +92,7 @@ if (isset($injectedClient) && $injectedClient instanceof IdentityProviderClient)
 }
 
 if ($client === null) {
+    SsoSession::clearTransients();
     if (!headers_sent() && php_sapi_name() !== 'cli') {
         http_response_code(500);
     }
@@ -115,6 +114,7 @@ $authOptions = [
 try {
     $authorizeUrl = $client->getAuthorizationUrl($authOptions);
 } catch (\Throwable $e) {
+    SsoSession::clearTransients();
     if (!headers_sent() && php_sapi_name() !== 'cli') {
         http_response_code(500);
     }
@@ -128,6 +128,7 @@ try {
 // Enforce that authorize URL is strictly HTTPS
 $scheme = parse_url($authorizeUrl, PHP_URL_SCHEME);
 if (!is_string($scheme) || strtolower($scheme) !== 'https') {
+    SsoSession::clearTransients();
     if (!headers_sent() && php_sapi_name() !== 'cli') {
         http_response_code(500);
     }

@@ -21,21 +21,80 @@ class SsoSession
 {
     private static bool $lastRegenerated = false;
     private static array $lastConfiguredCookieParams = [];
+    private static bool $configuredBeforeSessionStart = false;
+    private static array $lifecycleLog = [];
+
+    /**
+     * Resets lifecycle and test state.
+     */
+    public static function resetLifecycle(): void
+    {
+        self::$lastRegenerated = false;
+        self::$lastConfiguredCookieParams = [];
+        self::$configuredBeforeSessionStart = false;
+        self::$lifecycleLog = [];
+    }
+
+    /**
+     * Records session start in lifecycle log.
+     */
+    public static function recordSessionStart(): void
+    {
+        self::$lifecycleLog[] = 'session_start';
+    }
 
     /**
      * Configures session cookie parameters with Secure, HttpOnly, and SameSite=Lax.
-     * Fixed to secure settings with no downgrade parameter.
+     * Fixed to secure settings with no downgrade parameter: cannot be relaxed by production configuration.
+     *
+     * @param array<string, mixed>|null $customParams Optional configuration overrides (cannot relax security).
+     * @return array<string, mixed> The enforced secure cookie parameters.
      */
-    public static function configureCookieParams(): void
+    public static function configureCookieParams(?array $customParams = null): array
     {
+        $status = session_status();
+        if ($status !== PHP_SESSION_ACTIVE) {
+            self::$configuredBeforeSessionStart = true;
+            self::$lifecycleLog[] = 'configure_cookie_params_pre_start';
+        } else {
+            self::$configuredBeforeSessionStart = false;
+            self::$lifecycleLog[] = 'configure_cookie_params_post_start';
+        }
+
         @ini_set('session.cookie_httponly', '1');
         @ini_set('session.cookie_secure', '1');
         @ini_set('session.cookie_samesite', 'Lax');
+        @ini_set('session.use_only_cookies', '1');
+        @ini_set('session.use_strict_mode', '1');
 
+        $lifetime = 0;
+        $path = '/';
+        $domain = '';
+
+        if ($status !== PHP_SESSION_ACTIVE && !headers_sent()) {
+            $existing = session_get_cookie_params();
+            $lifetime = $existing['lifetime'] ?? 0;
+            $path = $existing['path'] ?? '/';
+            $domain = $existing['domain'] ?? '';
+        }
+
+        if ($customParams !== null) {
+            if (isset($customParams['lifetime']) && is_int($customParams['lifetime'])) {
+                $lifetime = $customParams['lifetime'];
+            }
+            if (isset($customParams['path']) && is_string($customParams['path']) && $customParams['path'] !== '') {
+                $path = $customParams['path'];
+            }
+            if (isset($customParams['domain']) && is_string($customParams['domain'])) {
+                $domain = $customParams['domain'];
+            }
+        }
+
+        // Fixed to secure settings with no downgrade: cannot be relaxed by production configuration
         $cookieParams = [
-            'lifetime' => 0,
-            'path' => '/',
-            'domain' => '',
+            'lifetime' => $lifetime,
+            'path' => $path,
+            'domain' => $domain,
             'secure' => true,
             'httponly' => true,
             'samesite' => 'Lax',
@@ -43,13 +102,69 @@ class SsoSession
 
         self::$lastConfiguredCookieParams = $cookieParams;
 
-        if (session_status() !== PHP_SESSION_ACTIVE && !headers_sent()) {
-            $existing = session_get_cookie_params();
-            $cookieParams['lifetime'] = $existing['lifetime'] ?? 0;
-            $cookieParams['path'] = $existing['path'] ?? '/';
-            $cookieParams['domain'] = $existing['domain'] ?? '';
+        if ($status !== PHP_SESSION_ACTIVE && !headers_sent()) {
             session_set_cookie_params($cookieParams);
         }
+
+        return $cookieParams;
+    }
+
+    /**
+     * Bootstraps the hardened session: configures secure cookie parameters BEFORE session_start.
+     *
+     * @return bool True on success.
+     */
+    public static function startHardenedSession(): bool
+    {
+        self::configureCookieParams();
+
+        if (session_status() === PHP_SESSION_NONE && !headers_sent()) {
+            self::recordSessionStart();
+            @session_start();
+        }
+
+        if (!isset($_SESSION) || !is_array($_SESSION)) {
+            $_SESSION = [];
+        }
+
+        return true;
+    }
+
+    /**
+     * Alias for startHardenedSession.
+     */
+    public static function bootstrap(): bool
+    {
+        return self::startHardenedSession();
+    }
+
+    /**
+     * Clears all SSO flow state and PKCE transient keys from session.
+     */
+    public static function clearTransients(): void
+    {
+        if (isset($_SESSION) && is_array($_SESSION)) {
+            unset(
+                $_SESSION['sso_state'],
+                $_SESSION['sso_states'],
+                $_SESSION['code_verifier']
+            );
+        }
+    }
+
+    public static function wasConfiguredBeforeSessionStart(): bool
+    {
+        return self::$configuredBeforeSessionStart;
+    }
+
+    public static function wasConfiguredBeforeStart(): bool
+    {
+        return self::$configuredBeforeSessionStart;
+    }
+
+    public static function getLifecycleLog(): array
+    {
+        return self::$lifecycleLog;
     }
 
     /**
@@ -148,11 +263,7 @@ class SsoSession
                 unset($_SESSION['sso_states'][$acceptedState]);
             }
         }
-        unset(
-            $_SESSION['sso_state'],
-            $_SESSION['sso_states'],
-            $_SESSION['code_verifier']
-        );
+        self::clearTransients();
 
         // 10. Write strictly the existing local session shape
         $_SESSION['user_id'] = $userId;
@@ -238,13 +349,7 @@ class SsoSession
      */
     private function ensureSessionActive(): void
     {
-        if (session_status() === PHP_SESSION_NONE && !headers_sent()) {
-            @session_start();
-        }
-
-        if (!isset($_SESSION) || !is_array($_SESSION)) {
-            $_SESSION = [];
-        }
+        self::startHardenedSession();
     }
 }
 

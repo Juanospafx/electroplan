@@ -762,9 +762,167 @@ $runner->assert(isset($logoutResult['cookie']) && $logoutResult['cookie']['httpo
 $runner->assert(isset($logoutResult['cookie']) && $logoutResult['cookie']['samesite'] === 'Lax', 'logout.php enforces SameSite=Lax cookie attribute');
 
 // =========================================================================
-// SUITE 8: PROTOCOL ARTIFACT ISOLATION STATIC CHECKS (OAUTH2 ONLY)
+// SUITE 8: HARDENED SESSION BOOTSTRAP, COOKIE IMMUTABILITY & TRANSIENT CLEANUP
 // =========================================================================
-echo "\n=== Suite 8: Protocol artifact isolation static checks (OAuth2 only) ===\n";
+echo "\n=== Suite 8: Hardened session bootstrap, cookie immutability & transient cleanup ===\n";
+
+// 8.1 Ordering: configureCookieParams is executed before session_start
+SsoSession::resetLifecycle();
+$runner->assert(SsoSession::wasConfiguredBeforeSessionStart() === false, 'Fresh lifecycle state has not configured cookies');
+
+// Valid pre-session point: configure and verify immutable cookie settings before session_start
+$preSessionParams = SsoSession::configureCookieParams();
+$runner->assert(SsoSession::wasConfiguredBeforeSessionStart() === true, 'Cookie parameters configured before session_start');
+$runner->assert(isset($preSessionParams['secure']) && $preSessionParams['secure'] === true, 'Hardened session enforces Secure=true at pre-session point');
+$runner->assert(isset($preSessionParams['httponly']) && $preSessionParams['httponly'] === true, 'Hardened session enforces HttpOnly=true at pre-session point');
+$runner->assert(isset($preSessionParams['samesite']) && $preSessionParams['samesite'] === 'Lax', 'Hardened session enforces SameSite=Lax at pre-session point');
+
+SsoSession::startHardenedSession();
+$lifecycleEntries = SsoSession::getLifecycleLog();
+$preStartPos = array_search('configure_cookie_params_pre_start', $lifecycleEntries, true);
+$runner->assert($preStartPos !== false, 'Lifecycle records configure_cookie_params before start');
+
+// 8.2 Cookie parameters immutable security attributes
+$activeParams = SsoSession::getLastConfiguredCookieParams();
+$runner->assert(isset($activeParams['secure']) && $activeParams['secure'] === true, 'Hardened session enforces Secure=true');
+$runner->assert(isset($activeParams['httponly']) && $activeParams['httponly'] === true, 'Hardened session enforces HttpOnly=true');
+$runner->assert(isset($activeParams['samesite']) && $activeParams['samesite'] === 'Lax', 'Hardened session enforces SameSite=Lax');
+
+// 8.3 Cannot be relaxed by production configuration
+$downgradeAttempt = [
+    'secure' => false,
+    'httponly' => false,
+    'samesite' => 'None',
+];
+$hardenedParams = SsoSession::configureCookieParams($downgradeAttempt);
+$runner->assert($hardenedParams['secure'] === true, 'Production configuration cannot relax Secure attribute');
+$runner->assert($hardenedParams['httponly'] === true, 'Production configuration cannot relax HttpOnly attribute');
+$runner->assert($hardenedParams['samesite'] === 'Lax', 'Production configuration cannot relax SameSite attribute');
+
+// 8.4 State and PKCE verifier stored ONLY in hardened server session
+$_SESSION = [];
+$_COOKIE = [];
+$injectedFlow = new SsoFlow();
+$injectedClient = new MockClientDouble();
+$injectedSsoConfig = $enabledConfig;
+$loginLaunch = require dirname(__DIR__) . '/pages/sso-login.php';
+
+$runner->assert($loginLaunch['success'] === true, 'sso-login.php succeeds');
+$runner->assert(!empty($_SESSION['sso_states']), 'State is present in server session');
+$runner->assert(!empty($_SESSION['code_verifier']), 'PKCE code_verifier is present in server session');
+$runner->assert(empty($_COOKIE), 'Zero standalone cookies created during SSO initiation');
+$runner->assert(!isset($_COOKIE['state']) && !isset($_COOKIE['sso_state']) && !isset($_COOKIE['code_verifier']), 'No state or verifier stored in client cookies');
+
+// 8.5 State, verifier and callback transients cleanup on all callback paths
+
+// Helper to assert transients cleared
+$assertTransientsCleared = function (string $pathDescription) use ($runner) {
+    $runner->assert(empty($_SESSION['sso_state']), "Transient sso_state cleared on {$pathDescription}");
+    $runner->assert(empty($_SESSION['sso_states']), "Transient sso_states cleared on {$pathDescription}");
+    $runner->assert(empty($_SESSION['code_verifier']), "Transient code_verifier cleared on {$pathDescription}");
+};
+
+// 8.5.a Missing state path
+$_SESSION = [];
+$seedFlow = new SsoFlow();
+$sMissing = $seedFlow->generateState(300);
+$seedFlow->generatePkce('S256');
+$injectedCallbackHandler = new SsoCallbackHandler($seedFlow, new MockClientDouble($techProfile));
+$queryParams = ['code' => 'some_code'];
+$resMissing = require dirname(__DIR__) . '/pages/sso-callback.php';
+$runner->assert($resMissing['success'] === false, 'Callback fails on missing state');
+$assertTransientsCleared('missing state path');
+
+// 8.5.b Invalid/tampered state path
+$_SESSION = [];
+$sSeed = $seedFlow->generateState(300);
+$seedFlow->generatePkce('S256');
+$injectedCallbackHandler = new SsoCallbackHandler($seedFlow, new MockClientDouble($techProfile));
+$queryParams = ['state' => 'tampered_state_val', 'code' => 'some_code'];
+$resTamperedPath = require dirname(__DIR__) . '/pages/sso-callback.php';
+$runner->assert($resTamperedPath['success'] === false, 'Callback fails on tampered state');
+$assertTransientsCleared('tampered state path');
+
+// 8.5.c Expired state path
+$_SESSION = [];
+$tNow = time();
+$sExpSeed = $seedFlow->generateState(300, $tNow);
+$seedFlow->generatePkce('S256');
+$injectedCurrentTime = $tNow + 305;
+$queryParams = ['state' => $sExpSeed, 'code' => 'some_code'];
+$resExpPath = require dirname(__DIR__) . '/pages/sso-callback.php';
+$runner->assert($resExpPath['success'] === false, 'Callback fails on expired state');
+$assertTransientsCleared('expired state path');
+$injectedCurrentTime = null;
+
+// 8.5.d Provider error paths (central_disabled, access_denied, app_unauthorized)
+foreach (['central_disabled', 'access_denied', 'app_unauthorized'] as $providerErr) {
+    $_SESSION = [];
+    $sErrState = $seedFlow->generateState(300);
+    $seedFlow->generatePkce('S256');
+    $queryParams = ['state' => $sErrState, 'error' => $providerErr];
+    $resProv = require dirname(__DIR__) . '/pages/sso-callback.php';
+    $runner->assert($resProv['success'] === false, "Callback fails on provider error {$providerErr}");
+    $assertTransientsCleared("provider error {$providerErr}");
+}
+
+// 8.5.e Missing authorization code
+$_SESSION = [];
+$sCodeMissing = $seedFlow->generateState(300);
+$seedFlow->generatePkce('S256');
+$queryParams = ['state' => $sCodeMissing];
+$resNoCode = require dirname(__DIR__) . '/pages/sso-callback.php';
+$runner->assert($resNoCode['success'] === false, 'Callback fails on missing code');
+$assertTransientsCleared('missing authorization code path');
+
+// 8.5.f Unmapped identity
+$_SESSION = [];
+$sUnmap = $seedFlow->generateState(300);
+$seedFlow->generatePkce('S256');
+$injectedCallbackHandler = new SsoCallbackHandler($seedFlow, new MockClientDouble($createMockProfile('hub-unmapped-777', true)));
+$injectedRepository = $repository;
+$injectedAuthorization = $authorization;
+$queryParams = ['state' => $sUnmap, 'code' => 'code_unmapped'];
+$resUnmap = require dirname(__DIR__) . '/pages/sso-callback.php';
+$runner->assert($resUnmap['success'] === false, 'Callback fails on unmapped identity');
+$assertTransientsCleared('unmapped identity path');
+
+// 8.5.g Inactive identity link
+$_SESSION = [];
+$sInactLink = $seedFlow->generateState(300);
+$seedFlow->generatePkce('S256');
+$injectedCallbackHandler = new SsoCallbackHandler($seedFlow, new MockClientDouble($createMockProfile('hub-tech-inactive', true)));
+$queryParams = ['state' => $sInactLink, 'code' => 'code_inactive_link'];
+$resInactLink = require dirname(__DIR__) . '/pages/sso-callback.php';
+$runner->assert($resInactLink['success'] === false, 'Callback fails on inactive link');
+$assertTransientsCleared('inactive link path');
+
+// 8.5.h Misspelled local role
+$_SESSION = [];
+$sMisspelledRole = $seedFlow->generateState(300);
+$seedFlow->generatePkce('S256');
+$injectedCallbackHandler = new SsoCallbackHandler($seedFlow, new MockClientDouble($createMockProfile('hub-misspelled-505', true)));
+$queryParams = ['state' => $sMisspelledRole, 'code' => 'code_misspelled'];
+$resMisspell = require dirname(__DIR__) . '/pages/sso-callback.php';
+$runner->assert($resMisspell['success'] === false, 'Callback fails on misspelled role');
+$assertTransientsCleared('misspelled role path');
+
+// 8.5.i Transient cleanup on SUCCESS path
+$_SESSION = [];
+$sSuccess = $seedFlow->generateState(300);
+$seedFlow->generatePkce('S256');
+$injectedCallbackHandler = new SsoCallbackHandler($seedFlow, new MockClientDouble($techProfile));
+$queryParams = ['state' => $sSuccess, 'code' => 'code_success'];
+$resSuccess = require dirname(__DIR__) . '/pages/sso-callback.php';
+$runner->assert($resSuccess['success'] === true, 'Callback succeeds for valid mapped technician');
+$assertTransientsCleared('success path');
+$runner->assert($_SESSION['user_id'] === 1, 'Local user_id established');
+$runner->assert($_SESSION['role'] === 'technician', 'Local role established');
+
+// =========================================================================
+// SUITE 9: PROTOCOL ARTIFACT ISOLATION STATIC CHECKS (OAUTH2 ONLY)
+// =========================================================================
+echo "\n=== Suite 9: Protocol artifact isolation static checks (OAuth2 only) ===\n";
 
 $forbiddenWords = [
     implode('', ['open', 'id']),

@@ -30,12 +30,7 @@ use Electroplan\Auth\SsoAuthorization;
 use Electroplan\Auth\SsoSession;
 use Electroplan\Auth\IdentityProfile;
 
-if (session_status() === PHP_SESSION_NONE && !headers_sent()) {
-    @session_start();
-}
-if (!isset($_SESSION) || !is_array($_SESSION)) {
-    $_SESSION = [];
-}
+SsoSession::startHardenedSession();
 
 $isCli = php_sapi_name() === 'cli';
 
@@ -58,7 +53,7 @@ if ($isCli) {
 
 // Fail closed if SSO is disabled
 if (!$ssoEnabled) {
-    unset($_SESSION['sso_state'], $_SESSION['sso_states'], $_SESSION['code_verifier']);
+    SsoSession::clearTransients();
     if (!headers_sent() && !$isCli) {
         http_response_code(403);
     }
@@ -85,6 +80,7 @@ $currentTime = ($isCli && isset($injectedCurrentTime)) ? $injectedCurrentTime : 
 $handlerResult = $handler->handle($params, $currentTime);
 
 if (!$handlerResult['success'] || !($handlerResult['profile'] instanceof IdentityProfile)) {
+    SsoSession::clearTransients();
     if (!headers_sent() && !$isCli) {
         http_response_code(400);
     }
@@ -101,6 +97,7 @@ if (!$handlerResult['success'] || !($handlerResult['profile'] instanceof Identit
 
 // Compatibility seam strictly restricted to CLI plus injected test objects (historical boundary test)
 if ($isCli && isset($injectedCallbackHandler) && ($injectedCallbackHandler instanceof SsoCallbackHandler) && !isset($injectedRepository) && !isset($injectedAuthorization) && !isset($injectedPdo) && !isset($pdo)) {
+    SsoSession::clearTransients();
     $outcome = $handlerResult;
     $ssoOutcome = $outcome;
     return $outcome;
@@ -137,6 +134,7 @@ if ($isCli && isset($injectedAuthorization) && ($injectedAuthorization instanceo
 }
 
 if ($authorization === null) {
+    SsoSession::clearTransients();
     if (!headers_sent() && !$isCli) {
         http_response_code(500);
     }
@@ -154,6 +152,7 @@ if ($authorization === null) {
 $authResult = $authorization->authorize($profile);
 
 if (!$authResult['success'] || empty($authResult['identity'])) {
+    SsoSession::clearTransients();
     if (!headers_sent() && !$isCli) {
         http_response_code(403);
     }
@@ -191,6 +190,7 @@ if (!$sessionOk) {
         $_SESSION['sso_hub_user_id'],
         $_SESSION['sso_authenticated_at']
     );
+    SsoSession::clearTransients();
     if (!headers_sent() && !$isCli) {
         http_response_code(403);
     }
@@ -205,6 +205,7 @@ if (!$sessionOk) {
     return $outcome;
 }
 
+SsoSession::clearTransients();
 $outcome = [
     'success' => true,
     'profile' => $profile,
