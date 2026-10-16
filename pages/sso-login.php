@@ -19,7 +19,6 @@ declare(strict_types=1);
 require_once __DIR__ . '/../config/SsoConfig.php';
 require_once __DIR__ . '/../core/auth/IdentityProfile.php';
 require_once __DIR__ . '/../core/auth/IdentityProviderClient.php';
-require_once __DIR__ . '/../core/auth/OAuthIdentityProviderClient.php';
 require_once __DIR__ . '/../core/auth/SsoFlow.php';
 require_once __DIR__ . '/../core/auth/SsoSession.php';
 
@@ -67,6 +66,23 @@ if (!$ssoEnabled || $config === null) {
         'error' => 'SSO is disabled or not configured.',
     ];
 }
+
+// Enforce fail-closed autoloading of root vendor dependencies when SSO is enabled
+$vendorAutoload = dirname(__DIR__) . '/vendor/autoload.php';
+if (!file_exists($vendorAutoload)) {
+    SsoSession::clearTransients();
+    if (!headers_sent() && php_sapi_name() !== 'cli') {
+        http_response_code(500);
+    }
+    return [
+        'success' => false,
+        'redirect_url' => null,
+        'error' => 'SSO service unavailable.',
+    ];
+}
+
+require_once $vendorAutoload;
+require_once __DIR__ . '/../core/auth/OAuthIdentityProviderClient.php';
 
 // Initialize SsoFlow and IdentityProviderClient
 $flow = (isset($injectedFlow) && $injectedFlow instanceof SsoFlow)

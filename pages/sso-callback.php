@@ -17,7 +17,6 @@ declare(strict_types=1);
 require_once __DIR__ . '/../config/SsoConfig.php';
 require_once __DIR__ . '/../core/auth/IdentityProfile.php';
 require_once __DIR__ . '/../core/auth/IdentityProviderClient.php';
-require_once __DIR__ . '/../core/auth/OAuthIdentityProviderClient.php';
 require_once __DIR__ . '/../core/auth/SsoFlow.php';
 require_once __DIR__ . '/../core/auth/SsoCallbackHandler.php';
 require_once __DIR__ . '/../core/auth/FederatedIdentityRepository.php';
@@ -67,6 +66,27 @@ if (!$ssoEnabled) {
     $ssoOutcome = $outcome;
     return $outcome;
 }
+
+// Enforce fail-closed autoloading of root vendor dependencies when SSO is enabled
+$vendorAutoload = dirname(__DIR__) . '/vendor/autoload.php';
+if (!file_exists($vendorAutoload)) {
+    SsoSession::clearTransients();
+    if (!headers_sent() && !$isCli) {
+        http_response_code(500);
+    }
+    $outcome = [
+        'success' => false,
+        'profile' => null,
+        'identity' => null,
+        'user' => null,
+        'error' => 'SSO service unavailable.',
+    ];
+    $ssoOutcome = $outcome;
+    return $outcome;
+}
+
+require_once $vendorAutoload;
+require_once __DIR__ . '/../core/auth/OAuthIdentityProviderClient.php';
 
 // 2. Step 1: Run accepted SsoCallbackHandler
 if ($isCli && isset($injectedCallbackHandler) && ($injectedCallbackHandler instanceof SsoCallbackHandler)) {

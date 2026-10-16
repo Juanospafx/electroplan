@@ -1,6 +1,7 @@
 {
     "name": "electroplan/electroplan",
     "description": "Electroplan - Sistema de Gestión de Planos Eléctricos",
+    "license": "proprietary",
     "type": "project",
     "require": {
         "php": "~8.2.0",

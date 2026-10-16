@@ -17,6 +17,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.2"
+          tools: composer
+
+      - name: Install production dependencies
+        run: composer install --no-dev --prefer-dist --no-interaction --optimize-autoloader
+
       - name: Build deploy artifact
         run: |
           mkdir -p deploy_artifact
@@ -27,8 +36,12 @@ jobs:
             --exclude='.gitattributes' \
             --exclude='.env*' \
             --exclude='config.local.php' \
+            --exclude='*.local.php' \
+            --exclude='local.config.php' \
+            --exclude='config/*.local.php' \
             --exclude='tests/' \
             --exclude='docs/' \
+            --exclude='documentation/' \
             --exclude='harness/' \
             --exclude='schemas/' \
             --exclude='apps/' \
@@ -38,6 +51,7 @@ jobs:
             --exclude='temp/' \
             --exclude='tmp/' \
             --exclude='cache/' \
+            --exclude='.cache/' \
             --exclude='*.md' \
             --exclude='*.sql' \
             --exclude='db/' \
@@ -47,7 +61,12 @@ jobs:
           test -d deploy_artifact/api
           test -d deploy_artifact/core
           test -d deploy_artifact/assets
+          test -d deploy_artifact/vendor
+          test -f deploy_artifact/vendor/autoload.php
           test -f deploy_artifact/index.php
+          test ! -d deploy_artifact/tests
+          test ! -d deploy_artifact/docs
+          test ! -d deploy_artifact/db
           NOW_UTC=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
           cat <<EOF > deploy_artifact/deployment_manifest.json
           {
