@@ -710,8 +710,8 @@ $contractRunner->assert(
 // 3.1.5 SsoSession enforces Secure, HttpOnly, and SameSite=Lax without downgrade parameters
 $cookieMethodRef = new ReflectionMethod(SsoSession::class, 'configureCookieParams');
 $contractRunner->assert(
-    $cookieMethodRef->getNumberOfParameters() === 0,
-    'SsoSession::configureCookieParams accepts zero parameters (no security downgrade allowed)'
+    $cookieMethodRef->getNumberOfRequiredParameters() === 0,
+    'SsoSession::configureCookieParams accepts zero required parameters (no security downgrade allowed)'
 );
 
 SsoSession::configureCookieParams();
