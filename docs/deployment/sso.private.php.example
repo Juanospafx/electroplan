@@ -1,0 +1,28 @@
+<?php
+declare(strict_types=1);
+
+/**
+ * Electroplan - Plantilla de Configuración Privada de SSO (OAuth2 / Central Hub)
+ *
+ * INSTRUCCIONES DE DESPLIEGUE:
+ * 1. Copie este archivo a una ubicación segura fuera del repositorio y del document root del servidor web
+ *    (ejemplo: /etc/electroplan/sso.private.php o C:\secure\electroplan\sso.private.php).
+ * 2. Asegúrese de que los permisos del archivo restrinjan el acceso al usuario del servidor web.
+ * 3. Configure la variable de entorno:
+ *    ELECTROPLAN_SSO_PRIVATE_CONFIG=/ruta/segura/a/sso.private.php
+ * 4. Reemplace los placeholders con los valores reales correspondientes a su entorno sin almacenar
+ *    secretos reales en el repositorio de control de versiones.
+ *
+ * NOTA: Las variables de entorno individuales (ELECTROPLAN_SSO_ENABLED, ELECTROPLAN_SSO_HUB_BASE_URL,
+ * ELECTROPLAN_SSO_CLIENT_ID, ELECTROPLAN_SSO_CLIENT_SECRET, ELECTROPLAN_SSO_REDIRECT_URI,
+ * ELECTROPLAN_SSO_TIMEOUT) tienen precedencia sobre los valores definidos en este archivo.
+ */
+
+return [
+    'SSO_ENABLED' => false,
+    'SSO_HUB_BASE_URL' => 'https://hub.example.invalid',
+    'SSO_CLIENT_ID' => 'electroplan_client_placeholder',
+    'SSO_CLIENT_SECRET' => 'replace_with_sso_client_secret_placeholder',
+    'SSO_REDIRECT_URI' => 'https://electroplan.example.invalid/callback',
+    'SSO_TIMEOUT' => 10,
+];
