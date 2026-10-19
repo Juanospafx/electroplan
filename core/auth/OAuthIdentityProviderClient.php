@@ -261,6 +261,7 @@ class OAuthIdentityProviderClient implements IdentityProviderClient
                 'urlAccessToken'          => $this->tokenEndpoint,
                 'urlResourceOwnerDetails' => $this->userinfoEndpoint,
                 'scopes'                  => $this->scopes,
+                'scopeSeparator'          => ' ',
                 'timeout'                 => $this->timeout,
             ]);
         }
