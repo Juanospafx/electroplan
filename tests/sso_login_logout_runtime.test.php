@@ -287,6 +287,40 @@ class MockClientDouble implements IdentityProviderClient
     }
 }
 
+// Synthetic local test fixture for isolated runtime tests when vendor/autoload.php is not pre-installed
+$vendorDir = dirname(__DIR__) . '/vendor';
+$vendorAutoloadPath = $vendorDir . '/autoload.php';
+$createdSyntheticAutoload = false;
+$createdVendorDir = false;
+
+if (file_exists($vendorAutoloadPath)) {
+    $existingContent = @file_get_contents($vendorAutoloadPath);
+    if ($existingContent !== false && str_contains($existingContent, 'Synthetic autoloader fixture')) {
+        $createdSyntheticAutoload = true;
+    }
+} else {
+    if (!is_dir($vendorDir)) {
+        if (@mkdir($vendorDir, 0777, true)) {
+            $createdVendorDir = true;
+        }
+    }
+    if (is_dir($vendorDir)) {
+        $syntheticContent = "<?php\n// Synthetic autoloader fixture for isolated runtime tests\nreturn true;\n";
+        if (@file_put_contents($vendorAutoloadPath, $syntheticContent) !== false) {
+            $createdSyntheticAutoload = true;
+        }
+    }
+}
+
+register_shutdown_function(function () use ($vendorAutoloadPath, $vendorDir, $createdSyntheticAutoload, $createdVendorDir): void {
+    if ($createdSyntheticAutoload && file_exists($vendorAutoloadPath)) {
+        @unlink($vendorAutoloadPath);
+    }
+    if ($createdVendorDir && is_dir($vendorDir)) {
+        @rmdir($vendorDir);
+    }
+});
+
 $runner = new SsoLoginLogoutTestRunner();
 echo "--- Iniciando validacion runtime de Electroplan SSO Wiring (TASK-0261) ---\n\n";
 
