@@ -3,8 +3,10 @@
 
 // 1. Configuración y Cabeceras
 header('Content-Type: application/json');
-require_once __DIR__ . '/../core/db/connection.php';
 require_once __DIR__ . '/../core/auth/session.php'; // Para obtener el ID del usuario creador
+require_once __DIR__ . '/../core/db/connection.php';
+
+
 
 // Solo Admins pueden crear
 if (!isset($_SESSION['role']) || $_SESSION['role'] !== 'admin') {

@@ -5,8 +5,10 @@
 date_default_timezone_set('America/Santo_Domingo');
 
 header('Content-Type: application/json');
-require_once __DIR__ . '/../core/db/connection.php';
 require_once __DIR__ . '/../core/auth/session.php';
+require_once __DIR__ . '/../core/db/connection.php';
+
+
 require_once __DIR__ . '/TaskManager.php';
 require_once __DIR__ . '/Core/TimeEngine.php';
 require_once __DIR__ . '/Core/TaskManagerController.php';
