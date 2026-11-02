@@ -7,20 +7,6 @@ if (!function_exists('ep_login_log')) {
     }
 }
 
-if (isset($injectedPdo) && $injectedPdo instanceof PDO) {
-    $pdo = $injectedPdo;
-} elseif (!isset($pdo)) {
-    try {
-        require_once __DIR__ . '/../core/db/connection.php';
-    } catch (Throwable $e) {
-        ep_login_log('DB bootstrap error');
-        if (php_sapi_name() !== 'cli') {
-            http_response_code(500);
-            exit('Internal Server Error');
-        }
-    }
-}
-
 require_once __DIR__ . '/../core/auth/SsoSession.php';
 
 try {
@@ -42,9 +28,47 @@ if (isset($injectedSsoConfig) && is_array($injectedSsoConfig)) {
     $ssoEnabled = class_exists('\SsoConfig') && \SsoConfig::isEnabled();
 }
 
+$requestMethod = strtoupper($_SERVER['REQUEST_METHOD'] ?? 'GET');
+$isGetOrHead = in_array($requestMethod, ['GET', 'HEAD'], true);
+$isAnonymous = !\Electroplan\Auth\SsoSession::isValidSession();
+$isLocalRecovery = (isset($_GET['local']) && $_GET['local'] === '1');
+$hasSsoError = !empty($_GET['error']);
+
+if ($ssoEnabled && $isGetOrHead && $isAnonymous && !$isLocalRecovery && !$hasSsoError) {
+    $target = '/electroplan/pages/sso-login.php';
+    $GLOBALS['__ELECTROPLAN_PAGE_REDIRECT__'] = $target;
+    $GLOBALS['__ELECTROPLAN_REDIRECT_STATUS__'] = 302;
+    if (!headers_sent()) {
+        http_response_code(302);
+        header('Location: ' . $target, true, 302);
+    }
+    $handler = $GLOBALS['__ELECTROPLAN_PAGE_REDIRECT_HANDLER__'] ?? null;
+    if (is_callable($handler)) {
+        $handler($target, 302);
+    }
+    if (php_sapi_name() !== 'cli') {
+        exit;
+    }
+    return;
+}
+
 $error = '';
 if (!empty($_GET['error'])) {
     $error = 'Authentication failed. Please try again.';
+}
+
+if (isset($injectedPdo) && $injectedPdo instanceof PDO) {
+    $pdo = $injectedPdo;
+} elseif (!isset($pdo)) {
+    try {
+        require_once __DIR__ . '/../core/db/connection.php';
+    } catch (Throwable $e) {
+        ep_login_log('DB bootstrap error');
+        if (php_sapi_name() !== 'cli') {
+            http_response_code(500);
+            exit('Internal Server Error');
+        }
+    }
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {

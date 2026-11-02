@@ -634,6 +634,7 @@ $enabledConfig = [
 ];
 
 // 3.1 login.php exposes SSO action with enabled test config
+$_GET['local'] = '1';
 $_SESSION = [];
 unset($injectedSsoEnabled);
 $injectedPdo = $pdo;
@@ -642,6 +643,7 @@ ob_start();
 require dirname(__DIR__) . '/pages/login.php';
 $loginOutputEnabled = ob_get_clean();
 
+unset($_GET['local']);
 $runner->assert(strpos($loginOutputEnabled, 'ssoLoginBtn') !== false, 'login.php exposes SSO button when SSO is enabled');
 $runner->assert(strpos($loginOutputEnabled, 'sso-login.php') !== false, 'login.php links to sso-login.php when SSO is enabled');
 $runner->assert(strpos($loginOutputEnabled, 'Iniciar sesión con SSO') !== false, 'login.php displays SSO action text');
