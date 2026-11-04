@@ -7,7 +7,9 @@ require_once __DIR__ . '/middleware_auth.php';
 $config = require __DIR__ . '/config.php';
 
 // DB connection reuse
-require_once __DIR__ . '/../core/db/connection.php';
+if (!isset($pdo) || !($pdo instanceof PDO)) {
+    require_once __DIR__ . '/../../core/db/connection.php';
+}
 
 // Routes
 $routes = require __DIR__ . '/routes.php';
@@ -66,11 +68,15 @@ foreach ($routes as $route) {
             error_response('NOT_FOUND', 'Action not found', null, 404);
         }
 
-        // Call action
-        if (!empty($params)) {
-            $controller->{$action}($params);
-        } else {
-            $controller->{$action}();
+        try {
+            // Call action
+            if (!empty($params)) {
+                $controller->{$action}($params);
+            } else {
+                $controller->{$action}();
+            }
+        } catch (\Throwable $e) {
+            error_response('INTERNAL_ERROR', 'Unexpected error', null, 500);
         }
 
         exit;
