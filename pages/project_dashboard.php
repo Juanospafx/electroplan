@@ -1053,7 +1053,7 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
                         <i class="fas fa-file-upload text-primary mb-2" style="font-size:2rem;"></i>
                         <div class="text-white fw-semibold mb-1">Drag & drop files here</div>
                         <div class="text-gray small">or <span class="text-primary" class="cursor-pointer">browse files</span></div>
-                        <div class="text-gray small mt-1">PDF, Images, Excel, Word, DWG, ZIP and more · max 1GB each</div>
+                        <div class="text-gray small mt-1">PDF, Images, Excel, Word, DWG, ZIP and more · max 10GB each</div>
                     </div>
                     <input type="file" id="upload_file_input" class="d-none" multiple onchange="uploadFilesSelected(this.files)">
 
@@ -1089,13 +1089,20 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
     </div>
 </div>
 
-<div id="uploadProgressWrap" class="position-fixed bottom-0 end-0 m-3" style="z-index: 2000; width: 280px; display:none;">
+<div id="uploadProgressWrap" class="position-fixed bottom-0 end-0 m-3" style="z-index: 2000; width: 340px; display:none;">
     <div class="box-card p-3">
-        <div class="small text-gray mb-2">Uploading file...</div>
+        <div class="d-flex justify-content-between align-items-center mb-1">
+            <span class="small text-white fw-bold" id="uploadProgressTitle">Uploading files...</span>
+            <span class="small text-gray" id="uploadProgressCount">0 / 0</span>
+        </div>
+        <div class="small text-truncate text-white fw-medium mb-2" id="uploadActiveFilename">Preparing...</div>
         <div class="progress" style="height:8px;">
             <div id="uploadProgressBar" class="progress-bar" role="progressbar" style="width:0%"></div>
         </div>
-        <div class="small text-gray mt-2" id="uploadProgressText">0%</div>
+        <div class="d-flex justify-content-between align-items-center small text-gray mt-2">
+            <span id="uploadCurrentFilePct">Current file: 0%</span>
+            <span id="uploadProgressText">Overall: 0%</span>
+        </div>
     </div>
 </div>
 
@@ -1259,7 +1266,7 @@ body.theme-light .text-muted { color: var(--text-gray) !important; }
   </div>
 </div>
 
-<input type="file" id="projectUploadInput" class="d-none">
+<input type="file" id="projectUploadInput" class="d-none" multiple>
 
 <script>
     const pId = <?= $projectId ?>;
@@ -1341,6 +1348,16 @@ function openToolsModal() {
         window.open(fullUrl, '_blank', 'noopener');
     }
 
+    function escapeHtml(str) {
+        if (str === null || str === undefined) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
     // ── Upload Drag & Drop ──────────────────────────────────────────
     let uploadSelectedFiles = [];
     function uploadFilesSelected(fileList) {
@@ -1367,7 +1384,7 @@ function openToolsModal() {
             const size = f.size > 1024*1024 ? (f.size/(1024*1024)).toFixed(1)+'MB' : (f.size/1024).toFixed(0)+'KB';
             const row = document.createElement('div');
             row.style.cssText = 'display:flex;align-items:center;gap:10px;padding:8px 12px;background:var(--bg-body);border-radius:10px;border:1px solid var(--border-subtle);';
-            row.innerHTML = `<i class="fas ${icon}" style="width:18px;flex-shrink:0;"></i><span class="text-white small flex-grow-1" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${f.name}</span><span class="text-gray small flex-shrink-0">${size}</span><button type="button" onclick="removeUploadFile(${i})" style="background:none;border:none;color:var(--text-muted);cursor:pointer;padding:0 4px;font-size:0.8rem;"><i class="fas fa-times"></i></button>`;
+            row.innerHTML = `<i class="fas ${icon}" style="width:18px;flex-shrink:0;"></i><span class="text-white small flex-grow-1" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(f.name)}</span><span class="text-gray small flex-shrink-0">${size}</span><button type="button" onclick="removeUploadFile(${i})" style="background:none;border:none;color:var(--text-muted);cursor:pointer;padding:0 4px;font-size:0.8rem;"><i class="fas fa-times"></i></button>`;
             list.appendChild(row);
         });
 
@@ -1400,13 +1417,20 @@ function openToolsModal() {
         txt.textContent = '0%';
     }
 
-    function updateUploadProgress(pct) {
+    function setUploadProgressState(filename, currentPct, done, total, aggregatePct) {
+        const wrap = document.getElementById('uploadProgressWrap');
+        const count = document.getElementById('uploadProgressCount');
+        const nameEl = document.getElementById('uploadActiveFilename');
         const bar = document.getElementById('uploadProgressBar');
-        const txt = document.getElementById('uploadProgressText');
-        if (!bar || !txt) return;
-        const clamped = Math.max(0, Math.min(100, Math.round(pct)));
-        bar.style.width = clamped + '%';
-        txt.textContent = clamped + '%';
+        const currentTxt = document.getElementById('uploadCurrentFilePct');
+        const overallTxt = document.getElementById('uploadProgressText');
+        if (!wrap) return;
+        wrap.style.display = 'block';
+        if (nameEl) nameEl.textContent = filename || '';
+        if (count) count.textContent = `${done || 0} / ${total || 0}`;
+        if (currentTxt) currentTxt.textContent = `Current file: ${Math.round(currentPct || 0)}%`;
+        if (overallTxt) overallTxt.textContent = `Overall: ${Math.round(aggregatePct || 0)}%`;
+        if (bar) bar.style.width = Math.max(0, Math.min(100, aggregatePct || 0)) + '%';
     }
 
     function hideUploadProgress(delay = 1200) {
@@ -1415,26 +1439,31 @@ function openToolsModal() {
         setTimeout(() => { wrap.style.display = 'none'; }, delay);
     }
 
-    function uploadWithProgress(fd) {
+    function uploadWithProgress(fd, onProgress) {
         showUploadProgress();
         return new Promise((resolve, reject) => {
             const xhr = new XMLHttpRequest();
             xhr.open('POST', '../api/api.php', true);
             xhr.upload.addEventListener('progress', (e) => {
                 if (e.lengthComputable) {
-                    updateUploadProgress((e.loaded / e.total) * 100);
+                    if (typeof onProgress === 'function') onProgress(Math.round((e.loaded / e.total) * 100));
                 }
             });
             xhr.addEventListener('load', () => {
-                updateUploadProgress(100);
-                try {
-                    const res = JSON.parse(xhr.responseText);
-                    resolve(res);
-                } catch (err) {
-                    reject(err);
+                if (xhr.status >= 200 && xhr.status < 300) {
+                    try {
+                        const res = JSON.parse(xhr.responseText);
+                        resolve(res);
+                    } catch (err) {
+                        reject(new Error('Invalid server response'));
+                    }
+                } else {
+                    reject(new Error(`Server returned HTTP ${xhr.status}`));
                 }
             });
-            xhr.addEventListener('error', () => reject(new Error('Upload failed')));
+            xhr.addEventListener('error', () => reject(new Error('Network error during upload')));
+            xhr.addEventListener('timeout', () => reject(new Error('Upload timed out')));
+
             xhr.send(fd);
         });
     }
@@ -1466,24 +1495,51 @@ function openToolsModal() {
                 inst.hide();
             }
 
+            const MAX_FILE_SIZE = 10737418240; // 10 GB in bytes (10 * 1024 * 1024 * 1024)
             const errors = [];
+            let successCount = 0;
             const total = uploadSelectedFiles.length;
+            let completed = 0;
+
+            const updateOverallProgress = (activeName, filePct) => {
+                const base = completed / total;
+                const step = ((filePct || 0) / 100) / total;
+                const aggPct = Math.round((base + step) * 100);
+                setUploadProgressState(activeName, filePct, completed, total, aggPct);
+            };
+
+            setUploadProgressState('Preparing...', 0, 0, total, 0);
             for (let i = 0; i < uploadSelectedFiles.length; i++) {
                 const file = uploadSelectedFiles[i];
+
+                if (file.size > MAX_FILE_SIZE) {
+                    errors.push({ filename: file.name, message: 'File exceeds 10GB limit' });
+                    completed++;
+                    setUploadProgressState(file.name, 0, completed, total, Math.round((completed / total) * 100));
+                    continue;
+                }
                 const fd = new FormData();
                 fd.append('action', 'upload_file');
                 fd.append('project_id', pId);
                 if (targetFolderId) fd.append('folder_id', targetFolderId);
                 fd.append('file', file);
 
-                showUploadProgress();
-                updateUploadProgress(Math.round((i / total) * 100));
+                updateOverallProgress(file.name, 0);
 
                 try {
-                    const d = await uploadWithProgress(fd);
-                    if (d.status !== 'success') errors.push(`${file.name}: ${d.msg || 'Unknown error'}`);
+                    const d = await uploadWithProgress(fd, (pct) => {
+                        updateOverallProgress(file.name, pct);
+                    });
+                    if (d && d.status === 'success') {
+                        successCount++;
+                    } else {
+                        errors.push({ filename: file.name, message: (d && d.msg) ? d.msg : 'Unknown error' });
+                    }
                 } catch(err) {
-                    errors.push(`${file.name}: upload failed`);
+                    errors.push({ filename: file.name, message: err.message || 'upload failed' });
+                } finally {
+                    completed++;
+                    setUploadProgressState(file.name, 100, completed, total, Math.round((completed / total) * 100));
                 }
             }
 
@@ -1491,10 +1547,17 @@ function openToolsModal() {
             uploadSelectedFiles = [];
             renderUploadFileList();
 
-            if (errors.length) {
-                appAlert(`Uploaded with ${errors.length} error(s):<br><small class="text-gray">${errors.slice(0,5).join('<br>')}</small>`, 'Upload Complete', 'warning');
+            if (errors.length === 0) {
+                appAlert(`${successCount} file(s) uploaded successfully.`, 'Upload Complete', 'success');
+                setTimeout(() => location.reload(), 1200);
+            } else {
+                const formattedErrors = errors.slice(0, 6).map(e => `&bull; <strong>${escapeHtml(e.filename)}</strong>: ${escapeHtml(e.message)}`).join('<br>');
+                let msg = `Upload completed with ${errors.length} error(s):<br><small class="text-gray">${formattedErrors}</small>`;
+                if (successCount > 0) {
+                    msg += `<br><small class="text-success mt-1 d-block">${successCount} file(s) uploaded successfully.</small>`;
+                }
+                appAlert(msg, 'Upload Complete (with errors)', 'warning');
             }
-            setTimeout(() => location.reload(), 800);
         });
     }
 
