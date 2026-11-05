@@ -8,7 +8,7 @@ header('Content-Type: application/json');
 
 $userId = $_SESSION['user_id'] ?? 1;
 $userRoleRaw = $_SESSION['role'] ?? 'viewer';
-$userRole = strtolower($userRoleRaw); 
+$userRole = strtolower($userRoleRaw);
 
 $action = $_POST['action'] ?? '';
 $input = json_decode(file_get_contents('php://input'), true);
@@ -658,11 +658,19 @@ switch($action) {
         if (!canUploadToFolder($pdo, (int)$userId, $projectIdCheck, $folderIdCheck)) { echo json_encode(['status'=>'error', 'msg'=>'Access Denied']); exit; }
 
         if (!isset($_FILES['file'])) { echo json_encode(['status'=>'error', 'msg'=>'No file']); exit; }
+        if (isset($_FILES['file']['error']) && $_FILES['file']['error'] !== UPLOAD_ERR_OK) {
+            if ($_FILES['file']['error'] === UPLOAD_ERR_INI_SIZE || $_FILES['file']['error'] === UPLOAD_ERR_FORM_SIZE) {
+                echo json_encode(['status'=>'error', 'msg'=>'File exceeds 10GB limit']);
+            } else {
+                echo json_encode(['status'=>'error', 'msg'=>'Upload failed']);
+            }
+            exit;
+        }
         
-        // 3.1 Validar Tamaño (1GB = 1,073,741,824 bytes)
+        // 3.1 Validar Tamaño (10GB = 10,737,418,240 bytes)
         $maxSize = 10737418240; // 10GB
         if ($_FILES['file']['size'] > $maxSize) {
-            echo json_encode(['status'=>'error', 'msg'=>'File exceeds 10GB limit']); 
+            echo json_encode(['status'=>'error', 'msg'=>'File exceeds 10GB limit']);
             exit;
         }
 
@@ -710,10 +718,17 @@ switch($action) {
         $versionNum = (int)$next['version'];
         $versionGroup = uniqid('vgroup_');
 
-        $fileName = time() . '_' . cleanName($origName);
+        $cleanedName = cleanName($origName);
         $targetDir = __DIR__ . "/../uploads/";
         if (!file_exists($targetDir)) mkdir($targetDir, 0755, true);
-        $targetPath = $targetDir . $fileName;
+
+        do {
+            $randomEntropy = bin2hex(random_bytes(8));
+            $fileName = time() . '_' . $randomEntropy . '_' . $cleanedName;
+            $targetPath = $targetDir . $fileName;
+            $reservation = @fopen($targetPath, 'x');
+        } while ($reservation === false);
+        fclose($reservation);
         $type = $ext; // Usamos la extensión validada
         
         if(move_uploaded_file($_FILES["file"]["tmp_name"], $targetPath)){
@@ -721,7 +736,10 @@ switch($action) {
             $stmt = $pdo->prepare("INSERT INTO files (project_id, folder_id, sub_folder_id, filename, filepath, file_type, uploaded_by, version_group_id, version_number) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)");
             $stmt->execute([$projectId, $folderId, $subFolderId, $finalName, $publicPath, $type, $userId, $versionGroup, $versionNum]);
             echo json_encode(['status'=>'success']);
-        } else echo json_encode(['status'=>'error', 'msg'=>'Upload failed']);
+        } else {
+            @unlink($targetPath);
+            echo json_encode(['status'=>'error', 'msg'=>'Upload failed']);
+        }
         break;
 
     // --- 4. SOFT DELETE (PAPELERA) ---
